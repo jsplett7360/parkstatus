@@ -74,7 +74,7 @@ function combinedTally(data) {
   const t = { open: 0, partially_closed: 0, closed: 0, no_data: 0 };
   const add = (arr, mk) => (arr || []).forEach((x) => { const s = mk ? mk(x.status) : x.status; if (s in t) t[s]++; });
   add(data.parks); add(data.nyParks); add(data.caParks); add(data.txParks); add(data.mnParks);
-  add(data.usfs);
+  add(data.flParks); add(data.waParks); add(data.usfs);
   add(data.beaches, beach4);
   return t;
 }
@@ -246,6 +246,8 @@ function collectEntities(data) {
   addState(data.caParks, "ca", "California State Park");
   addState(data.txParks, "tx", "Texas State Park");
   addState(data.mnParks, "mn", "Minnesota State Park");
+  addState(data.flParks, "fl", "Florida State Park");
+  addState(data.waParks, "wa", "Washington State Park");
   addState(data.usfs, "usfs", "National Forest");
   return out;
 }
@@ -382,6 +384,8 @@ function pageHtml(e, en, updatedISO, tally) {
     : e.source === "ca" ? "View on parks.ca.gov ↗"
     : e.source === "tx" ? "View on tpwd.texas.gov ↗"
     : e.source === "mn" ? "View on dnr.state.mn.us ↗"
+    : e.source === "fl" ? "View on floridastateparks.org ↗"
+    : e.source === "wa" ? "View on parks.wa.gov ↗"
     : e.source === "usfs" ? "Forest alerts & notices ↗" : "Official page ↗";
   const overview = (en && (en.description || en.history)) || "";
   const desc = clip(`${e.name} ${STATUS_SENTENCE[e.status] || "status"}. ${e.reason || ""} ${overview}`, 300);
@@ -528,7 +532,7 @@ ${stripHtml(tally, updatedISO)}
   fetch(API,{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
     var c={open:0,partially_closed:0,closed:0,no_data:0};
     var add=function(arr,mk){(arr||[]).forEach(function(x){var s=mk?mk(x.status):x.status;if(s in c)c[s]++;});};
-    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.usfs);add(d.beaches,bmap);
+    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.flParks);add(d.waParks);add(d.usfs);add(d.beaches,bmap);
     set("s-open",c.open);set("s-partial",c.partially_closed);set("s-closed",c.closed);set("s-nodata",c.no_data);
     if(d.updated){var dt=new Date(d.updated);
       set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
@@ -605,7 +609,7 @@ ${rows}
   fetch("${API}",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
     var c={open:0,partially_closed:0,closed:0,no_data:0},set=function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
     var add=function(a,mk){(a||[]).forEach(function(x){var s=mk?mk(x.status):x.status;if(s in c)c[s]++;});};
-    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.usfs);add(d.beaches,bmap);
+    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.flParks);add(d.waParks);add(d.usfs);add(d.beaches,bmap);
     set("s-open",c.open);set("s-partial",c.partially_closed);set("s-closed",c.closed);set("s-nodata",c.no_data);
     if(d.updated){var dt=new Date(d.updated);set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
   }).catch(function(){});
@@ -913,7 +917,7 @@ ${rows}
   fetch(API,{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
     var c={open:0,partially_closed:0,closed:0,no_data:0};
     var add=function(a,mk){(a||[]).forEach(function(x){var s=mk?mk(x.status):x.status;if(s in c)c[s]++;});};
-    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.usfs);add(d.beaches,b4);
+    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.flParks);add(d.waParks);add(d.usfs);add(d.beaches,b4);
     set("s-open",c.open);set("s-partial",c.partially_closed);set("s-closed",c.closed);set("s-nodata",c.no_data);
     if(d.updated){var dt=new Date(d.updated);set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
     var lt={open:0,partially_closed:0,closed:0,no_data:0};
@@ -1008,7 +1012,7 @@ ${cards}
   fetch("${API}",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
     var c={open:0,partially_closed:0,closed:0,no_data:0},set=function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
     var add=function(a,mk){(a||[]).forEach(function(x){var s=mk?mk(x.status):x.status;if(s in c)c[s]++;});};
-    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.usfs);add(d.beaches,b4);
+    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.flParks);add(d.waParks);add(d.usfs);add(d.beaches,b4);
     set("s-open",c.open);set("s-partial",c.partially_closed);set("s-closed",c.closed);set("s-nodata",c.no_data);
     if(d.updated){var dt=new Date(d.updated);set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
   }).catch(function(){});

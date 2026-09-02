@@ -140,6 +140,8 @@ function deriveBeachReason(b) {
 }
 
 const CRAWL_UA = "ParkStatusToday/1.0 (+https://parkstatus.today; hourly polling, contact via site)";
+const slugify = s => String(s).normalize("NFKD").replace(/[̀-ͯ]/g, "")
+  .toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
 async function fetchNYBeaches() {
   const r = await fetch(NY_BEACH_API, { headers: { "User-Agent": CRAWL_UA } });
@@ -297,11 +299,12 @@ async function fetchNYStateParks() {
 // returns raw GeoJSON features. Reused per state — pass a `map` fn to shape.
 //   fetchArcGIS(layerUrl, { where, outFields, apiKey, pageSize })
 async function fetchArcGIS(layerUrl, opts = {}) {
-  const { where = "1=1", outFields = "*", apiKey, pageSize = 1000 } = opts;
+  const { where = "1=1", outFields = "*", apiKey, pageSize = 1000,
+          returnGeometry = "true", f = "geojson" } = opts;
   const out = [];
   for (let offset = 0; ; offset += pageSize) {
     const p = new URLSearchParams({
-      where, outFields, f: "geojson", returnGeometry: "true", outSR: "4326",
+      where, outFields, f, returnGeometry: String(returnGeometry), outSR: "4326",
       resultRecordCount: String(pageSize), resultOffset: String(offset),
     });
     if (apiKey) p.set("token", apiKey);
@@ -395,6 +398,151 @@ async function fetchCAStateParks(env) {
   });
   const parks = normalizeCAParks(feats);
   return parks.length ? parks : null;
+}
+
+// ===================== Florida state parks (FDEP) =========================
+// FDEP's Park Operational Status system. The day-use layer carries PARK_STATUS
+// per park; the campground layer is edited more often, so a disaster-related
+// campground closure ("Closed-Hurricane/Tropical Storm", flooding, wildfire)
+// bumps an otherwise-"Open" park to partially_closed as a backstop.
+const FL_DAYUSE_URL = "https://services1.arcgis.com/nRHtyn3uE1kyzoYc/arcgis/rest/services/State_Parks_Day_Use_and_Campgrounds_Status/FeatureServer/1";
+const FL_CAMP_URL = "https://services1.arcgis.com/nRHtyn3uE1kyzoYc/arcgis/rest/services/State_Parks_Day_Use_and_Campgrounds_Status/FeatureServer/0";
+const FL_DISASTER = /hurricane|tropical|storm|flood|wildfire|\bfire\b|surge|weather/i;
+const FL_CONSTRUCTION = /construction|repair|renovation|maintenance|improvement/i;
+
+const flHref = h => { const m = /href="([^"]+)"/i.exec(h || ""); return m ? m[1] : null; };
+function flStatus(s) {
+  const v = String(s || "").trim();
+  if (/^open/i.test(v) || !v) return "open";
+  if (/partial/i.test(v)) return "partially_closed";
+  if (/closed/i.test(v)) return "closed";
+  return "open";
+}
+
+async function fetchFLStateParks() {
+  const [dayFeats, campFeats] = await Promise.all([
+    fetchArcGIS(FL_DAYUSE_URL, { outFields: "SITE_NAME,PARK_STATUS,CABIN_STATUS,COMMENTS,COUNTY,HYPERLINK,LAST_EDITED_DATE" }),
+    fetchArcGIS(FL_CAMP_URL, {
+      where: "CAMPGROUND_STATUS NOT LIKE 'Open%' AND CAMPGROUND_STATUS <> 'No Campground'",
+      outFields: "SITE_NAME,CAMP_NAME,CAMPGROUND_STATUS,CAMP_OPEN_DATE", returnGeometry: "false",
+    }).catch(() => []),
+  ]);
+  const campBySite = {};
+  for (const f of campFeats) {
+    const a = f.properties || {};
+    (campBySite[a.SITE_NAME] ||= []).push(a);
+  }
+
+  const rows = [];
+  for (const f of dayFeats) {
+    const a = f.properties || {};
+    const coords = f.geometry && f.geometry.coordinates;
+    if (!a.SITE_NAME || !coords || coords.length < 2) continue;
+    const [lon, lat] = coords;
+
+    let status = flStatus(a.PARK_STATUS);
+    let reason;
+    const comment = String(a.COMMENTS || "").replace(/\s+/g, " ").trim();
+    const camps = campBySite[a.SITE_NAME] || [];
+    const disasterCamps = camps.filter(c => FL_DISASTER.test(c.CAMPGROUND_STATUS) && !FL_CONSTRUCTION.test(c.CAMPGROUND_STATUS));
+    const tags = camps.map(c => `${(c.CAMP_NAME && c.CAMP_NAME !== " ") ? c.CAMP_NAME + " campground" : "Campground"}: ${String(c.CAMPGROUND_STATUS).replace(/^Closed-/, "closed — ")}`
+      + (c.CAMP_OPEN_DATE && c.CAMP_OPEN_DATE.trim() ? ` (reopens ${c.CAMP_OPEN_DATE.trim()})` : ""));
+
+    if (status !== "open") {
+      reason = comment || (status === "closed" ? "Park closed — see Florida State Parks." : "Partial closure in effect.");
+    } else if (disasterCamps.length) {
+      status = "partially_closed";
+      reason = `Campground closed — ${String(disasterCamps[0].CAMPGROUND_STATUS).replace(/^Closed-/, "")}. Day-use areas reported open.`;
+    } else if (comment) {
+      reason = comment;
+    } else {
+      reason = "No closures reported by Florida State Parks.";
+    }
+
+    rows.push({
+      id: "flsp-" + slugify(a.SITE_NAME),
+      name: a.SITE_NAME, state: "FL",
+      county: a.COUNTY ? String(a.COUNTY).trim() : null,
+      lat, lon, status, reason,
+      tags,
+      url: flHref(a.HYPERLINK) || "https://www.floridastateparks.org/",
+      source: "fl-state-parks",
+    });
+  }
+  return rows.length ? rows : null;
+}
+
+// ===================== Washington state parks (WSPRC) =====================
+// No feed. parks.wa.gov/about/news-announcements/alerts is a Drupal Views page
+// that groups alerts into a per-park <div class="accordion" id="accordion-<slug>">
+// each holding <h3> alert-type headers. We take the park list (with entrance
+// coords) from the WA State Park Boundaries layer and overlay the scraped alerts.
+const WA_BOUNDARIES = "https://services5.arcgis.com/4LKAHwqnBooVDUlX/arcgis/rest/services/WA_State_Park_Boundaries/FeatureServer/0";
+const WA_ALERTS_URL = "https://parks.wa.gov/about/news-announcements/alerts";
+const WA_CATEGORIES = new Set(["State Park", "Marine State Park", "Historical State Park", "State Park Conservation Area"]);
+
+function deriveWAPark(h3s) {
+  // h3s: WA alert-type headings for one park. "Part of the Park is Closed" and
+  // "Park is Completely Closed" are their category labels — check partial first
+  // so "Part of the Park…" doesn't get read as a full closure.
+  const types = h3s.map(s => s.replace(/\s+/g, " ").trim());
+  const has = re => types.find(t => re.test(t));
+  const partial = has(/part of the park is closed|partial closure|water closure|area (is )?closed|road (is )?closed|trail (is )?closed|campground (is )?closed|closed to (swimming|the public in part)/i);
+  if (partial) return { status: "partially_closed", reason: partial };
+  const full = has(/park is completely closed|completely closed to the public|full park closure/i);
+  if (full) return { status: "closed", reason: full };
+  const advisory = types.find(t => !/^burn ban/i.test(t)) || types[0];
+  return { status: "open", reason: advisory ? `Advisory: ${advisory}` : "No closures reported by Washington State Parks." };
+}
+
+async function scrapeWAAlerts() {
+  const r = await fetch(WA_ALERTS_URL, { headers: { "User-Agent": CRAWL_UA } });
+  if (!r.ok) throw new Error("wa alerts " + r.status);
+  const html = await r.text();
+  const bySlug = {};
+  // each park section: <div class="accordion" id="accordion-<slug>"> ... </div> up to the next accordion
+  const re = /id="accordion-([a-z0-9-]+)"[^>]*>([\s\S]*?)(?=id="accordion-[a-z0-9-]+"|<\/main>|id="block-)/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    const slug = m[1].replace(/-heading$|-body$/, "");
+    const h3s = [...m[2].matchAll(/<h3>([^<]{2,120})<\/h3>/gi)].map(x => x[1]);
+    if (!h3s.length) continue;
+    (bySlug[slug] ||= []).push(...h3s);
+  }
+  return bySlug;
+}
+
+async function fetchWAStateParks() {
+  const [feats, alerts] = await Promise.all([
+    fetchArcGIS(WA_BOUNDARIES, {
+      outFields: "ParkName,ParkCode,Category,WebPage,Lat_Entran,Long_Entra", returnGeometry: "false",
+    }),
+    scrapeWAAlerts().catch(e => { console.error("wa alerts scrape failed:", e); return {}; }),
+  ]);
+  const seen = new Set();
+  const rows = [];
+  for (const f of feats) {
+    const a = f.properties || {};
+    const name = String(a.ParkName || "").trim();
+    const lat = Number(a.Lat_Entran), lon = Number(a.Long_Entra);
+    if (!name || !WA_CATEGORIES.has(a.Category) || !isFinite(lat) || !isFinite(lon)) continue;
+    const slug = slugify(name + "-state-park");
+    if (seen.has(slug)) continue;
+    seen.add(slug);
+    const h3s = alerts[slug] || alerts[slugify(name)] || [];
+    const d = h3s.length ? deriveWAPark(h3s) : { status: "open", reason: "No closures reported by Washington State Parks." };
+    rows.push({
+      id: "wasp-" + (a.ParkCode || slug),
+      name, state: "WA",
+      lat, lon,
+      status: d.status, reason: d.reason,
+      tags: h3s.map(s => s.replace(/\s+/g, " ").trim()),
+      alertCount: h3s.length,
+      url: a.WebPage || "https://parks.wa.gov/",
+      source: "wa-state-parks",
+    });
+  }
+  return rows.length ? rows : null;
 }
 
 // ===================== Texas state parks (TPWD) ===========================
@@ -734,7 +882,7 @@ async function get(endpoint, key, params = {}) {
 
 async function rebuild(env, { notify = false } = {}) {
   const key = env.NPS_API_KEY;
-  const [alerts, parks, beaches, nyParks, caParks, txParks, mnParks, usfs] = await Promise.all([
+  const [alerts, parks, beaches, nyParks, caParks, txParks, mnParks, flParks, waParks, usfs] = await Promise.all([
     get("alerts", key),
     get("parks", key, { fields: "operatingHours,latLong,designation,states,url" }),
     fetchNYBeaches().catch(e => { console.error("ny-beaches fetch failed:", e); return null; }),
@@ -742,6 +890,8 @@ async function rebuild(env, { notify = false } = {}) {
     fetchCAStateParks(env).catch(e => { console.error("ca-parks fetch failed:", e); return null; }),
     fetchTXStateParks().catch(e => { console.error("tx-parks fetch failed:", e); return null; }),
     fetchMNStateParks().catch(e => { console.error("mn-parks fetch failed:", e); return null; }),
+    fetchFLStateParks().catch(e => { console.error("fl-parks fetch failed:", e); return null; }),
+    fetchWAStateParks().catch(e => { console.error("wa-parks fetch failed:", e); return null; }),
     fetchUSFSForests(env).catch(e => { console.error("usfs fetch failed:", e); return null; }),
   ]);
   const byPark = {};
@@ -801,15 +951,20 @@ async function rebuild(env, { notify = false } = {}) {
   };
   const [txParksOut, txParkStale] = withFallback(txParks, "txParks");
   const [mnParksOut, mnParkStale] = withFallback(mnParks, "mnParks");
+  const [flParksOut, flParkStale] = withFallback(flParks, "flParks");
+  const [waParksOut, waParkStale] = withFallback(waParks, "waParks");
   const [usfsOut, usfsStale] = withFallback(usfs, "usfs");
   const tally3 = list => { const t = { open: 0, partially_closed: 0, closed: 0 }; for (const p of list) t[p.status] = (t[p.status] || 0) + 1; return t; };
   const txParkTally = tally3(txParksOut);
   const mnParkTally = tally3(mnParksOut);
+  const flParkTally = tally3(flParksOut);
+  const waParkTally = tally3(waParksOut);
   const usfsTally = tally3(usfsOut);
 
   // ---- unified status-change diff across every source (drives notifications) ----
   const nowIndex = indexEntities({ parks: parksOut, nyParks: nyParksOut, caParks: caParksOut,
-    txParks: txParksOut, mnParks: mnParksOut, usfs: usfsOut, beaches: beachesOut });
+    txParks: txParksOut, mnParks: mnParksOut, flParks: flParksOut, waParks: waParksOut,
+    usfs: usfsOut, beaches: beachesOut });
   let changes = [];
   try {
     const prevIndex = indexEntities(prevRaw ? JSON.parse(prevRaw) : {});
@@ -829,6 +984,8 @@ async function rebuild(env, { notify = false } = {}) {
     caParkTally, caParks: caParksOut, caParkStale,
     txParkTally, txParks: txParksOut, txParkStale,
     mnParkTally, mnParks: mnParksOut, mnParkStale,
+    flParkTally, flParks: flParksOut, flParkStale,
+    waParkTally, waParks: waParksOut, waParkStale,
     usfsTally, usfs: usfsOut, usfsStale,
   }));
 
@@ -840,6 +997,8 @@ async function rebuild(env, { notify = false } = {}) {
     caParkTally, caParkCount: caParksOut.length, caParkStale,
     txParkTally, txParkCount: txParksOut.length, txParkStale,
     mnParkTally, mnParkCount: mnParksOut.length, mnParkStale,
+    flParkTally, flParkCount: flParksOut.length, flParkStale,
+    waParkTally, waParkCount: waParksOut.length, waParkStale,
     usfsTally, usfsCount: usfsOut.length, usfsStale };
 }
 
@@ -920,6 +1079,8 @@ function indexEntities(b) {
   add(b.caParks, "", e => e.name);
   add(b.txParks, "", e => e.name);
   add(b.mnParks, "", e => e.name);
+  add(b.flParks, "", e => e.name);
+  add(b.waParks, "", e => e.name);
   add(b.usfs, "", e => e.name);
   add(b.beaches, "", e => e.name, mapBeachStatus);
   return m;

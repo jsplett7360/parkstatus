@@ -350,6 +350,8 @@
       <div class="src-item"><span class="hdot" id="hdot-c"></span><div><b>CA State Parks · ArcGIS status layer</b><span id="src-casp">Connecting…</span></div></div>
       <div class="src-item"><span class="hdot" id="hdot-t"></span><div><b>TX State Parks · tpwd.texas.gov</b><span id="src-txsp">Connecting…</span></div></div>
       <div class="src-item"><span class="hdot" id="hdot-m"></span><div><b>MN State Parks · MN DNR</b><span id="src-mnsp">Connecting…</span></div></div>
+      <div class="src-item"><span class="hdot" id="hdot-f"></span><div><b>FL State Parks · FDEP operational status</b><span id="src-flsp">Connecting…</span></div></div>
+      <div class="src-item"><span class="hdot" id="hdot-w"></span><div><b>WA State Parks · parks.wa.gov alerts</b><span id="src-wasp">Connecting…</span></div></div>
       <div class="src-item"><span class="hdot" id="hdot-u"></span><div><b>National Forests · NIFC wildfire perimeters</b><span id="src-usfs">Connecting…</span></div></div>
     </div>
   </div>
@@ -477,9 +479,9 @@ const BEACH_SHORT = {open:"b-open", partially_closed:"b-advisory", closed:"b-clo
 
 const filter = { statuses:new Set(["open","partially_closed","closed","no_data"]) };
 
-let PARKS=[], BEACHES=[], NYPARKS=[], CAPARKS=[], TXPARKS=[], MNPARKS=[], USFORESTS=[];
-let map, parkCluster, beachCluster, nyCluster, caCluster, txCluster, mnCluster, usfsCluster;
-let parkMarkers=[], beachMarkers=[], nyMarkers=[], caMarkers=[], txMarkers=[], mnMarkers=[], usfsMarkers=[], selEl=null;
+let PARKS=[], BEACHES=[], NYPARKS=[], CAPARKS=[], TXPARKS=[], MNPARKS=[], FLPARKS=[], WAPARKS=[], USFORESTS=[];
+let map, parkCluster, beachCluster, nyCluster, caCluster, txCluster, mnCluster, flCluster, waCluster, usfsCluster;
+let parkMarkers=[], beachMarkers=[], nyMarkers=[], caMarkers=[], txMarkers=[], mnMarkers=[], flMarkers=[], waMarkers=[], usfsMarkers=[], selEl=null;
 
 function slugify(s){
   return String(s).normalize("NFKD").replace(/[̀-ͯ]/g,"")
@@ -499,8 +501,8 @@ async function boot(){
     payload = await fetch(API_URL).then(r=>r.json());
   }catch(e){
     document.getElementById("loading").textContent="Couldn't reach the status service. Refresh to try again.";
-    ["src-alerts","src-parks","src-beaches","src-nysp","src-casp","src-txsp","src-mnsp","src-usfs"].forEach(id=>t3(id,"Unreachable"));
-    ["hdot-a","hdot-p","hdot-b","hdot-n","hdot-c","hdot-t","hdot-m","hdot-u"].forEach(id=>document.getElementById(id).classList.add("stale"));
+    ["src-alerts","src-parks","src-beaches","src-nysp","src-casp","src-txsp","src-mnsp","src-flsp","src-wasp","src-usfs"].forEach(id=>t3(id,"Unreachable"));
+    ["hdot-a","hdot-p","hdot-b","hdot-n","hdot-c","hdot-t","hdot-m","hdot-f","hdot-w","hdot-u"].forEach(id=>document.getElementById(id)&&document.getElementById(id).classList.add("stale"));
     return;
   }
   PARKS = (payload.parks||[]).map(p=>({...p, slug:slugify(p.fullName)}));
@@ -509,6 +511,8 @@ async function boot(){
   CAPARKS = payload.caParks || [];
   TXPARKS = payload.txParks || [];
   MNPARKS = payload.mnParks || [];
+  FLPARKS = payload.flParks || [];
+  WAPARKS = payload.waParks || [];
   USFORESTS = payload.usfs || [];
   fetch("/parks-enriched.json",{cache:"force-cache"}).then(r=>r.json()).then(d=>{ ENRICH=d||{}; if(CUR) renderExtra(CUR.id); }).catch(()=>{});
 
@@ -522,6 +526,8 @@ async function boot(){
   t3("src-casp", payload.caParkStale ? "Stale — showing last known status" : (src + " · " + CAPARKS.length + " CA units"));
   t3("src-txsp", payload.txParkStale ? "Stale — showing last known status" : (src + " · " + TXPARKS.length + " TX parks"));
   t3("src-mnsp", payload.mnParkStale ? "Stale — showing last known status" : (src + " · " + MNPARKS.length + " MN parks"));
+  t3("src-flsp", payload.flParkStale ? "Stale — showing last known status" : (src + " · " + FLPARKS.length + " FL parks"));
+  t3("src-wasp", payload.waParkStale ? "Stale — showing last known status" : (src + " · " + WAPARKS.length + " WA parks"));
   t3("src-usfs", payload.usfsStale ? "Stale — showing last known status" : (src + " · " + USFORESTS.length + " national forests"));
   const stale = (Date.now() - new Date(payload.updated).getTime()) > 3*3600*1000;
   if(stale){ document.getElementById("hdot-a").classList.add("stale"); document.getElementById("hdot-p").classList.add("stale"); }
@@ -530,6 +536,8 @@ async function boot(){
   if(stale || payload.caParkStale){ document.getElementById("hdot-c").classList.add("stale"); }
   if(stale || payload.txParkStale){ document.getElementById("hdot-t").classList.add("stale"); }
   if(stale || payload.mnParkStale){ document.getElementById("hdot-m").classList.add("stale"); }
+  if(stale || payload.flParkStale){ const d=document.getElementById("hdot-f"); if(d) d.classList.add("stale"); }
+  if(stale || payload.waParkStale){ const d=document.getElementById("hdot-w"); if(d) d.classList.add("stale"); }
   if(stale || payload.usfsStale){ document.getElementById("hdot-u").classList.add("stale"); }
 
   drawMap();
@@ -542,7 +550,7 @@ const uStatus = e => e && e.__beach ? beachMap(e.status) : (e ? e.status : "open
 
 function everyEntity(){
   return [
-    ...PARKS, ...NYPARKS, ...CAPARKS, ...TXPARKS, ...MNPARKS, ...USFORESTS,
+    ...PARKS, ...NYPARKS, ...CAPARKS, ...TXPARKS, ...MNPARKS, ...FLPARKS, ...WAPARKS, ...USFORESTS,
     ...BEACHES.map(b=>({ ...b, __beach:true })),
   ];
 }
@@ -602,6 +610,10 @@ function drawMap(){
     showCoverageOnHover:false, iconCreateFunction:clusterIconFn("txsp") });
   mnCluster    = L.markerClusterGroup({ maxClusterRadius:46, chunkedLoading:true,
     showCoverageOnHover:false, iconCreateFunction:clusterIconFn("mnsp") });
+  flCluster    = L.markerClusterGroup({ maxClusterRadius:46, chunkedLoading:true,
+    showCoverageOnHover:false, iconCreateFunction:clusterIconFn("nysp") });
+  waCluster    = L.markerClusterGroup({ maxClusterRadius:46, chunkedLoading:true,
+    showCoverageOnHover:false, iconCreateFunction:clusterIconFn("nysp") });
   usfsCluster  = L.markerClusterGroup({ maxClusterRadius:46, chunkedLoading:true,
     showCoverageOnHover:false, iconCreateFunction:clusterIconFn("nysp") });
 
@@ -653,6 +665,8 @@ function drawMap(){
   });
   txMarkers = stateMarkers(TXPARKS, openTXDetail);
   mnMarkers = stateMarkers(MNPARKS, openMNDetail);
+  flMarkers = stateMarkers(FLPARKS, openFLDetail);
+  waMarkers = stateMarkers(WAPARKS, openWADetail);
   usfsMarkers = stateMarkers(USFORESTS, openUSFSDetail);
 
   map.addLayer(parkCluster);
@@ -661,6 +675,8 @@ function drawMap(){
   map.addLayer(caCluster);
   map.addLayer(txCluster);
   map.addLayer(mnCluster);
+  map.addLayer(flCluster);
+  map.addLayer(waCluster);
   map.addLayer(usfsCluster);
   applyFilters();
 
@@ -674,7 +690,8 @@ function applyFilters(){
   const showBeach = ({b}) => filter.statuses.has(beachMap(b.status));
   [[parkCluster,parkMarkers,showPark],[nyCluster,nyMarkers,showPark],
    [caCluster,caMarkers,showPark],[txCluster,txMarkers,showPark],
-   [mnCluster,mnMarkers,showPark],[usfsCluster,usfsMarkers,showPark],
+   [mnCluster,mnMarkers,showPark],[flCluster,flMarkers,showPark],
+   [waCluster,waMarkers,showPark],[usfsCluster,usfsMarkers,showPark],
    [beachCluster,beachMarkers,showBeach]
   ].forEach(([cl,mk,test])=>{
     cl.clearLayers();
@@ -722,6 +739,16 @@ function focusUSFS(p){
   if(!rec || !map) return;
   usfsCluster.zoomToShowLayer(rec.m, ()=>{ const el=rec.m.getElement(); if(el) markSel(el); });
 }
+function focusFL(p){
+  const rec = flMarkers.find(x=>x.p.id===p.id);
+  if(!rec || !map) return;
+  flCluster.zoomToShowLayer(rec.m, ()=>{ const el=rec.m.getElement(); if(el) markSel(el); });
+}
+function focusWA(p){
+  const rec = waMarkers.find(x=>x.p.id===p.id);
+  if(!rec || !map) return;
+  waCluster.zoomToShowLayer(rec.m, ()=>{ const el=rec.m.getElement(); if(el) markSel(el); });
+}
 
 function haversineMi(la1,lo1,la2,lo2){
   const R=3958.8,r=Math.PI/180;
@@ -743,6 +770,8 @@ function searchIndex(){
   add(CAPARKS,"· CA","CA", e=>e.status, e=>e.id, focusCA, openCADetail);
   add(TXPARKS,"· TX","TX", e=>e.status, e=>e.id, focusTX, openTXDetail);
   add(MNPARKS,"· MN","MN", e=>e.status, e=>e.id, focusMN, openMNDetail);
+  add(FLPARKS,"· FL","FL", e=>e.status, e=>e.id, focusFL, openFLDetail);
+  add(WAPARKS,"· WA","WA", e=>e.status, e=>e.id, focusWA, openWADetail);
   add(USFORESTS,"· National Forest","", e=>e.status, e=>e.id, focusUSFS, openUSFSDetail);
   add(BEACHES,"(beach)","NY", e=>beachMap(e.status), e=>e.id, focusBeach, openBeachDetail);
   return rows;
@@ -946,6 +975,8 @@ function openStateParkDetail(p, label, linkText, linkFallback){
 const openNYDetail = p => openStateParkDetail(p, "New York State Park", "View on parks.ny.gov ↗", "https://parks.ny.gov/visit/state-parks");
 const openTXDetail = p => openStateParkDetail(p, "Texas State Park", "View on tpwd.texas.gov ↗", "https://tpwd.texas.gov/state-parks");
 const openMNDetail = p => openStateParkDetail(p, "Minnesota State Park", "View on dnr.state.mn.us ↗", "https://www.dnr.state.mn.us/state_parks");
+const openFLDetail = p => openStateParkDetail(p, "Florida State Park", "View on floridastateparks.org ↗", "https://www.floridastateparks.org/");
+const openWADetail = p => openStateParkDetail(p, "Washington State Park", "View on parks.wa.gov ↗", "https://parks.wa.gov/");
 const openUSFSDetail = p => openStateParkDetail(p, "National Forest", "Forest alerts & notices ↗", "https://www.fs.usda.gov/visit/forests");
 
 function openCADetail(p){
