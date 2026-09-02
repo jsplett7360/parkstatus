@@ -635,6 +635,89 @@ async function fetchMNStateParks() {
   return parks.length ? parks : null;
 }
 
+// ===================== National Forests (wildfire proximity) ==============
+// forests.json (simplified footprints, built daily by build-parks.js) + NIFC
+// WFIGS current fire perimeters. A forest whose footprint a live fire perimeter
+// falls in or touches is "partially closed"; otherwise "open". We never mark a
+// forest fully "closed" from fire proximity alone.
+const WFIGS_PERIMETERS =
+  "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query";
+
+function bboxHit(a, b) { return !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]); }
+function pointInRing(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+function ringsBox(rings) {
+  let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+  for (const r of rings) for (const [x, y] of r) { if (x < w) w = x; if (x > e) e = x; if (y < s) s = y; if (y > n) n = y; }
+  return [w, s, e, n];
+}
+// Cheap "do these two ring-sets overlap": any vertex of one inside the other.
+function ringsOverlap(a, b) {
+  for (const r of b) for (const [x, y] of r) if (a.some(ar => pointInRing(x, y, ar))) return true;
+  for (const r of a) for (const [x, y] of r) if (b.some(br => pointInRing(x, y, br))) return true;
+  return false;
+}
+
+async function fetchUSFSForests(env) {
+  const [fRes, pRes] = await Promise.all([
+    fetch(SITE + "/forests.json", { cf: { cacheTtl: 3600, cacheEverything: true } }),
+    fetch(WFIGS_PERIMETERS + "?" + new URLSearchParams({
+      where: "attr_IncidentSize >= 1000 AND attr_FireOutDateTime IS NULL AND (attr_PercentContained < 100 OR attr_PercentContained IS NULL)",
+      outFields: "attr_IncidentName,poly_IncidentName,attr_IncidentSize,attr_PercentContained",
+      returnGeometry: "true", geometryPrecision: "3", maxAllowableOffset: "0.01", outSR: "4326", f: "geojson",
+    })),
+  ]);
+  if (!fRes.ok) throw new Error("forests.json " + fRes.status);
+  const { forests } = await fRes.json();
+  if (!Array.isArray(forests) || !forests.length) throw new Error("forests.json empty");
+
+  let fires = [];
+  try {
+    const gj = await pRes.json();
+    fires = (gj.features || []).map(ft => {
+      const g = ft.geometry || {};
+      const rings = g.type === "Polygon" ? [g.coordinates[0]]
+        : g.type === "MultiPolygon" ? g.coordinates.map(p => p[0]) : [];
+      if (!rings.length) return null;
+      const p = ft.properties || {};
+      return {
+        name: (p.attr_IncidentName || p.poly_IncidentName || "Unnamed fire").trim(),
+        acres: Math.round(p.attr_IncidentSize || 0),
+        contained: p.attr_PercentContained == null ? null : Math.round(p.attr_PercentContained),
+        rings, bbox: ringsBox(rings),
+      };
+    }).filter(Boolean);
+  } catch (e) { console.error("WFIGS perimeters fetch failed:", e); }
+
+  const activeAcres = fire => fire.acres * (1 - (fire.contained || 0) / 100);
+  return forests.map(f => {
+    const hits = fires.filter(fire => bboxHit(f.bbox, fire.bbox) && ringsOverlap(f.polys, fire.rings))
+      .sort((a, b) => activeAcres(b) - activeAcres(a));
+    let status = "open", reason;
+    if (hits.length) {
+      status = "partially_closed";
+      const lead = hits[0];
+      const c = lead.contained == null ? "" : `, ${lead.contained}% contained`;
+      reason = `Active wildfire in or next to this forest: ${lead.name} (${lead.acres.toLocaleString()} acres${c})`
+        + (hits.length > 1 ? `; +${hits.length - 1} more nearby` : "")
+        + ". Area, road, and trail closures are likely — check the forest's alerts & notices page.";
+    } else {
+      reason = "No active large wildfire in or adjacent to this forest. Seasonal road, trail, and area closures may still apply — see the forest's alerts & notices page.";
+    }
+    return {
+      id: f.id, name: f.name, source: "usfs", region: f.region, acres: f.acres,
+      lat: f.lat, lon: f.lon, url: f.url || "https://www.fs.usda.gov/visit/forests", status, reason,
+      fires: hits.map(h => ({ name: h.name, acres: h.acres, contained: h.contained })),
+    };
+  });
+}
+
 async function get(endpoint, key, params = {}) {
   const out = []; let start = 0; const limit = 500;
   for (;;) {
@@ -651,7 +734,7 @@ async function get(endpoint, key, params = {}) {
 
 async function rebuild(env, { notify = false } = {}) {
   const key = env.NPS_API_KEY;
-  const [alerts, parks, beaches, nyParks, caParks, txParks, mnParks] = await Promise.all([
+  const [alerts, parks, beaches, nyParks, caParks, txParks, mnParks, usfs] = await Promise.all([
     get("alerts", key),
     get("parks", key, { fields: "operatingHours,latLong,designation,states,url" }),
     fetchNYBeaches().catch(e => { console.error("ny-beaches fetch failed:", e); return null; }),
@@ -659,6 +742,7 @@ async function rebuild(env, { notify = false } = {}) {
     fetchCAStateParks(env).catch(e => { console.error("ca-parks fetch failed:", e); return null; }),
     fetchTXStateParks().catch(e => { console.error("tx-parks fetch failed:", e); return null; }),
     fetchMNStateParks().catch(e => { console.error("mn-parks fetch failed:", e); return null; }),
+    fetchUSFSForests(env).catch(e => { console.error("usfs fetch failed:", e); return null; }),
   ]);
   const byPark = {};
   for (const a of alerts) (byPark[a.parkCode || ""] ||= []).push(a);
@@ -717,13 +801,15 @@ async function rebuild(env, { notify = false } = {}) {
   };
   const [txParksOut, txParkStale] = withFallback(txParks, "txParks");
   const [mnParksOut, mnParkStale] = withFallback(mnParks, "mnParks");
+  const [usfsOut, usfsStale] = withFallback(usfs, "usfs");
   const tally3 = list => { const t = { open: 0, partially_closed: 0, closed: 0 }; for (const p of list) t[p.status] = (t[p.status] || 0) + 1; return t; };
   const txParkTally = tally3(txParksOut);
   const mnParkTally = tally3(mnParksOut);
+  const usfsTally = tally3(usfsOut);
 
   // ---- unified status-change diff across every source (drives notifications) ----
   const nowIndex = indexEntities({ parks: parksOut, nyParks: nyParksOut, caParks: caParksOut,
-    txParks: txParksOut, mnParks: mnParksOut, beaches: beachesOut });
+    txParks: txParksOut, mnParks: mnParksOut, usfs: usfsOut, beaches: beachesOut });
   let changes = [];
   try {
     const prevIndex = indexEntities(prevRaw ? JSON.parse(prevRaw) : {});
@@ -743,6 +829,7 @@ async function rebuild(env, { notify = false } = {}) {
     caParkTally, caParks: caParksOut, caParkStale,
     txParkTally, txParks: txParksOut, txParkStale,
     mnParkTally, mnParks: mnParksOut, mnParkStale,
+    usfsTally, usfs: usfsOut, usfsStale,
   }));
 
   if (notify && changes.length) await notifyChanges(env, changes);
@@ -752,7 +839,8 @@ async function rebuild(env, { notify = false } = {}) {
     nyParkTally, nyParkCount: nyParksOut.length, nyParkStale,
     caParkTally, caParkCount: caParksOut.length, caParkStale,
     txParkTally, txParkCount: txParksOut.length, txParkStale,
-    mnParkTally, mnParkCount: mnParksOut.length, mnParkStale };
+    mnParkTally, mnParkCount: mnParksOut.length, mnParkStale,
+    usfsTally, usfsCount: usfsOut.length, usfsStale };
 }
 
 // ===================== IndexNow ===========================================
@@ -832,6 +920,7 @@ function indexEntities(b) {
   add(b.caParks, "", e => e.name);
   add(b.txParks, "", e => e.name);
   add(b.mnParks, "", e => e.name);
+  add(b.usfs, "", e => e.name);
   add(b.beaches, "", e => e.name, mapBeachStatus);
   return m;
 }

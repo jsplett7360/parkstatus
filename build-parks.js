@@ -74,6 +74,7 @@ function combinedTally(data) {
   const t = { open: 0, partially_closed: 0, closed: 0, no_data: 0 };
   const add = (arr, mk) => (arr || []).forEach((x) => { const s = mk ? mk(x.status) : x.status; if (s in t) t[s]++; });
   add(data.parks); add(data.nyParks); add(data.caParks); add(data.txParks); add(data.mnParks);
+  add(data.usfs);
   add(data.beaches, beach4);
   return t;
 }
@@ -245,7 +246,112 @@ function collectEntities(data) {
   addState(data.caParks, "ca", "California State Park");
   addState(data.txParks, "tx", "Texas State Park");
   addState(data.mnParks, "mn", "Minnesota State Park");
+  addState(data.usfs, "usfs", "National Forest");
   return out;
+}
+
+// ===================== national forest boundaries =========================
+// Build forests.json: one simplified footprint per National Forest, used by the
+// Worker to test whether an active wildfire perimeter falls in/near the forest.
+// USFS EDW geometry is heavily fragmented (thousands of tiny inholding parcels),
+// so we drop small sub-polygons and Douglas-Peucker each kept ring.
+const FS_BOUNDARIES = "https://apps.fs.usda.gov/arcx/rest/services/EDW/EDW_ForestSystemBoundaries_01/MapServer/0/query";
+
+function ringArea(r) { // signed area (shoelace), degrees^2 — magnitude only used for ranking
+  let a = 0;
+  for (let i = 0, j = r.length - 1; i < r.length; j = i++) a += (r[j][0] * r[i][1]) - (r[i][0] * r[j][1]);
+  return Math.abs(a) / 2;
+}
+function bboxOf(pts) {
+  let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+  for (const [x, y] of pts) { if (x < w) w = x; if (x > e) e = x; if (y < s) s = y; if (y > n) n = y; }
+  return [w, s, e, n];
+}
+function dp(ring, tol) { // Douglas-Peucker on a closed ring (lon/lat degrees)
+  if (ring.length < 5) return ring;
+  const keep = new Uint8Array(ring.length); keep[0] = keep[ring.length - 1] = 1;
+  const stack = [[0, ring.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    let far = 0, idx = -1;
+    const [ax, ay] = ring[a], [bx, by] = ring[b];
+    const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy || 1e-12;
+    for (let i = a + 1; i < b; i++) {
+      const [px, py] = ring[i];
+      const t = ((px - ax) * dx + (py - ay) * dy) / len2;
+      const cx = ax + t * dx, cy = ay + t * dy;
+      const d = (px - cx) ** 2 + (py - cy) ** 2;
+      if (d > far) { far = d; idx = i; }
+    }
+    if (idx !== -1 && far > tol * tol) { keep[idx] = 1; stack.push([a, idx], [idx, b]); }
+  }
+  return ring.filter((_, i) => keep[i]);
+}
+// Resolve a forest's real fs.usda.gov landing page by trying short-code guesses.
+async function resolveForestUrl(name) {
+  const base = name.replace(/\s+National\s+(Forests?|Grasslands?|Recreation Area|Scenic Area)\b.*$/i, "")
+    .replace(/\s+(Management Unit|Ranger District)\b.*$/i, "").trim();
+  const words = base.split(/[\s,]+/).filter(Boolean);
+  const cands = [...new Set([
+    base.toLowerCase().replace(/[^a-z0-9]/g, ""),
+    base.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""),
+    words[0] ? words[0].toLowerCase().replace(/[^a-z0-9]/g, "") : "",
+    words.filter(w => !/^(and|the|of)$/i.test(w)).map(w => w[0]).join("").toLowerCase(),
+  ].filter(c => c && c.length >= 3))];
+  // A valid short code redirects to a region path like /r05/tahoe (the page
+  // itself 403s to non-browser agents — that's fine, we only want the URL).
+  for (const c of cands) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const r = await fetch("https://www.fs.usda.gov/" + c, { headers: { "User-Agent": UA }, redirect: "follow" });
+        const seg = new URL(r.url).pathname.split("/").filter(Boolean);
+        if (r.status !== 404 && (/^r\d\d$/.test(seg[0]) || (r.ok && seg.length >= 1 && seg[0] !== "visit")))
+          return r.url.replace(/[#?].*$/, "");
+        if (r.status === 404) break; // definitive: this code is wrong
+      } catch (_) { await sleep(400); }
+    }
+  }
+  return "https://www.fs.usda.gov/visit/forests";
+}
+
+async function buildForests() {
+  const p = new URLSearchParams({
+    where: "1=1", outFields: "FORESTNAME,REGION,GIS_ACRES",
+    returnGeometry: "true", geometryPrecision: "3", maxAllowableOffset: "0.02",
+    outSR: "4326", f: "geojson",
+  });
+  const r = await wget(FS_BOUNDARIES + "?" + p);
+  if (!r || !r.ok) throw new Error("USFS boundaries fetch failed " + (r && r.status));
+  const gj = await r.json();
+  const forests = [];
+  for (const ft of gj.features || []) {
+    const name = (ft.properties.forestname || "").trim();
+    if (!name || !ft.geometry) continue;
+    // normalize to a list of outer rings
+    const rings = ft.geometry.type === "Polygon" ? [ft.geometry.coordinates[0]]
+      : ft.geometry.type === "MultiPolygon" ? ft.geometry.coordinates.map((poly) => poly[0]) : [];
+    if (!rings.length) continue;
+    const scored = rings.map((r) => ({ r, a: ringArea(r) })).sort((x, y) => y.a - x.a);
+    const maxA = scored[0].a || 1e-9;
+    const polys = scored.filter((x, i) => i === 0 || x.a >= maxA * 0.02)
+      .map((x) => dp(x.r, 0.02))
+      .filter((r) => r.length >= 4);
+    if (!polys.length) continue;
+    const bbox = bboxOf(polys.flat());
+    const big = polys[0];
+    const c = big.reduce((s, pt) => [s[0] + pt[0], s[1] + pt[1]], [0, 0]).map((v) => v / big.length);
+    forests.push({
+      id: "usfs-" + slugify(name), slug: slugify(name), name,
+      region: ft.properties.region || "", acres: Math.round(ft.properties.gis_acres || 0),
+      lat: +c[1].toFixed(4), lon: +c[0].toFixed(4),
+      bbox: bbox.map((v) => +v.toFixed(3)),
+      polys: polys.map((r) => r.map(([x, y]) => [+x.toFixed(3), +y.toFixed(3)])),
+    });
+  }
+  const urls = await mapPool(forests, 4, (f) => resolveForestUrl(f.name));
+  forests.forEach((f, i) => { f.url = urls[i] || "https://www.fs.usda.gov/visit/forests"; });
+  forests.sort((a, b) => a.name.localeCompare(b.name));
+  return forests;
 }
 
 // ===================== per-page HTML =======================================
@@ -275,7 +381,8 @@ function pageHtml(e, en, updatedISO, tally) {
     : e.source === "ny" ? "View on parks.ny.gov ↗"
     : e.source === "ca" ? "View on parks.ca.gov ↗"
     : e.source === "tx" ? "View on tpwd.texas.gov ↗"
-    : e.source === "mn" ? "View on dnr.state.mn.us ↗" : "Official page ↗";
+    : e.source === "mn" ? "View on dnr.state.mn.us ↗"
+    : e.source === "usfs" ? "Forest alerts & notices ↗" : "Official page ↗";
   const overview = (en && (en.description || en.history)) || "";
   const desc = clip(`${e.name} ${STATUS_SENTENCE[e.status] || "status"}. ${e.reason || ""} ${overview}`, 300);
   const photo = en && en.photo;
@@ -385,7 +492,10 @@ ${stripHtml(tally, updatedISO)}
 
   <article>
     <h2>How we read this status</h2>
-    <p>Status here is <strong>our reading</strong> of ${e.source === "nps" ? "the National Park Service's alerts and operating-hours data" : "the park system's public alerts"} — open, partially closed, or closed — not an official determination. It refreshes hourly. See <a href="/guides/how-we-check-park-status.html">how we check park status</a>.</p>
+    <p>Status here is <strong>our reading</strong> of ${
+      e.source === "nps" ? "the National Park Service's alerts and operating-hours data"
+      : e.source === "usfs" ? "NIFC wildfire perimeters overlaid on this forest's boundary — it flags active fires in or next to the forest, but does not track road, trail, or seasonal closures"
+      : "the park system's public alerts"} — open, partially closed, or closed — not an official determination. It refreshes hourly. See <a href="/guides/how-we-check-park-status.html">how we check park status</a>.</p>
   </article>
 
   <div class="related">
@@ -418,7 +528,7 @@ ${stripHtml(tally, updatedISO)}
   fetch(API,{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
     var c={open:0,partially_closed:0,closed:0,no_data:0};
     var add=function(arr,mk){(arr||[]).forEach(function(x){var s=mk?mk(x.status):x.status;if(s in c)c[s]++;});};
-    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.beaches,bmap);
+    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.usfs);add(d.beaches,bmap);
     set("s-open",c.open);set("s-partial",c.partially_closed);set("s-closed",c.closed);set("s-nodata",c.no_data);
     if(d.updated){var dt=new Date(d.updated);
       set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
@@ -495,7 +605,7 @@ ${rows}
   fetch("${API}",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
     var c={open:0,partially_closed:0,closed:0,no_data:0},set=function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
     var add=function(a,mk){(a||[]).forEach(function(x){var s=mk?mk(x.status):x.status;if(s in c)c[s]++;});};
-    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.beaches,bmap);
+    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.usfs);add(d.beaches,bmap);
     set("s-open",c.open);set("s-partial",c.partially_closed);set("s-closed",c.closed);set("s-nodata",c.no_data);
     if(d.updated){var dt=new Date(d.updated);set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
   }).catch(function(){});
@@ -803,7 +913,7 @@ ${rows}
   fetch(API,{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
     var c={open:0,partially_closed:0,closed:0,no_data:0};
     var add=function(a,mk){(a||[]).forEach(function(x){var s=mk?mk(x.status):x.status;if(s in c)c[s]++;});};
-    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.beaches,b4);
+    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.usfs);add(d.beaches,b4);
     set("s-open",c.open);set("s-partial",c.partially_closed);set("s-closed",c.closed);set("s-nodata",c.no_data);
     if(d.updated){var dt=new Date(d.updated);set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
     var lt={open:0,partially_closed:0,closed:0,no_data:0};
@@ -898,7 +1008,7 @@ ${cards}
   fetch("${API}",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
     var c={open:0,partially_closed:0,closed:0,no_data:0},set=function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
     var add=function(a,mk){(a||[]).forEach(function(x){var s=mk?mk(x.status):x.status;if(s in c)c[s]++;});};
-    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.beaches,b4);
+    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.usfs);add(d.beaches,b4);
     set("s-open",c.open);set("s-partial",c.partially_closed);set("s-closed",c.closed);set("s-nodata",c.no_data);
     if(d.updated){var dt=new Date(d.updated);set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
   }).catch(function(){});
@@ -954,6 +1064,17 @@ async function main() {
     .sort((a, b) => a.label.localeCompare(b.label));
   beachHubs.forEach((g) => g.beaches.sort((a, b) => String(a.name).localeCompare(String(b.name))));
   process.stdout.write(`  ${beachHubs.length} beach county hubs (${beachHubs.reduce((n, g) => n + g.beaches.length, 0)} beaches)\n`);
+
+  // forests.json — simplified National Forest footprints for the Worker's
+  // wildfire-proximity check. Regenerated daily; the boundaries rarely move.
+  try {
+    const forests = await buildForests();
+    const fv = forests.reduce((s, f) => s + f.polys.reduce((n, r) => n + r.length, 0), 0);
+    fs.writeFileSync(path.join(OUT, "forests.json"), JSON.stringify({ updated: updatedISO, forests }));
+    process.stdout.write(`  forests.json: ${forests.length} national forests, ${fv} boundary vertices\n`);
+  } catch (e) {
+    process.stdout.write(`  forests.json SKIPPED (${e.message}) — keeping previous file\n`);
+  }
 
   process.stdout.write("Pulling NPS rich fields …\n");
   const nps = await npsRich().catch((e) => { console.warn("  NPS rich fetch failed:", e.message); return {}; });
