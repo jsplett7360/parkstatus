@@ -63,6 +63,59 @@ async function mapPool(items, size, fn) {
   return out;
 }
 
+// ===================== shared status helpers ==============================
+// Beach vocab -> the 4-status model the whole site uses.
+const beach4 = (s) => (s === "advisory" ? "partially_closed" : (s === "open" || s === "closed") ? s : "no_data");
+const BEACH_CLASS = { open: "open", partially_closed: "partial", closed: "closed", no_data: "nodata" };
+const BEACH_LABEL = { open: "Open", advisory: "Water quality advisory", closed: "Closed to swimming", not_in_operation: "Not in operation", pending: "Status set by another agency" };
+
+// Combined open/partial/closed/no-data count across every source in the blob.
+function combinedTally(data) {
+  const t = { open: 0, partially_closed: 0, closed: 0, no_data: 0 };
+  const add = (arr, mk) => (arr || []).forEach((x) => { const s = mk ? mk(x.status) : x.status; if (s in t) t[s]++; });
+  add(data.parks); add(data.nyParks); add(data.caParks); add(data.txParks); add(data.mnParks);
+  add(data.beaches, beach4);
+  return t;
+}
+
+// "Sep 2" in UTC — the baked "updated" label (JS swaps in the viewer's local time).
+const fmtUpd = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+const fmtLong = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+// Site-wide status strip, with the day's counts baked in (not "—").
+function stripHtml(t, iso) {
+  const n = t || { open: "—", partially_closed: "—", closed: "—", no_data: "—" };
+  return `<div class="strip"><div class="wrap">
+  <span class="k"><span class="dot open"></span><b id="s-open">${n.open}</b>&nbsp;open</span>
+  <span class="k"><span class="dot partial"></span><b id="s-partial">${n.partially_closed}</b>&nbsp;partially closed</span>
+  <span class="k"><span class="dot closed"></span><b id="s-closed">${n.closed}</b>&nbsp;closed</span>
+  <span class="k"><span class="dot nodata"></span><b id="s-nodata">${n.no_data}</b>&nbsp;no data</span>
+  <span class="upd"><span id="s-upd">updated ${fmtUpd(iso)}</span> · <a href="/#map">view map →</a></span>
+</div></div>`;
+}
+
+// schema.org openingHoursSpecification, best-effort parse of "9:00AM - 5:00PM" rows.
+const SCHEMA_DAY = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" };
+function to24h(t) {
+  const m = /^(\d{1,2}):(\d{2})\s*([AaPp])[Mm]$/.exec(String(t).trim());
+  if (!m) return null;
+  let h = Number(m[1]) % 12;
+  if (/[Pp]/.test(m[3])) h += 12;
+  return String(h).padStart(2, "0") + ":" + m[2];
+}
+function hoursSpec(hours) {
+  if (!hours || !hours.rows) return [];
+  const out = [];
+  for (const r of hours.rows) {
+    const mm = /^\s*(\d{1,2}:\d{2}\s*[AaPp][Mm])\s*(?:[-–—]|to)\s*(\d{1,2}:\d{2}\s*[AaPp][Mm])\s*$/i.exec(r.h || "");
+    if (!mm) continue;
+    const o = to24h(mm[1]), c = to24h(mm[2]);
+    if (!o || !c) continue;
+    out.push({ "@type": "OpeningHoursSpecification", dayOfWeek: "https://schema.org/" + SCHEMA_DAY[r.d], opens: o, closes: c });
+  }
+  return out;
+}
+
 // ===================== Wikipedia enrichment ================================
 // Anonymous Wikipedia REST wants low concurrency; throttle + retry 429s.
 const WIKI_OK = /\b(national park|state park|state historic|state natural|nature reserve|state recreation|national monument|national historic|national forest|national preserve|national reserve|national seashore|national lakeshore|national memorial|national recreation|national battlefield|national military|national parkway|national scenic|protected area|park in|reserve in|forest in|preserve in|island in|lake in|beach in|river in|historic site|recreation area|scenic|wilderness|monument in|memorial in|battlefield)\b/i;
@@ -210,9 +263,9 @@ function visitorBlock(en) {
   return bits.length ? `<section class="visitor"><h2>Visitor info</h2>${bits.join("")}</section>` : "";
 }
 
-function pageHtml(e, en, updatedISO) {
+function pageHtml(e, en, updatedISO, tally) {
   const name = esc(e.name);
-  const cls = STATUS_CLASS[e.status] || "no_data";
+  const cls = STATUS_CLASS[e.status] || "nodata";
   const label = STATUS_LABEL[e.status] || "Status unknown";
   const url = `${SITE}/park/${e.slug}/`;
   const stateTxt = statesText(e);
@@ -227,26 +280,52 @@ function pageHtml(e, en, updatedISO) {
   const desc = clip(`${e.name} ${STATUS_SENTENCE[e.status] || "status"}. ${e.reason || ""} ${overview}`, 300);
   const photo = en && en.photo;
 
-  const jsonld = {
-    "@context": "https://schema.org",
-    "@graph": [
-      { "@type": "BreadcrumbList", itemListElement: [
-        { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
-        { "@type": "ListItem", position: 2, name: "All parks", item: SITE + "/park/" },
-        { "@type": "ListItem", position: 3, name: e.name, item: url } ] },
-      { "@type": "FAQPage", mainEntity: [ { "@type": "Question", name: `Is ${e.name} open right now?`,
-        acceptedAnswer: { "@type": "Answer", text: `${e.name} ${STATUS_SENTENCE[e.status] || "status is unavailable"}. ${e.reason || ""}`.trim() } } ] },
-    ],
-  };
-  if (en) {
-    const place = { "@type": "TouristAttraction", name: e.name, url: official };
-    if (en.description || en.history) place.description = clip(en.description || en.history, 300);
-    if (photo) place.image = photo;
-    if (en.address) place.address = en.address;
-    if (en.phone) place.telephone = en.phone;
-    if (typeof e.lat === "number" && typeof e.lon === "number") place.geo = { "@type": "GeoCoordinates", latitude: e.lat, longitude: e.lon };
-    jsonld["@graph"].push(place);
+  const asOf = fmtLong(updatedISO);
+  const statusSentence = STATUS_SENTENCE[e.status] || "status is unavailable";
+  const faq = [{
+    "@type": "Question",
+    name: `Is ${e.name} open right now?`,
+    acceptedAnswer: { "@type": "Answer", text: `As of ${asOf}, ${e.name} ${statusSentence}. ${e.reason || ""}`.trim() },
+  }];
+  const hoursText = en && en.hours && en.hours.rows
+    ? en.hours.rows.filter((r) => r.h && r.h !== "—").map((r) => `${r.d}: ${r.h}`).join("; ")
+    : "";
+  if (hoursText) {
+    faq.push({
+      "@type": "Question",
+      name: `What are the hours at ${e.name}?`,
+      acceptedAnswer: { "@type": "Answer", text: hoursText + (en.hours.note ? ` (${en.hours.note})` : "") },
+    });
   }
+
+  const graph = [
+    { "@type": "BreadcrumbList", itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
+      { "@type": "ListItem", position: 2, name: "All parks", item: SITE + "/park/" },
+      { "@type": "ListItem", position: 3, name: e.name, item: url } ] },
+    { "@type": "FAQPage", mainEntity: faq },
+  ];
+  {
+    const isPark = /\bpark\b/i.test(e.kind || "");
+    const place = {
+      "@type": isPark ? ["TouristAttraction", "Park"] : "TouristAttraction",
+      "@id": url + "#place",
+      name: e.name,
+      url: official,
+      dateModified: updatedISO,
+    };
+    if (en && (en.description || en.history)) place.description = clip(en.description || en.history, 300);
+    if (photo) place.image = photo;
+    if (en && en.address) place.address = en.address;
+    if (en && en.phone) place.telephone = en.phone;
+    if (en && en.wiki) place.sameAs = [en.wiki];
+    if (en && en.gmaps) place.hasMap = en.gmaps;
+    if (typeof e.lat === "number" && typeof e.lon === "number") place.geo = { "@type": "GeoCoordinates", latitude: e.lat, longitude: e.lon };
+    const specs = hoursSpec(en && en.hours);
+    if (specs.length) place.openingHoursSpecification = specs;
+    graph.push(place);
+  }
+  const jsonld = { "@context": "https://schema.org", "@graph": graph };
 
   return `<!doctype html>
 <html lang="en">
@@ -276,16 +355,10 @@ ${photo ? `<meta property="og:image" content="${esc(photo)}">` : ""}
 
 <header class="site"><div class="wrap">
   <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
-  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
 </div></header>
 
-<div class="strip"><div class="wrap">
-  <span class="k"><span class="dot open"></span><b id="s-open">—</b>&nbsp;open</span>
-  <span class="k"><span class="dot partial"></span><b id="s-partial">—</b>&nbsp;partially closed</span>
-  <span class="k"><span class="dot closed"></span><b id="s-closed">—</b>&nbsp;closed</span>
-  <span class="k"><span class="dot nodata"></span><b id="s-nodata">—</b>&nbsp;no data</span>
-  <span class="upd"><span id="s-upd">live status</span> · <a href="/#map">view map →</a></span>
-</div></div>
+${stripHtml(tally, updatedISO)}
 
 <main class="wrap">
   <div class="crumbs"><a href="/">Home</a> / <a href="/park/">All parks</a> / ${name}</div>
@@ -321,6 +394,7 @@ ${photo ? `<meta property="og:image" content="${esc(photo)}">` : ""}
       <a class="gcard" href="/guides/why-national-parks-close.html"><div class="t">Why parks close</div><div class="d">Wildfire, weather, wildlife, construction — the real reasons a park or road shuts.</div></a>
       <a class="gcard" href="/guides/nps-alerts-explained.html"><div class="t">NPS alerts explained</div><div class="d">Danger, Closure, Caution, Information — what each type means.</div></a>
       <a class="gcard" href="/park/"><div class="t">All park statuses</div><div class="d">Every park and waterway we track, A–Z.</div></a>
+      <a class="gcard" href="/beach/"><div class="t">Beach closures</div><div class="d">Swimming advisories and water-quality closures by county.</div></a>
       <a class="gcard" href="/#map"><div class="t">Live map</div><div class="d">See what's open near you right now.</div></a>
     </div>
   </div>
@@ -371,7 +445,7 @@ ${photo ? `<meta property="og:image" content="${esc(photo)}">` : ""}
 `;
 }
 
-function directoryHtml(list, updatedISO) {
+function directoryHtml(list, updatedISO, tally) {
   const rows = list.slice().sort((a, b) => a.name.localeCompare(b.name)).map((e) =>
     `<li><a href="/park/${e.slug}/"><span class="d ${STATUS_CLASS[e.status] || "nodata"}"></span><span class="nm">${esc(e.name)}</span><span class="st">${esc(statesText(e))}</span></a></li>`
   ).join("\n");
@@ -396,19 +470,13 @@ ${INDEXERNOW}
 <div id="shutdown-banner"></div>
 <header class="site"><div class="wrap">
   <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
-  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
 </div></header>
-<div class="strip"><div class="wrap">
-  <span class="k"><span class="dot open"></span><b id="s-open">—</b>&nbsp;open</span>
-  <span class="k"><span class="dot partial"></span><b id="s-partial">—</b>&nbsp;partially closed</span>
-  <span class="k"><span class="dot closed"></span><b id="s-closed">—</b>&nbsp;closed</span>
-  <span class="k"><span class="dot nodata"></span><b id="s-nodata">—</b>&nbsp;no data</span>
-  <span class="upd"><span id="s-upd">live status</span> · <a href="/#map">view map →</a></span>
-</div></div>
+${stripHtml(tally, updatedISO)}
 <main class="wrap">
   <div class="crumbs"><a href="/">Home</a> / All parks</div>
   <h1>Every status, A–Z</h1>
-  <p class="sub">${list.length} national and state parks. Tap any for status, hours, and visitor info.</p>
+  <p class="sub">${list.length} national and state parks. Tap any for status, hours, and visitor info. Looking for the coast? <a href="/beach/">Beach water quality &amp; closures →</a></p>
   <input id="pfilter" class="pfilter" type="text" placeholder="Filter this list…" aria-label="Filter parks">
   <ul class="plist" id="plist">
 ${rows}
@@ -531,13 +599,30 @@ footer.site .sister a{color:#fff;font-weight:bold}
 #shutdown-banner .sb-in{max-width:1080px;margin:0 auto;padding:11px 22px;font-size:14px}
 #shutdown-banner strong{font-family:var(--font-display);letter-spacing:-.5px;margin-right:6px}
 #shutdown-banner a{color:#fff;font-weight:bold;text-decoration:underline;white-space:nowrap}
+.blist{list-style:none;margin:0 0 30px;padding:0;display:grid;gap:10px}
+.blist li{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.blist .bh{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.blist .bh .d{width:10px;height:10px;border-radius:50%;flex:none}
+.blist .bh .d.open{background:var(--open)}.blist .bh .d.partial{background:var(--partial-bright)}.blist .bh .d.closed{background:var(--closed)}.blist .bh .d.nodata{background:#9aa4b2}
+.blist .nm{font-weight:bold;flex:1;min-width:120px}
+.blist .bl{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.blist .br{font-size:13.5px;color:var(--muted);margin:6px 0 0}
+.blist .bm{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:5px}
+.blist .bm a{color:var(--muted)}
+.hubgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 26px;list-style:none;padding:0}
+@media(max-width:620px){.hubgrid{grid-template-columns:1fr}}
+.hubgrid a{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;text-decoration:none;color:var(--ink)}
+.hubgrid a:hover{border-color:var(--navy)}
+.hubgrid .t{font-weight:bold;margin-bottom:4px}
+.hubgrid .m{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
 `;
 
-function sitemap(list, updatedISO) {
+function sitemap(list, updatedISO, beachHubs) {
   const today = updatedISO.slice(0, 10);
   const staticUrls = [
     { loc: `${SITE}/`, freq: "hourly", pri: "1.0" },
     { loc: `${SITE}/park/`, freq: "hourly", pri: "0.9" },
+    { loc: `${SITE}/beach/`, freq: "daily", pri: "0.8" },
     { loc: `${SITE}/guides/`, freq: "weekly", pri: "0.8" },
     { loc: `${SITE}/guides/national-parks-government-shutdown.html`, freq: "weekly", pri: "0.9" },
     { loc: `${SITE}/guides/why-national-parks-close.html`, freq: "monthly", pri: "0.7" },
@@ -546,9 +631,250 @@ function sitemap(list, updatedISO) {
   ];
   const parkUrls = list.slice().sort((a, b) => a.slug.localeCompare(b.slug))
     .map((e) => ({ loc: `${SITE}/park/${e.slug}/`, freq: "hourly", pri: "0.7" }));
-  const body = [...staticUrls, ...parkUrls]
+  const beachUrls = (beachHubs || []).slice().sort((a, b) => a.slug.localeCompare(b.slug))
+    .map((h) => ({ loc: `${SITE}/beach/${h.slug}/`, freq: "daily", pri: "0.6" }));
+  const body = [...staticUrls, ...parkUrls, ...beachUrls]
     .map((u) => `  <url><loc>${u.loc}</loc><lastmod>${today}</lastmod><changefreq>${u.freq}</changefreq><priority>${u.pri}</priority></url>`).join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
+}
+
+// ===================== beach county hubs ==================================
+function beachRow(b) {
+  const cls = BEACH_CLASS[beach4(b.status)] || "nodata";
+  const lab = b.statusLabel || BEACH_LABEL[b.status] || b.status || "Unknown";
+  const flagged = b.status === "advisory" || b.status === "closed";
+  const dates = flagged && b.startDate
+    ? (b.endDate ? `in effect ${b.startDate} → ${b.endDate}` : `in effect since ${b.startDate}`)
+    : "";
+  const meta = [
+    b.waterbody ? esc(b.waterbody) : "",
+    dates,
+    b.jurisdiction ? `<a href="${esc(b.jurisdictionUrl || "#")}" target="_blank" rel="noopener">${esc(b.jurisdiction)} ↗</a>` : "",
+  ].filter(Boolean).join(" · ");
+  return `<li id="b-${esc(b.id)}">
+  <div class="bh"><span class="d ${cls}"></span><span class="nm">${esc(b.name)}</span><span class="bl" data-role="label">${esc(lab)}</span></div>
+  ${b.reason ? `<p class="br" data-role="reason">${esc(b.reason.trim())}</p>` : ""}
+  ${meta ? `<div class="bm">${meta}</div>` : ""}
+</li>`;
+}
+
+function beachHubHtml(g, updatedISO, tally) {
+  const url = `${SITE}/beach/${g.slug}/`;
+  const lt = { open: 0, partially_closed: 0, closed: 0, no_data: 0 };
+  g.beaches.forEach((b) => lt[beach4(b.status)]++);
+  const flagged = g.beaches.filter((b) => b.status === "advisory" || b.status === "closed")
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const asOf = fmtLong(updatedISO);
+  const rows = g.beaches.map(beachRow).join("\n");
+  const desc = `Current swimming advisories, closures and water-quality status for ${g.beaches.length} monitored beaches in ${g.label}. ${lt.partially_closed} under advisory, ${lt.closed} closed as of ${asOf}.`;
+
+  const faqText = flagged.length
+    ? `As of ${asOf}: ${flagged.map((b) => `${b.name} (${b.statusLabel || BEACH_LABEL[b.status] || b.status})`).join("; ")}.`
+    : `As of ${asOf}, no beaches in ${g.label} are under a swimming advisory or closure in our data.`;
+  const jsonld = {
+    "@context": "https://schema.org",
+    "@graph": [
+      { "@type": "BreadcrumbList", itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
+        { "@type": "ListItem", position: 2, name: "Beaches", item: SITE + "/beach/" },
+        { "@type": "ListItem", position: 3, name: g.label, item: url } ] },
+      { "@type": "FAQPage", mainEntity: [{
+        "@type": "Question",
+        name: `Which beaches in ${g.label} have swimming advisories or closures right now?`,
+        acceptedAnswer: { "@type": "Answer", text: faqText },
+      }] },
+      { "@type": "ItemList", name: `${g.label} beaches`, numberOfItems: g.beaches.length,
+        itemListElement: g.beaches.map((b, i) => {
+          const item = { "@type": "Beach", name: b.name, url: url + "#b-" + b.id };
+          if (typeof b.lat === "number" && typeof b.lon === "number") item.geo = { "@type": "GeoCoordinates", latitude: b.lat, longitude: b.lon };
+          item.additionalProperty = { "@type": "PropertyValue", name: "status", value: b.statusLabel || BEACH_LABEL[b.status] || b.status };
+          return { "@type": "ListItem", position: i + 1, item };
+        }) },
+    ],
+  };
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PFZYJ3L871"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PFZYJ3L871');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${INDEXERNOW}
+<title>${esc(g.label)} beach water quality &amp; closures — Park Status Today</title>
+<meta name="description" content="${esc(desc)}">
+<meta name="theme-color" content="#0b1b35">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="${url}">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:title" content="${esc(g.label)} beach water quality &amp; closures">
+<meta property="og:description" content="${esc(desc)}">
+<meta property="og:url" content="${url}">
+<script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, "\\u003c")}</script>
+<link rel="stylesheet" href="/park/park.css">
+</head>
+<body>
+<div id="shutdown-banner"></div>
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+</div></header>
+${stripHtml(tally, updatedISO)}
+<main class="wrap">
+  <div class="crumbs"><a href="/">Home</a> / <a href="/beach/">Beaches</a> / ${esc(g.label)}</div>
+  <h1>${esc(g.label)}: beach water quality &amp; closures</h1>
+  <p class="sub">${esc(g.state)} · ${g.beaches.length} monitored beaches · <b id="h-open">${lt.open}</b> open · <b id="h-partial">${lt.partially_closed}</b> advisory · <b id="h-closed">${lt.closed}</b> closed · <b id="h-nodata">${lt.no_data}</b> no data</p>
+
+  <div class="verdict ${flagged.length ? "partial" : "open"}">
+    <p class="line">${flagged.length
+      ? `${flagged.length} beach${flagged.length === 1 ? "" : "es"} in ${esc(g.label)} ${flagged.length === 1 ? "is" : "are"} under a swimming advisory or closure right now.`
+      : `No swimming advisories or closures reported for ${esc(g.label)} right now.`}</p>
+    <p class="checked">As of ${esc(new Date(updatedISO).toUTCString())} · refreshes hourly</p>
+  </div>
+
+  <ul class="blist">
+${rows}
+  </ul>
+
+  <article>
+    <h2>Where this comes from</h2>
+    <p>Beach status reflects public monitoring data from the New York State Department of Health and county health departments — <em>Open</em>, <em>Water quality advisory</em>, or <em>Closed to swimming</em>. Some beaches are managed by another agency and show as “no data.” It is <strong>our reading</strong> of that data, not an official determination, and it refreshes hourly. Always confirm with the operating agency before you swim.</p>
+  </article>
+
+  <div class="related">
+    <h2>More</h2>
+    <div class="cards">
+      <a class="gcard" href="/beach/"><div class="t">All beach counties</div><div class="d">Water-quality status for every county we track.</div></a>
+      <a class="gcard" href="/park/"><div class="t">All park statuses</div><div class="d">National and state parks, A–Z.</div></a>
+      <a class="gcard" href="/#map"><div class="t">Live map</div><div class="d">See what's open near you right now.</div></a>
+      <a class="gcard" href="/#signup"><div class="t">Get alerts</div><div class="d">Email or push when something near you closes.</div></a>
+    </div>
+  </div>
+</main>
+<footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span><b>Park Status Today</b> — an independent informational service, not affiliated with any state or county agency.</span>
+  <span class="disc">Live status refreshed hourly · always confirm with the operating agency before you travel.</span>
+</div></footer>
+<script>
+(function(){
+  var API="${API}";
+  function b4(s){return s==="advisory"?"partially_closed":(s==="open"||s==="closed")?s:"no_data";}
+  var CLS={open:"open",partially_closed:"partial",closed:"closed",no_data:"nodata"};
+  var LAB=${JSON.stringify(BEACH_LABEL)};
+  function set(id,v){var e=document.getElementById(id);if(e&&v!=null)e.textContent=v;}
+  fetch(API,{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+    var c={open:0,partially_closed:0,closed:0,no_data:0};
+    var add=function(a,mk){(a||[]).forEach(function(x){var s=mk?mk(x.status):x.status;if(s in c)c[s]++;});};
+    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.beaches,b4);
+    set("s-open",c.open);set("s-partial",c.partially_closed);set("s-closed",c.closed);set("s-nodata",c.no_data);
+    if(d.updated){var dt=new Date(d.updated);set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
+    var lt={open:0,partially_closed:0,closed:0,no_data:0};
+    (d.beaches||[]).forEach(function(x){
+      var row=document.getElementById("b-"+x.id); if(!row)return;
+      lt[b4(x.status)]++;
+      var dot=row.querySelector(".d"); if(dot)dot.className="d "+(CLS[b4(x.status)]||"nodata");
+      var lab=row.querySelector('[data-role=label]'); if(lab)lab.textContent=x.statusLabel||LAB[x.status]||x.status;
+      var rs=row.querySelector('[data-role=reason]'); if(rs&&x.reason)rs.textContent=x.reason;
+    });
+    if(lt.open+lt.partially_closed+lt.closed+lt.no_data){
+      set("h-open",lt.open);set("h-partial",lt.partially_closed);set("h-closed",lt.closed);set("h-nodata",lt.no_data);
+    }
+  }).catch(function(){});
+  fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){
+    if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
+    b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';b.className="show";
+  }).catch(function(){});
+})();
+</script>
+</body>
+</html>
+`;
+}
+
+function beachIndexHtml(hubs, updatedISO, tally) {
+  const url = `${SITE}/beach/`;
+  const total = hubs.reduce((n, h) => n + h.beaches.length, 0);
+  const flaggedTotal = hubs.reduce((n, h) => n + h.beaches.filter((b) => b.status === "advisory" || b.status === "closed").length, 0);
+  const asOf = fmtLong(updatedISO);
+  const cards = hubs.map((h) => {
+    const lt = { adv: 0, closed: 0 };
+    h.beaches.forEach((b) => { if (b.status === "advisory") lt.adv++; if (b.status === "closed") lt.closed++; });
+    const tag = lt.closed ? `${lt.closed} closed` : lt.adv ? `${lt.adv} advisory` : "all clear";
+    return `<li><a href="/beach/${h.slug}/"><div class="t">${esc(h.label)}</div><div class="m">${h.beaches.length} beaches · ${tag}</div></a></li>`;
+  }).join("\n");
+  const desc = `Swimming advisories and water-quality closures for ${total} monitored beaches across ${hubs.length} counties. ${flaggedTotal} under advisory or closed as of ${asOf}.`;
+  const jsonld = {
+    "@context": "https://schema.org",
+    "@graph": [
+      { "@type": "BreadcrumbList", itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
+        { "@type": "ListItem", position: 2, name: "Beaches", item: url } ] },
+      { "@type": "ItemList", name: "Beach water quality by county", numberOfItems: hubs.length,
+        itemListElement: hubs.map((h, i) => ({ "@type": "ListItem", position: i + 1, name: h.label, url: `${SITE}/beach/${h.slug}/` })) },
+    ],
+  };
+  return `<!doctype html>
+<html lang="en">
+<head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PFZYJ3L871"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PFZYJ3L871');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${INDEXERNOW}
+<title>Beach water quality &amp; closures by county — Park Status Today</title>
+<meta name="description" content="${esc(desc)}">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="${url}">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="Beach water quality &amp; closures by county">
+<meta property="og:url" content="${url}">
+<script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, "\\u003c")}</script>
+<link rel="stylesheet" href="/park/park.css">
+</head>
+<body>
+<div id="shutdown-banner"></div>
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+</div></header>
+${stripHtml(tally, updatedISO)}
+<main class="wrap">
+  <div class="crumbs"><a href="/">Home</a> / Beaches</div>
+  <h1>Beach water quality &amp; closures</h1>
+  <p class="sub">${total} monitored beaches · ${hubs.length} counties · ${flaggedTotal} under advisory or closed as of ${esc(fmtUpd(updatedISO))}</p>
+  <ul class="hubgrid">
+${cards}
+  </ul>
+  <article>
+    <h2>About this data</h2>
+    <p>Beaches are grouped by county. Status reflects public monitoring from the New York State Department of Health and county health departments and refreshes hourly. It is <strong>our reading</strong> of that data, not an official determination — always confirm with the operating agency before you swim.</p>
+  </article>
+</main>
+<footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span class="disc">Live status refreshed hourly · always confirm with the operating agency before you travel.</span>
+</div></footer>
+<script>
+(function(){
+  function b4(s){return s==="advisory"?"partially_closed":(s==="open"||s==="closed")?s:"no_data";}
+  fetch("${API}",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+    var c={open:0,partially_closed:0,closed:0,no_data:0},set=function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
+    var add=function(a,mk){(a||[]).forEach(function(x){var s=mk?mk(x.status):x.status;if(s in c)c[s]++;});};
+    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.beaches,b4);
+    set("s-open",c.open);set("s-partial",c.partially_closed);set("s-closed",c.closed);set("s-nodata",c.no_data);
+    if(d.updated){var dt=new Date(d.updated);set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
+  }).catch(function(){});
+  fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){
+    if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
+    b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';b.className="show";
+  }).catch(function(){});
+})();
+</script>
+</body>
+</html>
+`;
 }
 
 // ===================== main ===============================================
@@ -562,6 +888,36 @@ async function main() {
   const entities = collectEntities(data);
   if (entities.length < 100) throw new Error("too few entities — aborting so we don't wipe the site");
   process.stdout.write(`  ${entities.length} entities (NPS + NY/CA/TX/MN state parks)\n`);
+
+  // Site-wide 4-status count, baked into every page's status strip.
+  const tally = combinedTally(data);
+
+  // Beach county hubs, grouped by state + county.
+  const BOROUGH = {
+    Kings: "Kings County (Brooklyn)", Richmond: "Richmond County (Staten Island)",
+    "New York": "New York County (Manhattan)", Bronx: "Bronx County", Queens: "Queens County",
+  };
+  const bgroups = new Map();
+  for (const bch of data.beaches || []) {
+    if (typeof bch.lat !== "number" || typeof bch.lon !== "number") continue;
+    const county = String(bch.county || "Other").trim();
+    const key = (bch.state || "") + "|" + county;
+    if (!bgroups.has(key)) {
+      const base = BOROUGH[county] || (/count(y|ies)$/i.test(county) ? county : county + " County");
+      bgroups.set(key, {
+        state: bch.state || "", county,
+        label: base + (bch.state ? ", " + bch.state : ""),
+        slug: slugify((bch.state || "") + "-" + county + (/count(y|ies)$/i.test(county) ? "" : "-county")),
+        beaches: [],
+      });
+    }
+    bgroups.get(key).beaches.push(bch);
+  }
+  const beachHubs = [...bgroups.values()]
+    .filter((g) => g.beaches.length >= 2)
+    .sort((a, b) => a.label.localeCompare(b.label));
+  beachHubs.forEach((g) => g.beaches.sort((a, b) => String(a.name).localeCompare(String(b.name))));
+  process.stdout.write(`  ${beachHubs.length} beach county hubs (${beachHubs.reduce((n, g) => n + g.beaches.length, 0)} beaches)\n`);
 
   process.stdout.write("Pulling NPS rich fields …\n");
   const nps = await npsRich().catch((e) => { console.warn("  NPS rich fetch failed:", e.message); return {}; });
@@ -609,10 +965,19 @@ async function main() {
   for (const e of entities) {
     const dir = path.join(PARK_DIR, e.slug);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, "index.html"), pageHtml(e, e._en, updatedISO));
+    fs.writeFileSync(path.join(dir, "index.html"), pageHtml(e, e._en, updatedISO, tally));
     n++;
   }
-  fs.writeFileSync(path.join(PARK_DIR, "index.html"), directoryHtml(entities, updatedISO));
+  fs.writeFileSync(path.join(PARK_DIR, "index.html"), directoryHtml(entities, updatedISO, tally));
+
+  const BEACH_DIR = path.join(OUT, "beach");
+  fs.mkdirSync(BEACH_DIR, { recursive: true });
+  for (const g of beachHubs) {
+    const dir = path.join(BEACH_DIR, g.slug);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "index.html"), beachHubHtml(g, updatedISO, tally));
+  }
+  fs.writeFileSync(path.join(BEACH_DIR, "index.html"), beachIndexHtml(beachHubs, updatedISO, tally));
 
   fs.writeFileSync(path.join(OUT, "parks-enriched.json"), JSON.stringify(enriched));
   fs.writeFileSync(path.join(OUT, "parks.json"), JSON.stringify({
@@ -620,14 +985,16 @@ async function main() {
     parks: entities.map((e) => ({ id: e.id, slug: e.slug, name: e.name, kind: e.kind,
       states: statesText(e), status: e.status, source: e.source, url: `${SITE}/park/${e.slug}/` })),
   }));
-  fs.writeFileSync(path.join(OUT, "sitemap.xml"), sitemap(entities, updatedISO));
+  fs.writeFileSync(path.join(OUT, "sitemap.xml"), sitemap(entities, updatedISO, beachHubs));
 
   const withWiki = Object.values(enriched).filter((x) => x.history).length;
   const withNps = Object.values(enriched).filter((x) => x.hours || x.address).length;
   process.stdout.write(
     `\nDone.\n  ${n} park pages + directory\n` +
+    `  ${beachHubs.length} beach county hubs + index\n` +
     `  parks-enriched.json: ${withWiki} with Wikipedia about/history, ${withNps} with NPS visitor info\n` +
-    `  sitemap.xml: ${entities.length + 7} urls\n  data timestamp: ${updatedISO}\n`
+    `  baked tally: ${tally.open} open / ${tally.partially_closed} partial / ${tally.closed} closed / ${tally.no_data} no-data\n` +
+    `  sitemap.xml: ${entities.length + beachHubs.length + 9} urls\n  data timestamp: ${updatedISO}\n`
   );
 }
 
