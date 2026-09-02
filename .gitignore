@@ -1,0 +1,14 @@
+# deps & build tooling
+node_modules/
+.wrangler/
+.dev.vars
+.dev.vars.*
+
+# local build artifact (site lives in public_html/, the zip is disposable)
+public_html.zip
+*.zip
+
+# OS cruft
+.DS_Store
+**/.DS_Store
+Thumbs.db

@@ -1,0 +1,44 @@
+name: Refresh park data
+
+# Re-runs build-parks.js to regenerate the per-park static pages, parks-enriched.json,
+# parks.json and sitemap.xml from the live status API + NPS API + Wikipedia, then commits
+# whatever changed. That commit touches public_html/, which triggers deploy.yml.
+
+on:
+  schedule:
+    - cron: "0 8 1 * *" # 08:00 UTC on the 1st of every month
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-park-data
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Rebuild park pages + enrichment
+        env:
+          NPS_API_KEY: ${{ secrets.NPS_API_KEY }}
+        run: node build-parks.js
+
+      - name: Commit regenerated files
+        run: |
+          git config user.name  "parkstatus-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public_html/park public_html/parks-enriched.json public_html/parks.json public_html/sitemap.xml
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: refresh park data ($(date -u +%Y-%m-%d))"
+            git push
+          fi

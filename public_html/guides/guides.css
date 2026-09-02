@@ -1,0 +1,93 @@
+/* Park Status guides — half-mast.com visual language */
+:root{
+  --ink:#0e1726;--navy:#0b1b35;--navy-2:#142746;--paper:#f4f6f9;--line:#dfe4ec;
+  --muted:#667185;--card:#ffffff;
+  --open:#14785d;--open-tint:#e7f7f1;--partial:#9a6a0f;--partial-bright:#f2bd54;
+  --partial-tint:#fff7e5;--closed:#ee263b;--closed-tint:#fdebed;
+  --font-display:"Arial Black",Impact,"Arial Narrow",Arial,sans-serif;
+  --font-sans:Arial,Helvetica,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-sans);
+  line-height:1.7;-webkit-font-smoothing:antialiased}
+.wrap{max-width:760px;margin:0 auto;padding:0 22px}
+a{color:var(--navy);text-underline-offset:3px}
+a:hover{color:var(--closed)}
+
+header.site{border-bottom:1px solid var(--line);background:var(--paper)}
+header.site .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 22px;max-width:1080px}
+.brand{display:flex;align-items:baseline;gap:9px;text-decoration:none;color:var(--ink)}
+.brand b{font-family:var(--font-display);font-weight:900;font-size:19px;letter-spacing:-1px}
+.brand span{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.18em;color:var(--muted)}
+nav.site a{font-size:13px;text-decoration:none;color:var(--muted);margin-left:17px}
+nav.site a:hover{color:var(--ink)}
+
+.strip{background:var(--navy);color:#dfe7f2}
+.strip .wrap{max-width:1080px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:9px 22px;font-family:var(--font-mono);font-size:12px}
+.strip .k{display:inline-flex;align-items:center;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.dot.open{background:#36d6a0}.dot.partial{background:var(--partial-bright)}.dot.closed{background:#ff5566}
+.strip .upd{margin-left:auto;opacity:.72}
+.strip a{color:#fff;font-weight:bold}
+
+.hero{padding:44px 0 8px}
+.eyebrow{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--muted);margin:0 0 14px}
+h1{font-family:var(--font-display);font-weight:900;letter-spacing:-2px;line-height:.94;
+  font-size:clamp(34px,6vw,56px);margin:0 0 16px}
+.lede{font-size:19px;color:#33405a;margin:0 0 8px}
+
+article{padding:26px 0 10px}
+article h2{font-family:var(--font-display);font-weight:900;letter-spacing:-1.2px;font-size:26px;margin:34px 0 10px;line-height:1.05}
+article h3{font-size:18px;margin:24px 0 6px}
+article p{margin:0 0 15px;font-size:17px}
+article ul,article ol{font-size:17px;padding-left:22px;margin:0 0 15px}
+article li{margin:0 0 7px}
+
+.statuscard{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0 6px}
+.statuscard .c{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.statuscard .c .n{font-family:var(--font-display);font-weight:900;font-size:30px;letter-spacing:-1px;line-height:1}
+.statuscard .c.open .n{color:var(--open)}.statuscard .c.partial .n{color:var(--partial)}.statuscard .c.closed .n{color:var(--closed)}
+.statuscard .c .l{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-top:6px}
+
+.callout{border:1px solid var(--line);border-left:4px solid var(--navy);background:var(--card);border-radius:12px;padding:15px 17px;margin:20px 0;font-size:16px}
+.callout.open{border-left-color:var(--open);background:var(--open-tint)}
+.callout.partial{border-left-color:var(--partial-bright);background:var(--partial-tint)}
+.callout.closed{border-left-color:var(--closed);background:var(--closed-tint)}
+.callout b{font-family:var(--font-display);letter-spacing:-.5px}
+
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:8px 0 20px}
+@media(max-width:620px){.cards{grid-template-columns:1fr}.statuscard{grid-template-columns:1fr}}
+.gcard{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;text-decoration:none;color:var(--ink);transition:border-color .15s,transform .15s}
+.gcard:hover{border-color:var(--navy);transform:translateY(-2px)}
+.gcard .t{font-family:var(--font-display);font-weight:900;letter-spacing:-.6px;font-size:18px;margin-bottom:5px;line-height:1.1}
+.gcard .d{font-size:14px;color:var(--muted);line-height:1.5}
+
+.crumbs{font-family:var(--font-mono);font-size:12px;color:var(--muted);padding-top:22px}
+.crumbs a{color:var(--muted)}
+.related{border-top:1px solid var(--line);margin-top:30px;padding-top:8px}
+.related h2{font-size:22px}
+
+footer.site{border-top:1px solid var(--line);background:var(--navy);color:#c3cee0;margin-top:40px}
+footer.site .wrap{max-width:1080px;padding:26px 22px;font-size:13px;display:grid;gap:8px}
+footer.site a{color:#fff}
+footer.site .disc{font-family:var(--font-mono);font-size:11.5px;opacity:.75;line-height:1.6}
+
+.wordmark{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-display);font-weight:900;font-size:22px;letter-spacing:-1.4px;color:var(--ink);text-decoration:none;line-height:1}
+.flag-mark{display:inline-flex!important;flex-direction:column;width:25px;height:16px;border-radius:2px;position:relative;overflow:hidden;box-shadow:0 0 0 1px #0b1b3524}
+.flag-mark::before{content:"";position:absolute;inset:0 auto auto 0;width:11px;height:8px;background:#385994;z-index:2}
+.flag-mark i{display:block;width:100%;height:5.3px;background:#ee263b}
+.flag-mark i:nth-child(2){background:#fff}
+.btn-alerts{background:#ee263b;color:#fff!important;font-weight:bold;padding:8px 14px;border-radius:9px;text-decoration:none;margin-left:4px}
+.btn-alerts:hover{background:#d51f32}
+footer.site .frow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:2px}
+footer.site .frow .wordmark{color:#fff;font-size:20px}
+footer.site .sister{font-family:var(--font-mono);font-size:12px;color:#9fb0c9}
+footer.site .sister a{color:#fff;font-weight:bold}
+
+#shutdown-banner{display:none}
+#shutdown-banner.show{display:block;background:var(--closed);color:#fff}
+#shutdown-banner .sb-in{max-width:1080px;margin:0 auto;padding:11px 22px;font-size:14px}
+#shutdown-banner strong{font-family:var(--font-display);letter-spacing:-.5px;margin-right:6px}
+#shutdown-banner a{color:#fff;font-weight:bold;text-decoration:underline;white-space:nowrap}

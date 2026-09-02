@@ -1,0 +1,634 @@
+#!/usr/bin/env node
+/**
+ * build-parks.js — generate a static status + info page per park, plus the
+ * enrichment JSON the homepage card loads.
+ *
+ *   NPS_API_KEY=xxxx node build-parks.js
+ *
+ * Sources (all free):
+ *   - Worker status blob  -> current open/partial/closed for every entity
+ *   - NPS Data API /parks  -> description, address, phone, hours, photo, directions (national parks)
+ *   - Wikipedia REST       -> about/history extract + photo + article link (all parks)
+ *
+ * Writes:
+ *   public_html/park/<slug>/index.html   (one per park: national + NY/CA/TX/MN state)
+ *   public_html/park/index.html          (A–Z directory, all parks)
+ *   public_html/park/park.css
+ *   public_html/parks.json               (slim list)
+ *   public_html/parks-enriched.json      (id -> {description, history, address, hours, photo, ...})
+ *   public_html/sitemap.xml
+ *
+ * Rebuild daily; live status still updates hourly on top of the baked copy.
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+const API = process.env.STATUS_API || "https://parkstatus-api.parkstatus.workers.dev/";
+const NPS_KEY = process.env.NPS_API_KEY || "";
+const SITE = "https://parkstatus.today";
+const OUT = path.join(__dirname, "public_html");
+const PARK_DIR = path.join(OUT, "park");
+const UA = "ParkStatusToday/1.0 (+https://parkstatus.today; daily static build)";
+
+const INDEXERNOW =
+  '<!-- IndexerNow pixel -->\n<script>(function(){try{var q=new URLSearchParams(location.search);navigator.sendBeacon("https://www.indexernow.com/api/pixel/rFr2Mq0S1bpnXV_rmsqgDYT0",JSON.stringify({path:location.pathname,referrer:document.referrer||"",utm:{source:q.get("utm_source")||"",medium:q.get("utm_medium")||"",campaign:q.get("utm_campaign")||""}}));}catch(e){}})();<\/script>';
+
+const STATUS_LABEL = { open: "Open", partially_closed: "Partially closed", closed: "Closed", no_data: "No data" };
+const STATUS_CLASS = { open: "open", partially_closed: "partial", closed: "closed", no_data: "nodata" };
+const STATUS_SENTENCE = { open: "is open", partially_closed: "is partially closed", closed: "is closed", no_data: "has no current status" };
+const DOW = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+const DOW_LABEL = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
+
+const esc = (s) =>
+  String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmtPhone = (s) => { const d = String(s || "").replace(/\D/g, "");
+  return d.length === 10 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`
+    : (d.length === 11 && d[0] === "1") ? `(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}` : s; };
+const clip = (s, n) => { s = String(s || "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n - 1).replace(/\s\S*$/, "") + "…" : s; };
+
+function slugify(s) {
+  return String(s)
+    .normalize("NFKD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+async function mapPool(items, size, fn) {
+  const out = new Array(items.length);
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, async () => {
+    while (i < items.length) { const idx = i++; try { out[idx] = await fn(items[idx], idx); } catch (_) { out[idx] = null; } }
+  }));
+  return out;
+}
+
+// ===================== Wikipedia enrichment ================================
+// Anonymous Wikipedia REST wants low concurrency; throttle + retry 429s.
+const WIKI_OK = /\b(national park|state park|state historic|state natural|nature reserve|state recreation|national monument|national historic|national forest|national preserve|national reserve|national seashore|national lakeshore|national memorial|national recreation|national battlefield|national military|national parkway|national scenic|protected area|park in|reserve in|forest in|preserve in|island in|lake in|beach in|river in|historic site|recreation area|scenic|wilderness|monument in|memorial in|battlefield)\b/i;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function wget(url) {
+  for (let i = 0; i < 3; i++) {
+    const r = await fetch(url, { headers: { "User-Agent": UA } });
+    if (r.status === 429) { await sleep(1500 + i * 1500); continue; }
+    return r;
+  }
+  return null;
+}
+async function wikiSearch(q) {
+  const r = await wget("https://en.wikipedia.org/w/api.php?format=json&action=query&list=search&srlimit=3&srsearch=" + encodeURIComponent(q));
+  if (!r || !r.ok) return [];
+  const d = await r.json();
+  return (d.query && d.query.search || []).map((x) => x.title);
+}
+async function wikiSummary(title) {
+  const r = await wget("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(String(title).replace(/ /g, "_")));
+  if (!r || !r.ok) return null;
+  return r.json().catch(() => null);
+}
+function goodSummary(s) {
+  if (!s || s.type !== "standard") return null;
+  if ((s.extract || "").length < 120) return null;
+  if (!WIKI_OK.test((s.description || "") + " " + (s.extract || ""))) return null;
+  return {
+    history: clip(s.extract, 900),
+    wiki: (s.content_urls && s.content_urls.desktop && s.content_urls.desktop.page) || null,
+    photo: (s.thumbnail && s.thumbnail.source) || null,
+  };
+}
+async function enrichWikipedia(name) {
+  try {
+    await sleep(60 + Math.random() * 160);
+    // 1) title == name (common case, 1 request)
+    let g = goodSummary(await wikiSummary(name));
+    if (g) return g;
+    // 2) exact-phrase search
+    for (const t of (await wikiSearch('"' + name + '"')).slice(0, 2)) {
+      g = goodSummary(await wikiSummary(t));
+      if (g) return g;
+    }
+    // 3) loose search
+    for (const t of (await wikiSearch(name)).slice(0, 1)) {
+      g = goodSummary(await wikiSummary(t));
+      if (g) return g;
+    }
+  } catch (_) {}
+  return null;
+}
+
+// ===================== NPS rich fields =====================================
+async function npsRich() {
+  if (!NPS_KEY) { console.warn("  (no NPS_API_KEY — national parks get Wikipedia-only enrichment)"); return {}; }
+  const fields = "description,addresses,contacts,operatingHours,images,directionsInfo,weatherInfo,entranceFees,url,fullName";
+  const byCode = {};
+  let start = 0;
+  for (;;) {
+    const u = `https://developer.nps.gov/api/v1/parks?fields=${fields}&limit=200&start=${start}&api_key=${NPS_KEY}`;
+    const r = await fetch(u, { headers: { "User-Agent": UA } });
+    if (!r.ok) throw new Error("NPS " + r.status);
+    const d = await r.json();
+    for (const p of d.data) byCode[p.parkCode] = p;
+    start += d.data.length;
+    if (start >= Number(d.total) || !d.data.length) break;
+  }
+  return byCode;
+}
+function npsAddress(p) {
+  const a = (p.addresses || []).find((x) => x.type === "Physical") || (p.addresses || [])[0];
+  if (!a) return "";
+  return [a.line1, a.line2, a.line3].filter(Boolean).join(", ") +
+    (a.city ? `, ${a.city}` : "") + (a.stateCode ? `, ${a.stateCode}` : "") + (a.postalCode ? ` ${a.postalCode}` : "");
+}
+function npsHours(p) {
+  const g = (p.operatingHours || [])[0];
+  if (!g || !g.standardHours) return null;
+  const rows = DOW.map((d) => ({ d: DOW_LABEL[d], h: (g.standardHours[d] || "").trim() || "—" }));
+  if (rows.every((r) => r.h === "—")) return null;
+  return { rows, note: clip(g.name || g.description || "", 140) };
+}
+
+// ===================== assemble entities ===================================
+function statesText(e) {
+  return e.states || e.state || "";
+}
+function firstState(e) {
+  return (statesText(e).split(",")[0] || "").trim();
+}
+
+function collectEntities(data) {
+  const out = [];
+  const seen = new Map();
+  const slug = (name, fallback) => {
+    let base = slugify(name) || fallback;
+    let s = base, n = 2;
+    while (seen.has(s)) s = base + "-" + n++;
+    seen.set(s, true);
+    return s;
+  };
+  for (const p of data.parks || []) {
+    if (!p.parkCode || !p.fullName) continue;
+    out.push({
+      id: "nps:" + p.parkCode, code: p.parkCode, source: "nps",
+      name: p.fullName, kind: p.designation || "National Park Service site",
+      states: p.states || "", lat: p.lat, lon: p.lon, url: p.url,
+      status: p.status, reason: p.reason, scheduledOnly: p.scheduledOnly, counts: p.counts,
+      slug: slug(p.fullName, p.parkCode),
+    });
+  }
+  const addState = (arr, src, kindDefault) => {
+    for (const p of arr || []) {
+      if (!p.id || !p.name) continue;
+      out.push({
+        id: p.id, source: src, name: p.name,
+        kind: p.designation || kindDefault, states: p.state || "",
+        lat: p.lat, lon: p.lon, url: p.url,
+        status: p.status, reason: p.reason, counts: p.counts, county: p.county || "",
+        slug: slug(p.name, p.id),
+      });
+    }
+  };
+  addState(data.nyParks, "ny", "New York State Park");
+  addState(data.caParks, "ca", "California State Park");
+  addState(data.txParks, "tx", "Texas State Park");
+  addState(data.mnParks, "mn", "Minnesota State Park");
+  return out;
+}
+
+// ===================== per-page HTML =======================================
+function visitorBlock(en) {
+  if (!en) return "";
+  const bits = [];
+  if (en.address) bits.push(`<div class="vi"><b>Address</b><span>${esc(en.address)}</span></div>`);
+  if (en.phone) bits.push(`<div class="vi"><b>Phone</b><a href="tel:${esc(en.phone.replace(/[^\d+]/g,""))}">${esc(fmtPhone(en.phone))}</a></div>`);
+  if (en.website) bits.push(`<div class="vi"><b>Website</b><a href="${esc(en.website)}" target="_blank" rel="noopener">${esc(en.website.replace(/^https?:\/\//,"").replace(/\/$/,""))} ↗</a></div>`);
+  if (en.hours && en.hours.rows) {
+    bits.push(`<div class="vi"><b>Hours</b><table class="hrs">${en.hours.rows.map(r=>`<tr><td>${r.d}</td><td>${esc(r.h)}</td></tr>`).join("")}</table>${en.hours.note?`<span class="hn">${esc(en.hours.note)}</span>`:""}</div>`);
+  }
+  if (en.directions) bits.push(`<div class="vi"><b>Getting there</b><span>${esc(clip(en.directions, 320))}</span></div>`);
+  if (en.gmaps) bits.push(`<div class="vi"><b>Reviews</b><a href="${esc(en.gmaps)}" target="_blank" rel="noopener">See ratings &amp; reviews on Google Maps ↗</a></div>`);
+  return bits.length ? `<section class="visitor"><h2>Visitor info</h2>${bits.join("")}</section>` : "";
+}
+
+function pageHtml(e, en, updatedISO) {
+  const name = esc(e.name);
+  const cls = STATUS_CLASS[e.status] || "no_data";
+  const label = STATUS_LABEL[e.status] || "Status unknown";
+  const url = `${SITE}/park/${e.slug}/`;
+  const stateTxt = statesText(e);
+  const meta = (e.kind || "Park") + (stateTxt ? " · " + stateTxt : "");
+  const official = e.url || (e.source === "nps" ? "https://www.nps.gov/findapark/index.htm" : SITE);
+  const officialLabel = e.source === "nps" ? "Official NPS page ↗"
+    : e.source === "ny" ? "View on parks.ny.gov ↗"
+    : e.source === "ca" ? "View on parks.ca.gov ↗"
+    : e.source === "tx" ? "View on tpwd.texas.gov ↗"
+    : e.source === "mn" ? "View on dnr.state.mn.us ↗" : "Official page ↗";
+  const overview = (en && (en.description || en.history)) || "";
+  const desc = clip(`${e.name} ${STATUS_SENTENCE[e.status] || "status"}. ${e.reason || ""} ${overview}`, 300);
+  const photo = en && en.photo;
+
+  const jsonld = {
+    "@context": "https://schema.org",
+    "@graph": [
+      { "@type": "BreadcrumbList", itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
+        { "@type": "ListItem", position: 2, name: "All parks", item: SITE + "/park/" },
+        { "@type": "ListItem", position: 3, name: e.name, item: url } ] },
+      { "@type": "FAQPage", mainEntity: [ { "@type": "Question", name: `Is ${e.name} open right now?`,
+        acceptedAnswer: { "@type": "Answer", text: `${e.name} ${STATUS_SENTENCE[e.status] || "status is unavailable"}. ${e.reason || ""}`.trim() } } ] },
+    ],
+  };
+  if (en) {
+    const place = { "@type": "TouristAttraction", name: e.name, url: official };
+    if (en.description || en.history) place.description = clip(en.description || en.history, 300);
+    if (photo) place.image = photo;
+    if (en.address) place.address = en.address;
+    if (en.phone) place.telephone = en.phone;
+    if (typeof e.lat === "number" && typeof e.lon === "number") place.geo = { "@type": "GeoCoordinates", latitude: e.lat, longitude: e.lon };
+    jsonld["@graph"].push(place);
+  }
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PFZYJ3L871"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PFZYJ3L871');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${INDEXERNOW}
+<title>Is ${name} open? Current status &amp; visitor info — Park Status Today</title>
+<meta name="description" content="${esc(desc)}">
+<meta name="theme-color" content="#0b1b35">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="${url}">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Is ${name} open right now?">
+<meta property="og:description" content="${esc(desc)}">
+<meta property="og:url" content="${url}">
+${photo ? `<meta property="og:image" content="${esc(photo)}">` : ""}
+<meta name="twitter:card" content="${photo ? "summary_large_image" : "summary"}">
+<script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, "\\u003c")}</script>
+<link rel="stylesheet" href="/park/park.css">
+</head>
+<body data-entity-id="${esc(e.id)}" data-source="${esc(e.source)}" data-parkname="${esc(e.name)}">
+<div id="shutdown-banner"></div>
+
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+</div></header>
+
+<div class="strip"><div class="wrap">
+  <span class="k"><span class="dot open"></span><b id="s-open">—</b>&nbsp;open</span>
+  <span class="k"><span class="dot partial"></span><b id="s-partial">—</b>&nbsp;partially closed</span>
+  <span class="k"><span class="dot closed"></span><b id="s-closed">—</b>&nbsp;closed</span>
+  <span class="k"><span class="dot nodata"></span><b id="s-nodata">—</b>&nbsp;no data</span>
+  <span class="upd"><span id="s-upd">live status</span> · <a href="/#map">view map →</a></span>
+</div></div>
+
+<main class="wrap">
+  <div class="crumbs"><a href="/">Home</a> / <a href="/park/">All parks</a> / ${name}</div>
+  <h1>Is ${name} open right now?</h1>
+  <p class="sub" id="p-meta">${esc(meta)}</p>
+
+  <div class="verdict ${cls}" id="verdict">
+    <span class="pill ${cls}" id="p-pill">${esc(label)}</span>
+    <p class="line" id="p-line">${name} ${esc(STATUS_SENTENCE[e.status] || "status is unavailable")}.</p>
+    <div class="reason"><span class="rlab">Why this status</span><span id="p-reason">${esc(e.reason || "No reason provided.")}</span></div>
+    <p class="checked" id="p-checked">Last checked ${esc(new Date(updatedISO).toUTCString())}</p>
+  </div>
+
+  <div class="acts">
+    <a class="btn primary" href="${esc(official)}" target="_blank" rel="noopener">${officialLabel}</a>
+    <a class="btn ghost" href="/#map">← Back to the map</a>
+  </div>
+
+  ${photo ? `<img class="hero-photo" src="${esc(photo)}" alt="${name}" loading="lazy">` : ""}
+
+  ${overview ? `<article><h2>About ${name}</h2><p id="p-about">${esc(overview)}</p>${en && en.wiki ? `<p><a href="${esc(en.wiki)}" target="_blank" rel="noopener">Read more on Wikipedia ↗</a> <span class="disc" style="opacity:.7">Text from Wikipedia, CC BY-SA.</span></p>` : ""}</article>` : ""}
+
+  ${visitorBlock(en)}
+
+  <article>
+    <h2>How we read this status</h2>
+    <p>Status here is <strong>our reading</strong> of ${e.source === "nps" ? "the National Park Service's alerts and operating-hours data" : "the park system's public alerts"} — open, partially closed, or closed — not an official determination. It refreshes hourly. See <a href="/guides/how-we-check-park-status.html">how we check park status</a>.</p>
+  </article>
+
+  <div class="related">
+    <h2>Before you go</h2>
+    <div class="cards">
+      <a class="gcard" href="/guides/why-national-parks-close.html"><div class="t">Why parks close</div><div class="d">Wildfire, weather, wildlife, construction — the real reasons a park or road shuts.</div></a>
+      <a class="gcard" href="/guides/nps-alerts-explained.html"><div class="t">NPS alerts explained</div><div class="d">Danger, Closure, Caution, Information — what each type means.</div></a>
+      <a class="gcard" href="/park/"><div class="t">All park statuses</div><div class="d">Every park and waterway we track, A–Z.</div></a>
+      <a class="gcard" href="/#map"><div class="t">Live map</div><div class="d">See what's open near you right now.</div></a>
+    </div>
+  </div>
+</main>
+
+<footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span><b>Park Status Today</b> — an independent informational service, not affiliated with the National Park Service or any state agency.</span>
+  <span class="disc">Live status refreshed hourly · always confirm with the official park page before you travel.</span>
+</div></footer>
+
+<script>
+(function(){
+  var API="${API}";
+  var ID=document.body.dataset.entityId, SRC=document.body.dataset.source, NAME=document.body.dataset.parkname||ID;
+  var SENT={open:"is open",partially_closed:"is partially closed",closed:"is closed",no_data:"has no current status"};
+  var LABEL={open:"Open",partially_closed:"Partially closed",closed:"Closed",no_data:"No data"};
+  var CLS={open:"open",partially_closed:"partial",closed:"closed",no_data:"nodata"};
+  var bmap=function(s){return s==="advisory"?"partially_closed":(s==="open"||s==="closed")?s:"no_data";};
+  function set(id,v){var e=document.getElementById(id);if(e&&v!=null)e.textContent=v;}
+  fetch(API,{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+    var c={open:0,partially_closed:0,closed:0,no_data:0};
+    var add=function(arr,mk){(arr||[]).forEach(function(x){var s=mk?mk(x.status):x.status;if(s in c)c[s]++;});};
+    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.beaches,bmap);
+    set("s-open",c.open);set("s-partial",c.partially_closed);set("s-closed",c.closed);set("s-nodata",c.no_data);
+    if(d.updated){var dt=new Date(d.updated);
+      set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
+    var list = SRC==="nps"?d.parks : SRC==="ny"?d.nyParks : SRC==="ca"?d.caParks : SRC==="tx"?d.txParks : SRC==="mn"?d.mnParks : [];
+    var key = SRC==="nps" ? "nps:" : "";
+    var p=(list||[]).find(function(x){return (key+(x.parkCode||x.id))===ID;});
+    if(!p)return;
+    var v=document.getElementById("verdict"); if(v)v.className="verdict "+(CLS[p.status]||"nodata");
+    var pill=document.getElementById("p-pill");
+    if(pill){pill.className="pill "+(CLS[p.status]||"nodata");pill.textContent=LABEL[p.status]||"Status unknown";}
+    set("p-line",NAME+" "+(SENT[p.status]||"status is unavailable")+".");
+    set("p-reason",p.reason||"No reason provided.");
+    if(d.updated)set("p-checked","Last checked "+new Date(d.updated).toUTCString());
+  }).catch(function(){});
+  fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){
+    if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
+    b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';
+    b.className="show";
+  }).catch(function(){});
+})();
+</script>
+</body>
+</html>
+`;
+}
+
+function directoryHtml(list, updatedISO) {
+  const rows = list.slice().sort((a, b) => a.name.localeCompare(b.name)).map((e) =>
+    `<li><a href="/park/${e.slug}/"><span class="d ${STATUS_CLASS[e.status] || "nodata"}"></span><span class="nm">${esc(e.name)}</span><span class="st">${esc(statesText(e))}</span></a></li>`
+  ).join("\n");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PFZYJ3L871"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PFZYJ3L871');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${INDEXERNOW}
+<title>All park &amp; waterway statuses, A–Z — Park Status Today</title>
+<meta name="description" content="Current open / partially closed / closed status for ${list.length} national and state parks, listed A to Z.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="${SITE}/park/">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="All park &amp; waterway statuses, A–Z">
+<meta property="og:url" content="${SITE}/park/">
+<link rel="stylesheet" href="/park/park.css">
+</head>
+<body>
+<div id="shutdown-banner"></div>
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+</div></header>
+<div class="strip"><div class="wrap">
+  <span class="k"><span class="dot open"></span><b id="s-open">—</b>&nbsp;open</span>
+  <span class="k"><span class="dot partial"></span><b id="s-partial">—</b>&nbsp;partially closed</span>
+  <span class="k"><span class="dot closed"></span><b id="s-closed">—</b>&nbsp;closed</span>
+  <span class="k"><span class="dot nodata"></span><b id="s-nodata">—</b>&nbsp;no data</span>
+  <span class="upd"><span id="s-upd">live status</span> · <a href="/#map">view map →</a></span>
+</div></div>
+<main class="wrap">
+  <div class="crumbs"><a href="/">Home</a> / All parks</div>
+  <h1>Every status, A–Z</h1>
+  <p class="sub">${list.length} national and state parks. Tap any for status, hours, and visitor info.</p>
+  <input id="pfilter" class="pfilter" type="text" placeholder="Filter this list…" aria-label="Filter parks">
+  <ul class="plist" id="plist">
+${rows}
+  </ul>
+</main>
+<footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span class="disc">Live status refreshed hourly · always confirm with the official park page before you travel.</span>
+</div></footer>
+<script>
+(function(){
+  var f=document.getElementById("pfilter"),list=document.getElementById("plist");
+  f.addEventListener("input",function(){var v=f.value.trim().toLowerCase();
+    list.querySelectorAll("li").forEach(function(li){li.style.display=!v||li.textContent.toLowerCase().indexOf(v)>-1?"":"none";});});
+  var bmap=function(s){return s==="advisory"?"partially_closed":(s==="open"||s==="closed")?s:"no_data";};
+  fetch("${API}",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+    var c={open:0,partially_closed:0,closed:0,no_data:0},set=function(id,v){var e=document.getElementById(id);if(e)e.textContent=v;};
+    var add=function(a,mk){(a||[]).forEach(function(x){var s=mk?mk(x.status):x.status;if(s in c)c[s]++;});};
+    add(d.parks);add(d.nyParks);add(d.caParks);add(d.txParks);add(d.mnParks);add(d.beaches,bmap);
+    set("s-open",c.open);set("s-partial",c.partially_closed);set("s-closed",c.closed);set("s-nodata",c.no_data);
+    if(d.updated){var dt=new Date(d.updated);set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
+  }).catch(function(){});
+  fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){
+    if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
+    b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';b.className="show";
+  }).catch(function(){});
+})();
+</script>
+</body>
+</html>
+`;
+}
+
+const PARK_CSS = `/* Park Status — per-park + directory pages. half-mast.com visual language. */
+:root{--ink:#0e1726;--navy:#0b1b35;--navy-2:#142746;--paper:#f4f6f9;--line:#dfe4ec;--muted:#667185;--card:#fff;
+--open:#14785d;--open-tint:#e7f7f1;--partial:#9a6a0f;--partial-bright:#f2bd54;--partial-tint:#fff7e5;
+--closed:#ee263b;--closed-tint:#fdebed;--nodata:#5a6472;--nodata-tint:#eef0f3;
+--font-display:"Arial Black",Impact,"Arial Narrow",Arial,sans-serif;--font-sans:Arial,Helvetica,sans-serif;
+--font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-sans);line-height:1.7;-webkit-font-smoothing:antialiased;border-top:4px solid var(--closed)}
+.wrap{max-width:820px;margin:0 auto;padding:0 22px}
+a{color:var(--navy);text-underline-offset:3px}a:hover{color:var(--closed)}
+header.site{border-bottom:1px solid var(--line);background:var(--paper)}
+header.site .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 22px;max-width:1080px}
+nav.site a{font-size:13px;text-decoration:none;color:var(--muted);margin-left:17px}
+nav.site a:hover{color:var(--ink)}
+.wordmark{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-display);font-weight:900;font-size:22px;letter-spacing:-1.4px;color:var(--ink);text-decoration:none;line-height:1}
+.flag-mark{display:inline-flex!important;flex-direction:column;width:25px;height:16px;border-radius:2px;position:relative;overflow:hidden;box-shadow:0 0 0 1px #0b1b3524}
+.flag-mark::before{content:"";position:absolute;inset:0 auto auto 0;width:11px;height:8px;background:#385994;z-index:2}
+.flag-mark i{display:block;width:100%;height:5.3px;background:#ee263b}.flag-mark i:nth-child(2){background:#fff}
+.btn-alerts{background:#ee263b;color:#fff!important;font-weight:bold;padding:8px 14px;border-radius:9px;text-decoration:none;margin-left:14px}
+.btn-alerts:hover{background:#d51f32}
+.strip{background:var(--navy);color:#dfe7f2}
+.strip .wrap{max-width:1080px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:9px 22px;font-family:var(--font-mono);font-size:12px}
+.strip .k{display:inline-flex;align-items:center;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.dot.open{background:#36d6a0}.dot.partial{background:var(--partial-bright)}.dot.closed{background:#ff5566}.dot.nodata{background:#9aa4b2}
+.strip .upd{margin-left:auto;opacity:.72}.strip a{color:#fff;font-weight:bold}
+.crumbs{font-family:var(--font-mono);font-size:12px;color:var(--muted);padding-top:22px}
+.crumbs a{color:var(--muted)}
+h1{font-family:var(--font-display);font-weight:900;letter-spacing:-2px;line-height:.96;font-size:clamp(30px,5.5vw,50px);margin:18px 0 10px}
+.sub{font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin:0 0 22px;text-transform:uppercase;letter-spacing:.08em}
+.verdict{border:1px solid var(--line);border-left:5px solid var(--navy);background:var(--card);border-radius:14px;padding:20px 20px 16px;margin:0 0 20px}
+.verdict.open{border-left-color:var(--open);background:var(--open-tint)}
+.verdict.partial{border-left-color:var(--partial-bright);background:var(--partial-tint)}
+.verdict.closed{border-left-color:var(--closed);background:var(--closed-tint)}
+.verdict.nodata{border-left-color:var(--nodata);background:var(--nodata-tint)}
+.pill{display:inline-flex;align-items:center;font-family:var(--font-mono);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:6px 11px;border-radius:20px;color:#fff}
+.pill.open{background:var(--open)}.pill.partial{background:var(--partial)}.pill.closed{background:var(--closed)}.pill.nodata{background:var(--nodata)}
+.verdict .line{font-family:var(--font-display);font-weight:900;letter-spacing:-.8px;font-size:clamp(19px,3.2vw,26px);line-height:1.15;margin:12px 0 12px}
+.reason{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 13px;font-size:15px;margin:0 0 12px}
+.reason .rlab{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px}
+.checked{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin:6px 0 0}
+.acts{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 22px}
+.btn{font:inherit;font-size:14px;font-weight:bold;border-radius:10px;padding:11px 16px;text-decoration:none;border:1px solid transparent}
+.btn.primary{background:var(--navy);color:#fff}.btn.primary:hover{background:var(--navy-2);color:#fff}
+.btn.ghost{background:#fff;color:var(--navy);border-color:var(--line)}.btn.ghost:hover{border-color:var(--navy)}
+.hero-photo{width:100%;max-height:340px;object-fit:cover;border-radius:14px;border:1px solid var(--line);margin:0 0 8px}
+article{padding:6px 0 4px}
+article h2{font-family:var(--font-display);font-weight:900;letter-spacing:-1.2px;font-size:24px;margin:26px 0 10px}
+article p{font-size:16px;margin:0 0 14px}
+.visitor{border-top:1px solid var(--line);margin-top:22px;padding-top:6px}
+.visitor h2{font-family:var(--font-display);font-weight:900;letter-spacing:-1.2px;font-size:24px;margin:20px 0 12px}
+.vi{margin:0 0 14px}
+.vi b{display:block;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.vi span,.vi a{font-size:15px}
+table.hrs{border-collapse:collapse;font-size:14px}
+table.hrs td{padding:2px 14px 2px 0;color:var(--ink)}
+table.hrs td:first-child{color:var(--muted);font-family:var(--font-mono);font-size:12px;width:44px}
+.hn{display:block;font-size:12.5px;color:var(--muted);margin-top:6px}
+.related{border-top:1px solid var(--line);margin-top:26px;padding-top:6px}
+.related h2{font-family:var(--font-display);font-weight:900;letter-spacing:-1px;font-size:22px;margin:18px 0 12px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 0 26px}
+@media(max-width:620px){.cards{grid-template-columns:1fr}}
+.gcard{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;text-decoration:none;color:var(--ink);transition:border-color .15s,transform .15s}
+.gcard:hover{border-color:var(--navy);transform:translateY(-2px)}
+.gcard .t{font-family:var(--font-display);font-weight:900;letter-spacing:-.6px;font-size:17px;margin-bottom:5px;line-height:1.1}
+.gcard .d{font-size:13.5px;color:var(--muted);line-height:1.5}
+.pfilter{width:100%;max-width:420px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:15px;background:#fff;margin:0 0 18px}
+.pfilter:focus{outline:2px solid var(--navy);outline-offset:1px;border-color:var(--navy)}
+.plist{list-style:none;margin:0 0 30px;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:2px 20px}
+@media(max-width:680px){.plist{grid-template-columns:1fr}}
+.plist a{display:flex;align-items:center;gap:9px;padding:8px 4px;text-decoration:none;color:var(--ink);border-bottom:1px solid #eef1f5;font-size:14px}
+.plist a:hover{color:var(--navy)}
+.plist .d{width:9px;height:9px;border-radius:50%;flex:none}
+.plist .d.open{background:var(--open)}.plist .d.partial{background:var(--partial-bright)}.plist .d.closed{background:var(--closed)}.plist .d.nodata{background:#9aa4b2}
+.plist .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plist .st{font-family:var(--font-mono);font-size:11px;color:var(--muted);flex:none}
+footer.site{border-top:1px solid var(--line);background:var(--navy);color:#c3cee0;margin-top:40px}
+footer.site .wrap{max-width:1080px;padding:26px 22px;font-size:13px;display:grid;gap:8px}
+footer.site a{color:#fff}
+footer.site .disc{font-family:var(--font-mono);font-size:11.5px;opacity:.75;line-height:1.6}
+footer.site .frow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+footer.site .frow .wordmark{color:#fff;font-size:20px}
+footer.site .sister{font-family:var(--font-mono);font-size:12px;color:#9fb0c9}
+footer.site .sister a{color:#fff;font-weight:bold}
+#shutdown-banner{display:none}
+#shutdown-banner.show{display:block;background:var(--closed);color:#fff}
+#shutdown-banner .sb-in{max-width:1080px;margin:0 auto;padding:11px 22px;font-size:14px}
+#shutdown-banner strong{font-family:var(--font-display);letter-spacing:-.5px;margin-right:6px}
+#shutdown-banner a{color:#fff;font-weight:bold;text-decoration:underline;white-space:nowrap}
+`;
+
+function sitemap(list, updatedISO) {
+  const today = updatedISO.slice(0, 10);
+  const staticUrls = [
+    { loc: `${SITE}/`, freq: "hourly", pri: "1.0" },
+    { loc: `${SITE}/park/`, freq: "hourly", pri: "0.9" },
+    { loc: `${SITE}/guides/`, freq: "weekly", pri: "0.8" },
+    { loc: `${SITE}/guides/national-parks-government-shutdown.html`, freq: "weekly", pri: "0.9" },
+    { loc: `${SITE}/guides/why-national-parks-close.html`, freq: "monthly", pri: "0.7" },
+    { loc: `${SITE}/guides/nps-alerts-explained.html`, freq: "monthly", pri: "0.7" },
+    { loc: `${SITE}/guides/how-we-check-park-status.html`, freq: "monthly", pri: "0.6" },
+  ];
+  const parkUrls = list.slice().sort((a, b) => a.slug.localeCompare(b.slug))
+    .map((e) => ({ loc: `${SITE}/park/${e.slug}/`, freq: "hourly", pri: "0.7" }));
+  const body = [...staticUrls, ...parkUrls]
+    .map((u) => `  <url><loc>${u.loc}</loc><lastmod>${today}</lastmod><changefreq>${u.freq}</changefreq><priority>${u.pri}</priority></url>`).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
+}
+
+// ===================== main ===============================================
+async function main() {
+  process.stdout.write(`Fetching status blob ${API} …\n`);
+  const res = await fetch(API, { headers: { "cache-control": "no-store" } });
+  if (!res.ok) throw new Error(`status API returned ${res.status}`);
+  const data = await res.json();
+  const updatedISO = data.updated || new Date().toISOString();
+
+  const entities = collectEntities(data);
+  if (entities.length < 100) throw new Error("too few entities — aborting so we don't wipe the site");
+  process.stdout.write(`  ${entities.length} entities (NPS + NY/CA/TX/MN state parks)\n`);
+
+  process.stdout.write("Pulling NPS rich fields …\n");
+  const nps = await npsRich().catch((e) => { console.warn("  NPS rich fetch failed:", e.message); return {}; });
+
+  process.stdout.write(`Enriching from Wikipedia (${entities.length} lookups, ~10 min) …\n`);
+  let done = 0;
+  const enrichList = await mapPool(entities, 4, async (e) => {
+    const w = await enrichWikipedia(e.name);
+    if (++done % 100 === 0) process.stdout.write(`  ${done}/${entities.length}\n`);
+    return w;
+  });
+  process.stdout.write(`  matched ${enrichList.filter(Boolean).length}/${entities.length}\n`);
+
+  const enriched = {};
+  entities.forEach((e, i) => {
+    const w = enrichList[i] || {};
+    const np = e.source === "nps" ? nps[e.code] : null;
+    const st = firstState(e);
+    const gmaps = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(e.name + (st ? ", " + st : ""));
+    const en = {
+      name: e.name, kind: e.kind, state: st,
+      description: np ? clip(np.description, 600) : "",
+      history: w.history || "",
+      photo: (np && (np.images || [])[0] && np.images[0].url) || w.photo || null,
+      wiki: w.wiki || null,
+      address: np ? npsAddress(np) : (e.county ? e.county : ""),
+      phone: np ? ((np.contacts && np.contacts.phoneNumbers || [])[0] || {}).phoneNumber || "" : "",
+      email: np ? ((np.contacts && np.contacts.emailAddresses || [])[0] || {}).emailAddress || "" : "",
+      website: np ? np.url : e.url || "",
+      hours: np ? npsHours(np) : null,
+      directions: np ? clip(np.directionsInfo, 400) : "",
+      gmaps,
+    };
+    // trim empties
+    Object.keys(en).forEach((k) => { if (en[k] === "" || en[k] == null) delete en[k]; });
+    en.slug = e.slug;
+    enriched[e.id] = en;
+    e._en = en;
+  });
+
+  fs.mkdirSync(PARK_DIR, { recursive: true });
+  fs.writeFileSync(path.join(PARK_DIR, "park.css"), PARK_CSS);
+
+  let n = 0;
+  for (const e of entities) {
+    const dir = path.join(PARK_DIR, e.slug);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "index.html"), pageHtml(e, e._en, updatedISO));
+    n++;
+  }
+  fs.writeFileSync(path.join(PARK_DIR, "index.html"), directoryHtml(entities, updatedISO));
+
+  fs.writeFileSync(path.join(OUT, "parks-enriched.json"), JSON.stringify(enriched));
+  fs.writeFileSync(path.join(OUT, "parks.json"), JSON.stringify({
+    updated: updatedISO,
+    parks: entities.map((e) => ({ id: e.id, slug: e.slug, name: e.name, kind: e.kind,
+      states: statesText(e), status: e.status, source: e.source, url: `${SITE}/park/${e.slug}/` })),
+  }));
+  fs.writeFileSync(path.join(OUT, "sitemap.xml"), sitemap(entities, updatedISO));
+
+  const withWiki = Object.values(enriched).filter((x) => x.history).length;
+  const withNps = Object.values(enriched).filter((x) => x.hours || x.address).length;
+  process.stdout.write(
+    `\nDone.\n  ${n} park pages + directory\n` +
+    `  parks-enriched.json: ${withWiki} with Wikipedia about/history, ${withNps} with NPS visitor info\n` +
+    `  sitemap.xml: ${entities.length + 7} urls\n  data timestamp: ${updatedISO}\n`
+  );
+}
+
+main().catch((e) => { console.error("\nbuild-parks failed:", e.stack || e.message); process.exit(1); });

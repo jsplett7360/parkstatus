@@ -1,0 +1,49 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- IndexerNow pixel -->
+<script>(function(){try{var q=new URLSearchParams(location.search);navigator.sendBeacon("https://www.indexernow.com/api/pixel/rFr2Mq0S1bpnXV_rmsqgDYT0",JSON.stringify({path:location.pathname,referrer:document.referrer||"",utm:{source:q.get("utm_source")||"",medium:q.get("utm_medium")||"",campaign:q.get("utm_campaign")||""}}));}catch(e){}})();</script>
+<title>Park Status Guides — is your national park open?</title>
+<meta name="description" content="Guides on national park closures, government shutdowns, NPS alert types, and how to check if a park is open right now.">
+<link rel="canonical" href="https://parkstatus.today/guides/index.html">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article"><meta property="og:title" content="Park Status Guides — is your national park open?">
+<meta property="og:description" content="Guides on national park closures, government shutdowns, NPS alert types, and how to check if a park is open right now."><meta property="og:url" content="https://parkstatus.today/guides/index.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Park Status Guides — is your national park open?"><meta name="twitter:description" content="Guides on national park closures, government shutdowns, NPS alert types, and how to check if a park is open right now.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="guides.css">
+
+</head><body><div id="shutdown-banner"></div>
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  <nav class="site"><a href="/">Map</a><a href="/guides/">Guides</a><a href="/park/">All parks</a><a href="https://parkstatus-api.parkstatus.workers.dev/">API</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+</div></header>
+<div class="strip"><div class="wrap" id="strip">
+  <span class="k"><span class="dot open"></span><b id="s-open">—</b>&nbsp;open</span>
+  <span class="k"><span class="dot partial"></span><b id="s-partial">—</b>&nbsp;partially closed</span>
+  <span class="k"><span class="dot closed"></span><b id="s-closed">—</b>&nbsp;closed</span>
+  <span class="upd"><span id="s-upd">live status</span> · <a href="/">view map →</a></span>
+</div></div>
+<main class="wrap"><div class="crumbs"><a href="/">Home</a> / <a href="/guides/">Guides</a> / Guides</div><div class="hero"><p class="eyebrow">Guides</p><h1>Know before you go.</h1><p class="lede">Short, honest explainers on park closures and how to read the status of any National Park Service site.</p></div><article>
+<p>Plain-language explainers for figuring out whether a national park is open, why it might be closed, and how to read the alerts the National Park Service posts. Every guide links back to the <a href="/">live status map</a>, which tracks all 474 NPS sites and refreshes hourly.</p>
+<div class="cards">
+<a class="gcard" href="national-parks-government-shutdown.html"><div class="t">Parks &amp; government shutdowns</div><div class="d">What a funding lapse actually does to park access — and why "closed" is rarely the whole story.</div></a>
+<a class="gcard" href="why-national-parks-close.html"><div class="t">Why national parks close</div><div class="d">Wildfire, weather, wildlife, construction, and emergencies — the real reasons a park or a road shuts.</div></a>
+<a class="gcard" href="nps-alerts-explained.html"><div class="t">NPS alerts explained</div><div class="d">Danger, Closure, Caution, Information — what each alert type means for your trip.</div></a>
+<a class="gcard" href="how-we-check-park-status.html"><div class="t">How we check park status</div><div class="d">Our sources, the open / partially closed / closed logic, and where our reading can fall short.</div></a>
+</div>
+</article></main><footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="#top" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span><b style="color:#fff;font-family:var(--font-display)">Park Status Today</b> — an independent informational service, not affiliated with the National Park Service.</span>
+  <span class="disc">Source: NPS Data API · refreshed hourly · always confirm with the official park page before you travel. Status shown is our reading of NPS alerts and operating hours, not an official NPS determination.</span>
+</div></footer>
+<script>
+fetch("https://parkstatus-api.parkstatus.workers.dev/").then(r=>r.json()).then(d=>{
+  const t=d.tally||{};
+  const set=(id,v)=>{const e=document.getElementById(id);if(e&&v!=null)e.textContent=v;};
+  set("s-open",t.open);set("s-partial",t.partially_closed);set("s-closed",t.closed);
+  if(d.updated){const dt=new Date(d.updated);
+    set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
+}).catch(()=>{});
+</script>
+<script>(function(){fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more \u2192")+'</a></div>';b.className="show";}).catch(function(){});})();</script></body></html>

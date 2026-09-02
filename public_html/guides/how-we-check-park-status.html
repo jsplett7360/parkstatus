@@ -1,0 +1,62 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- IndexerNow pixel -->
+<script>(function(){try{var q=new URLSearchParams(location.search);navigator.sendBeacon("https://www.indexernow.com/api/pixel/rFr2Mq0S1bpnXV_rmsqgDYT0",JSON.stringify({path:location.pathname,referrer:document.referrer||"",utm:{source:q.get("utm_source")||"",medium:q.get("utm_medium")||"",campaign:q.get("utm_campaign")||""}}));}catch(e){}})();</script>
+<title>How we check if a national park is open</title>
+<meta name="description" content="Park Status Today builds each status from the official NPS Data API — active alerts plus operating hours — refreshed hourly. Here's our full method and its limits.">
+<link rel="canonical" href="https://parkstatus.today/guides/how-we-check-park-status.html">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article"><meta property="og:title" content="How we check if a national park is open">
+<meta property="og:description" content="Park Status Today builds each status from the official NPS Data API — active alerts plus operating hours — refreshed hourly. Here's our full method and its limits."><meta property="og:url" content="https://parkstatus.today/guides/how-we-check-park-status.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="How we check if a national park is open"><meta name="twitter:description" content="Park Status Today builds each status from the official NPS Data API — active alerts plus operating hours — refreshed hourly. Here's our full method and its limits.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="guides.css">
+
+</head><body><div id="shutdown-banner"></div>
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  <nav class="site"><a href="/">Map</a><a href="/guides/">Guides</a><a href="/park/">All parks</a><a href="https://parkstatus-api.parkstatus.workers.dev/">API</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+</div></header>
+<div class="strip"><div class="wrap" id="strip">
+  <span class="k"><span class="dot open"></span><b id="s-open">—</b>&nbsp;open</span>
+  <span class="k"><span class="dot partial"></span><b id="s-partial">—</b>&nbsp;partially closed</span>
+  <span class="k"><span class="dot closed"></span><b id="s-closed">—</b>&nbsp;closed</span>
+  <span class="upd"><span id="s-upd">live status</span> · <a href="/">view map →</a></span>
+</div></div>
+<main class="wrap"><div class="crumbs"><a href="/">Home</a> / <a href="/guides/">Guides</a> / Guide · Method</div><div class="hero"><p class="eyebrow">Guide · Method</p><h1>How we check park status.</h1><p class="lede">Our sources, our refresh cadence, the open / partially closed / closed logic, and the honest limits of an automated read.</p></div><article>
+<p>We try to answer one question fast and honestly: is this park open, partially closed, or closed, and why? Here's exactly how we get there — and where the method has limits.</p>
+
+<h2>Where the data comes from</h2>
+<p>Every status is built from the National Park Service's own <b>Data API</b> — the same source that powers the alerts on NPS.gov. We pull two things: each park's active alerts, and its published operating hours. We don't scrape park pages or use unofficial sources.</p>
+
+<h2>How often it updates</h2>
+<p>The NPS refreshes its alert data on roughly a two-hour cycle, so we refresh on the same cadence. That means our "last updated" time is the honest ceiling — we can't be more current than the source. For a fast-moving emergency, the official park page or a phone call is always more up-to-date than any status board, including ours.</p>
+
+<h2>How we decide open, partially closed, or closed</h2>
+<ul>
+<li>We read the <b>text</b> of every alert, not just its type, because closures are frequently mis-filed under other categories.</li>
+<li>A <b>whole-park</b> closure, or a park outside its scheduled hours, reads <b style="color:var(--closed)">closed</b>.</li>
+<li>A closed <b>trail, road, or area</b>, or an active hazard, reads <b style="color:var(--partial)">partially closed</b> — the most common state by far.</li>
+<li>Everything else reads <b style="color:var(--open)">open</b>. Cautions and general notices are surfaced on the park's detail panel but don't change the headline.</li>
+</ul>
+
+<h2>Where our reading can fall short</h2>
+<p>Our classifier is a set of rules applied to human-written alerts, so an unusual phrasing can occasionally be miscategorized. We tune it against real data regularly, but you should treat our status as a fast first read, not the final word. The official park page — which we link on every park — is always the authority.</p>
+
+<div class="callout"><b>Independent, and clear about it.</b> Park Status Today isn't affiliated with the National Park Service. We reorganize public NPS data to make it easier to read; we don't make official determinations. When it matters, verify with the park.</div>
+</article><div class="related"><h2>Keep reading</h2><div class="cards"><a class="gcard" href="nps-alerts-explained.html"><div class="t">NPS alerts explained</div><div class="d">The raw material we read.</div></a><a class="gcard" href="national-parks-government-shutdown.html"><div class="t">Parks &amp; shutdowns</div><div class="d">The case the API handles worst.</div></a></div></div></main><footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="#top" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span><b style="color:#fff;font-family:var(--font-display)">Park Status Today</b> — an independent informational service, not affiliated with the National Park Service.</span>
+  <span class="disc">Source: NPS Data API · refreshed hourly · always confirm with the official park page before you travel. Status shown is our reading of NPS alerts and operating hours, not an official NPS determination.</span>
+</div></footer>
+<script>
+fetch("https://parkstatus-api.parkstatus.workers.dev/").then(r=>r.json()).then(d=>{
+  const t=d.tally||{};
+  const set=(id,v)=>{const e=document.getElementById(id);if(e&&v!=null)e.textContent=v;};
+  set("s-open",t.open);set("s-partial",t.partially_closed);set("s-closed",t.closed);
+  if(d.updated){const dt=new Date(d.updated);
+    set("s-upd","updated "+dt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+dt.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}));}
+}).catch(()=>{});
+</script>
+<script>(function(){fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more \u2192")+'</a></div>';b.className="show";}).catch(function(){});})();</script></body></html>

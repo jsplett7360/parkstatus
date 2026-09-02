@@ -1,0 +1,1117 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PFZYJ3L871"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-PFZYJ3L871');
+</script>
+<!-- IndexerNow pixel -->
+<script>(function(){try{var q=new URLSearchParams(location.search);navigator.sendBeacon("https://www.indexernow.com/api/pixel/rFr2Mq0S1bpnXV_rmsqgDYT0",JSON.stringify({path:location.pathname,referrer:document.referrer||"",utm:{source:q.get("utm_source")||"",medium:q.get("utm_medium")||"",campaign:q.get("utm_campaign")||""}}));}catch(e){}})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Park Status Today — are the national parks open?</title>
+<meta name="description" content="A live status board for all 474 National Park Service sites: open, partially closed, or closed, and why. Built on official NPS data.">
+<meta name="theme-color" content="#0b1b35">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="shortcut icon" href="/favicon.svg">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Park Status Today — are the national parks open?">
+<meta property="og:description" content="Live open / partially closed / closed status for every U.S. national park site, built on official NPS data.">
+<meta property="og:url" content="https://parkstatus.today/">
+<link rel="canonical" href="https://parkstatus.today/">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
+<style>
+  :root{
+    --ink:#0e1726;--navy:#0b1b35;--navy-2:#142746;--paper:#f4f6f9;--line:#dfe4ec;
+    --muted:#667185;--card:#ffffff;--red:#ee263b;
+    --open:#14785d;--open-bright:#36d6a0;--partial:#9a6a0f;--partial-bright:#f2bd54;--closed:#ee263b;
+    --beach-open:#1a8fa3;--beach-advisory:#e0a52c;--beach-closed:#ee263b;--beach-noop:#9aa4b2;--beach-pending:#c7ccd4;
+    --font-display:"Arial Black",Impact,Arial,sans-serif;
+    --font-sans:Arial,Helvetica,sans-serif;
+    --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --weight-display:950;
+    --shadow:0 1px 0 rgba(14,23,38,.03),0 14px 34px -22px rgba(14,23,38,.5);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-sans);
+    line-height:1.7;-webkit-font-smoothing:antialiased;border-top:4px solid var(--closed)}
+  a{color:var(--navy);text-underline-offset:3px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+  .eyebrow{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--muted);margin:0 0 12px}
+
+  /* shutdown banner */
+  #shutdown-banner{display:none}
+  #shutdown-banner.show{display:block;background:var(--closed);color:#fff;font-size:14px;border-bottom:1px solid rgba(0,0,0,.18)}
+  #shutdown-banner .sb-in{max-width:1080px;margin:0 auto;padding:10px 22px}
+  #shutdown-banner strong{font-family:var(--font-display);letter-spacing:-.5px;margin-right:5px}
+  #shutdown-banner a{color:#fff;font-weight:bold;text-decoration:underline;white-space:nowrap}
+
+  /* header + wordmark (exact half-mast) */
+  header.top{border-bottom:1px solid var(--line);background:var(--paper)}
+  header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 22px}
+  .wordmark{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-display);font-weight:950;font-size:25px;letter-spacing:-1.4px;color:var(--ink);text-decoration:none;line-height:1}
+  .flag-mark{display:inline-flex!important;flex-direction:column;width:27px;height:17px;border-radius:2px;position:relative;overflow:hidden;box-shadow:0 0 0 1px #0b1b3524}
+  .flag-mark::before{content:"";position:absolute;inset:0 auto auto 0;width:12px;height:9px;background:#385994;z-index:2}
+  .flag-mark i{display:block;width:100%;height:5.7px;background:#ee263b}
+  .flag-mark i:nth-child(2){background:#fff}
+  nav.top-nav{display:flex;align-items:center;gap:18px}
+  nav.top-nav a{font-size:13px;text-decoration:none;color:var(--muted)}
+  nav.top-nav a:hover{color:var(--ink)}
+  .btn-alerts{background:var(--red);color:#fff!important;font-weight:bold;font-size:13px;padding:9px 15px;border-radius:9px;text-decoration:none}
+  .btn-alerts:hover{background:#d51f32}
+  @media(max-width:640px){nav.top-nav{gap:13px}nav.top-nav a.hide-sm{display:none}}
+
+  .ticker{background:var(--navy);color:#dfe7f2}
+  .ticker .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;padding:9px 22px;font-family:var(--font-mono);font-size:12.5px}
+  .ticker .k{display:inline-flex;align-items:center;gap:7px}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+  .dot.open{background:var(--open-bright)}.dot.partial{background:var(--partial-bright)}.dot.closed{background:#ff5566}
+  .dot.nodata{background:#9aa4b2}
+  .dot.beach-open{background:var(--beach-open)}.dot.beach-advisory{background:var(--beach-advisory)}
+  .dot.beach-closed{background:var(--beach-closed)}.dot.beach-noop{background:var(--beach-noop)}.dot.beach-pending{background:var(--beach-pending)}
+  .ticker .upd{margin-left:auto;opacity:.72}
+
+  .hero .wrap{padding-top:30px}
+  h1{font-family:var(--font-display);font-weight:950;letter-spacing:-2px;line-height:.9;
+    font-size:clamp(30px,5.5vw,52px);margin:0 0 12px}
+  .lede{max-width:58ch;color:#33405a;font-size:18px;margin:0 0 20px}
+
+  .board{display:grid;grid-template-columns:262px 1fr;gap:22px;align-items:start;padding-bottom:26px}
+  @media(max-width:820px){.board{grid-template-columns:1fr}}
+  .rail{position:sticky;top:14px;display:flex;flex-direction:column;gap:16px}
+  @media(max-width:820px){.rail{position:static}}
+  .panelbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 15px 16px;box-shadow:var(--shadow)}
+  .panelbox h2{font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 11px;font-weight:700}
+
+  .search{position:relative}
+  .search input,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;font:inherit;font-size:14px;color:var(--ink)}
+  .search input:focus,select:focus{outline:2px solid var(--navy);outline-offset:1px;border-color:var(--navy)}
+  .results{position:absolute;z-index:1200;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);max-height:280px;overflow:auto;display:none}
+  .results.show{display:block}
+  .results button{display:flex;width:100%;gap:9px;align-items:center;text-align:left;background:none;border:0;border-bottom:1px solid #eef1f5;padding:9px 11px;cursor:pointer;font:inherit;font-size:13px;color:var(--ink)}
+  .results button:last-child{border-bottom:0}
+  .results button:hover,.results button:focus{background:var(--paper);outline:none}
+  .results .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  .toggle{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 2px;cursor:pointer;font-size:14px}
+  .toggle input{position:absolute;opacity:0;pointer-events:none}
+  .toggle .lab{display:flex;align-items:center;gap:9px}
+  .count{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+  .toggle.off{opacity:.4}
+  .toggle:focus-within .lab{outline:2px solid var(--navy);outline-offset:3px;border-radius:3px}
+
+  .mapwrap{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:8px;box-shadow:var(--shadow);position:relative}
+  .mapframe{position:relative;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#e8edf2;height:clamp(440px,74vh,720px)}
+  #usmap{position:absolute;inset:0;width:100%;height:100%;background:#e8edf2}
+  .leaflet-container{font:inherit;background:#e8edf2}
+  .leaflet-bar a{color:var(--navy)}
+  .zoomhint{position:absolute;left:10px;bottom:10px;z-index:800;background:rgba(11,27,53,.82);color:#fff;font-family:var(--font-mono);font-size:11px;padding:5px 9px;border-radius:7px;pointer-events:none;transition:opacity .3s}
+  .zoomhint.gone{opacity:0}
+
+  /* map pins (divIcon) */
+  .pin{display:block;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 5px rgba(14,23,38,.45)}
+  .pin.small{width:11px;height:11px}
+  .pin-beach{border-radius:3px}
+  .pin-nysp{border-radius:2px;transform:rotate(45deg)}
+  .pin.s-open{background:var(--open)}.pin.s-partial{background:var(--partial-bright)}.pin.s-closed{background:var(--closed)}
+  .pin.b-open{background:var(--beach-open)}.pin.b-advisory{background:var(--beach-advisory)}.pin.b-closed{background:var(--beach-closed)}
+  .pin.b-noop{background:var(--beach-noop)}.pin.b-pending{background:var(--beach-pending)}
+  .pin.s-no_data,.pin.b-no_data{background:#9aa4b2}
+  .pin.pulse{animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @media(prefers-reduced-motion:reduce){.pin.pulse{animation:none}}
+  .leaflet-marker-icon.sel-wrap .pin{outline:3px solid var(--ink);outline-offset:2px}
+
+  /* cluster bubbles — brand navy, sized by count */
+  .cl{background:none}
+  .cl span{display:flex;align-items:center;justify-content:center;width:100%;height:100%;border-radius:50%;
+    background:var(--navy);color:#fff;font-family:var(--font-mono);font-weight:700;font-size:12px;
+    border:2px solid #fff;box-shadow:0 2px 10px -2px rgba(14,23,38,.55)}
+  .cl.beach span{background:#0e5f6e}
+  .cl.nysp span{background:#2f7d4f}
+  .cl.casp span{background:#b5651d}
+  .cl.txsp span{background:#7a3b8c}
+  .cl.mnsp span{background:#1f5f8b}
+  .leaflet-tooltip.pk-tip{font-family:var(--font-sans);font-size:12px;font-weight:700;border:0;
+    background:var(--navy);color:#fff;box-shadow:0 4px 14px -6px rgba(0,0,0,.6)}
+  .leaflet-tooltip.pk-tip::before{border-top-color:var(--navy)}
+
+  /* Built for confidence: Monitor / Verify / Explain */
+  .confidence{border-top:1px solid var(--line)}
+  .confidence .wrap{padding:44px 22px 8px;display:grid;grid-template-columns:1fr 2fr;gap:28px}
+  @media(max-width:820px){.confidence .wrap{grid-template-columns:1fr;gap:18px}}
+  .conf-title{font-family:var(--font-display);font-weight:950;letter-spacing:-1.8px;font-size:clamp(26px,4vw,40px);line-height:1;margin:0}
+  .conf-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  @media(max-width:560px){.conf-steps{grid-template-columns:1fr}}
+  .step{border-top:2px solid var(--ink);padding-top:12px}
+  .step .num{font-family:var(--font-mono);font-weight:700;font-size:13px;color:var(--red)}
+  .step h3{font-size:20px;margin:14px 0 6px;font-weight:700}
+  .step p{font-size:14.5px;color:#55617a;margin:0}
+
+  /* Official source health */
+  .sources .wrap{padding:34px 22px}
+  .src-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow)}
+  .src-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  .src-head h2{font-family:var(--font-display);font-weight:950;letter-spacing:-1px;font-size:24px;margin:0}
+  .src-head a{font-size:13px;text-decoration:none;color:var(--muted)}
+  .src-head a:hover{color:var(--ink)}
+  .src-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+  @media(max-width:560px){.src-grid{grid-template-columns:1fr}}
+  .src-item{display:flex;align-items:center;gap:11px;border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+  .hdot{width:10px;height:10px;border-radius:50%;background:var(--open-bright);flex:none;box-shadow:0 0 0 3px rgba(54,214,160,.18)}
+  .hdot.stale{background:var(--partial-bright);box-shadow:0 0 0 3px rgba(242,189,84,.18)}
+  .src-item b{font-size:14px;display:block}
+  .src-item span{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
+
+  /* signup card (half-mast "coming next" style) */
+  .signup .wrap{padding:8px 22px 40px}
+  .su-card{background:#e9eef5;border:1px solid var(--line);border-radius:16px;padding:26px 24px;max-width:680px}
+  .signup h2{font-family:var(--font-display);font-weight:950;letter-spacing:-1.4px;font-size:clamp(24px,4vw,34px);line-height:1;margin:0 0 8px}
+  .su-lede{color:#33405a;font-size:16px;margin:0 0 18px}
+  .su-row{display:flex;gap:9px;flex-wrap:wrap}
+  .su-row input{flex:1;min-width:200px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:15px;background:#fff}
+  .su-row input:focus{outline:2px solid var(--navy);outline-offset:1px;border-color:var(--navy)}
+  .btn{font:inherit;font-size:15px;font-weight:bold;border-radius:10px;padding:12px 18px;cursor:pointer;border:1px solid transparent;white-space:nowrap}
+  .btn.primary{background:var(--navy);color:#fff}
+  .btn.primary:hover{background:var(--navy-2)}
+  .btn.ghost{background:#fff;color:var(--navy);border-color:var(--line)}
+  .btn.ghost:hover{border-color:var(--navy)}
+  .su-field{margin:0 0 14px}
+  .su-field>label{display:block;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+  .su-field select,.su-field input[type=text],.su-field input[type=date]{padding:10px 12px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:14px;background:#fff;color:var(--ink)}
+  .su-field select{width:100%}
+  .su-inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .su-inline input[type=text]{flex:1;min-width:160px}
+  .su-hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+  .su-chips{display:flex;flex-wrap:wrap;gap:6px;min-height:8px}
+  .su-chip{font-family:var(--font-mono);font-size:11px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:4px 8px 4px 10px;color:var(--ink);display:inline-flex;align-items:center;gap:6px}
+  .su-chip button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0}
+  .su-near-list{max-height:190px;overflow:auto;margin-top:4px}
+  .su-check{display:flex;gap:8px;align-items:flex-start;font-size:13px;padding:4px 2px;line-height:1.35}
+  .su-check input{margin-top:3px;flex:none}
+  .su-or{color:var(--muted);font-size:13px;margin:12px 0;font-family:var(--font-mono)}
+  .su-msg{min-height:20px;margin:12px 0 0;font-size:14px}
+  .su-msg.ok{color:var(--open)}.su-msg.err{color:var(--closed)}
+  .su-note{font-size:12px;color:var(--muted);margin:14px 0 0}
+
+  section.about .wrap{padding:6px 22px 30px;max-width:780px}
+  section.about h2{font-family:var(--font-display);letter-spacing:-1px;font-size:24px}
+  section.about p{color:#33405a;font-size:15.5px}
+
+  footer.site{border-top:1px solid var(--line);background:var(--navy);color:#c3cee0;margin-top:8px}
+  footer.site .wrap{padding:26px 22px;display:grid;gap:12px;font-size:13px}
+  footer.site .frow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+  footer.site .wordmark{color:#fff;font-size:20px}
+  footer.site .sister{font-family:var(--font-mono);font-size:12px;color:#9fb0c9}
+  footer.site .sister a{color:#fff;font-weight:bold}
+  footer.site b{color:#fff;font-family:var(--font-display)}
+  footer.site a{color:#fff}
+  footer.site .src{font-family:var(--font-mono);font-size:11.5px;opacity:.72}
+
+  .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:13px;background:#e8edf2;z-index:900}
+
+  .detail{position:fixed;top:0;right:0;height:100%;width:min(400px,92vw);background:#fff;border-left:1px solid var(--line);box-shadow:-18px 0 40px -30px rgba(14,23,38,.6);transform:translateX(100%);transition:transform .22s ease;z-index:2000;display:flex;flex-direction:column}
+  .detail.open{transform:none}
+  @media(prefers-reduced-motion:reduce){.detail{transition:none}}
+  .detail .dhead{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+  .detail .close{background:none;border:1px solid var(--line);border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:16px;color:var(--muted);flex:none}
+  .detail .close:hover{color:var(--ink);border-color:var(--navy)}
+  .detail .body{padding:18px 20px;overflow:auto}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:6px 11px;border-radius:20px;color:#fff}
+  .pill.open{background:var(--open)}.pill.partial{background:var(--partial)}.pill.closed{background:var(--closed)}
+  .pill.no_data,.pill.nodata{background:#5a6472}
+  .near-note{font-size:12px;color:var(--muted);margin:9px 0 0;line-height:1.4}
+  .near-note b{color:var(--ink)}
+  .pill.beach-open{background:var(--beach-open)}.pill.beach-advisory{background:#7a5710}
+  .pill.beach-closed{background:var(--beach-closed)}.pill.beach-not_in_operation{background:#5a6472}.pill.beach-pending{background:#6b7380}
+  .detail h3{font-family:var(--font-display);letter-spacing:-.8px;font-size:21px;line-height:1.1;margin:12px 0 4px}
+  .meta{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:16px}
+  .reason{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 13px;font-size:14px;margin-bottom:14px}
+  .reason .rlab{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+  .tag{font-family:var(--font-mono);font-size:11px;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:4px 8px;color:var(--muted)}
+  .follow{width:100%;background:#fff;color:var(--navy);border:1px solid var(--line);border-radius:9px;padding:11px;font:inherit;font-weight:bold;font-size:14px;cursor:pointer;margin-bottom:10px}
+  .follow:hover{border-color:var(--navy)}
+  .follow.on{background:var(--open);color:#fff;border-color:var(--open)}
+  /* card enrichment */
+  #d-extra{margin:4px 0 14px}
+  #d-extra img.dphoto{width:100%;height:150px;object-fit:cover;border-radius:10px;border:1px solid var(--line);margin:0 0 12px}
+  #d-extra .about{font-size:13.5px;color:#33405a;line-height:1.55;margin:0 0 12px}
+  #d-extra .about a{white-space:nowrap}
+  #d-extra .vrow{display:flex;gap:8px;font-size:13px;margin:0 0 7px;line-height:1.45}
+  #d-extra .vrow .vk{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);flex:0 0 58px;padding-top:2px}
+  #d-extra .vrow .vv{flex:1;min-width:0}
+  #d-extra table.hrs{border-collapse:collapse;font-size:12.5px}
+  #d-extra table.hrs td{padding:1px 12px 1px 0}
+  #d-extra table.hrs td:first-child{color:var(--muted);font-family:var(--font-mono);width:38px}
+  #d-extra .hn{display:block;font-size:11.5px;color:var(--muted);margin-top:4px}
+  .d-alerts{border-top:1px solid var(--line);margin-top:14px;padding-top:14px}
+  .da-lead{font-size:13px;color:var(--ink-soft);margin:0 0 8px}
+  #d-alert-form .su-row{margin-top:8px}
+  #d-alert-form .su-row input{flex:1;min-width:150px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:14px}
+  #d-alert-form input[type=date]{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px}
+  .dlinks{display:flex;flex-direction:column;gap:8px}
+  .official{display:inline-block;background:var(--navy);color:#fff;text-decoration:none;font-size:13px;font-weight:700;padding:10px 14px;border-radius:9px;text-align:center}
+  .official:hover{background:var(--navy-2)}
+  .official.ghost{background:#fff;color:var(--navy);border:1px solid var(--line)}
+  .official.ghost:hover{border-color:var(--navy)}
+  .backdrop{position:fixed;inset:0;background:rgba(14,23,38,.3);opacity:0;pointer-events:none;transition:opacity .2s;z-index:1900}
+  .backdrop.show{opacity:1;pointer-events:auto}
+</style>
+</head>
+<body>
+<div id="shutdown-banner"></div>
+
+<header class="top"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  <nav class="top-nav">
+    <a href="#map" class="hide-sm">Map</a>
+    <a href="/park/" class="hide-sm">All parks</a>
+    <a href="/guides/" class="hide-sm">Guides</a>
+    <a href="https://parkstatus-api.parkstatus.workers.dev/" target="_blank" rel="noopener" class="hide-sm">API</a>
+    <a href="#signup" class="btn-alerts">Get alerts</a>
+  </nav>
+</div></header>
+
+<div class="ticker"><div class="wrap" id="ticker">
+  <span class="k"><span class="dot open"></span><span id="t-open">—</span> open</span>
+  <span class="k"><span class="dot partial"></span><span id="t-partial">—</span> partially closed</span>
+  <span class="k"><span class="dot closed"></span><span id="t-closed">—</span> closed</span>
+  <span class="k"><span class="dot nodata"></span><span id="t-nodata">—</span> no data</span>
+  <span class="upd" id="t-updated"></span>
+</div></div>
+
+<section class="hero"><div class="wrap">
+  <h1>Are the parks open right now?</h1>
+  <p class="lede">A live status board for every U.S. national park plus state parks and waterways in New York, California, Texas and Minnesota — open, partially closed, or closed, with the reason and a link to the official page. Tap a dot to see why.</p>
+</div></section>
+
+<main class="wrap" id="map">
+  <div class="board">
+    <aside class="rail">
+      <div class="panelbox">
+        <h2>Find a park</h2>
+        <div class="search">
+          <input id="q" type="text" placeholder="City, state, ZIP, or park name…" autocomplete="off" aria-label="Search by city, state, ZIP, or park name">
+          <div class="results" id="results" role="listbox"></div>
+        </div>
+        <p id="near-note" class="near-note" hidden></p>
+      </div>
+      <div class="panelbox">
+        <h2>Parks &amp; Waterways</h2>
+        <label class="toggle" data-status="open"><span class="lab"><span class="dot open"></span>Open</span><span class="count" id="c-open">—</span><input type="checkbox" checked></label>
+        <label class="toggle" data-status="partially_closed"><span class="lab"><span class="dot partial"></span>Partially closed</span><span class="count" id="c-partial">—</span><input type="checkbox" checked></label>
+        <label class="toggle" data-status="closed"><span class="lab"><span class="dot closed"></span>Closed</span><span class="count" id="c-closed">—</span><input type="checkbox" checked></label>
+        <label class="toggle" data-status="no_data"><span class="lab"><span class="dot nodata"></span>No data</span><span class="count" id="c-nodata">—</span><input type="checkbox" checked></label>
+      </div>
+    </aside>
+
+    <div class="mapwrap">
+      <div class="mapframe">
+        <div id="usmap" role="region" aria-label="Map of U.S. national park sites and New York beaches by status"></div>
+        <div class="zoomhint" id="zoomhint">Scroll-zoom is off — click the map, or use + / −</div>
+        <div class="loading" id="loading">Loading current park status…</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<section class="confidence"><div class="wrap">
+  <div class="conf-head">
+    <p class="eyebrow">Built for confidence</p>
+    <h2 class="conf-title">One clear answer.<br>Official data.</h2>
+  </div>
+  <div class="conf-steps">
+    <div class="step"><span class="num">01</span><h3>Monitor</h3><p>We pull every alert and operating-hours record from the National Park Service Data API.</p></div>
+    <div class="step"><span class="num">02</span><h3>Verify</h3><p>We read the text of each alert — not just its label — because closures are often mis-filed.</p></div>
+    <div class="step"><span class="num">03</span><h3>Explain</h3><p>We translate it into one status — open, partially closed, or closed — with the reason.</p></div>
+  </div>
+</div></section>
+
+<section class="sources"><div class="wrap">
+  <div class="src-card">
+    <p class="eyebrow">Monitoring transparency</p>
+    <div class="src-head">
+      <h2>Official source health</h2>
+      <a href="https://parkstatus-api.parkstatus.workers.dev/" target="_blank" rel="noopener">View status API ↗</a>
+    </div>
+    <div class="src-grid">
+      <div class="src-item"><span class="hdot" id="hdot-a"></span><div><b>NPS Data API · Alerts</b><span id="src-alerts">Connecting…</span></div></div>
+      <div class="src-item"><span class="hdot" id="hdot-p"></span><div><b>NPS Data API · Operating hours</b><span id="src-parks">Connecting…</span></div></div>
+      <div class="src-item"><span class="hdot" id="hdot-b"></span><div><b>NY DOH · Beach Advisory</b><span id="src-beaches">Connecting…</span></div></div>
+      <div class="src-item"><span class="hdot" id="hdot-n"></span><div><b>NY State Parks · parks.ny.gov</b><span id="src-nysp">Connecting…</span></div></div>
+      <div class="src-item"><span class="hdot" id="hdot-c"></span><div><b>CA State Parks · ArcGIS status layer</b><span id="src-casp">Connecting…</span></div></div>
+      <div class="src-item"><span class="hdot" id="hdot-t"></span><div><b>TX State Parks · tpwd.texas.gov</b><span id="src-txsp">Connecting…</span></div></div>
+      <div class="src-item"><span class="hdot" id="hdot-m"></span><div><b>MN State Parks · MN DNR</b><span id="src-mnsp">Connecting…</span></div></div>
+    </div>
+  </div>
+</div></section>
+
+<section class="signup" id="signup"><div class="wrap">
+  <div class="su-card">
+    <p class="eyebrow">Alerts</p>
+    <h2>Never miss a closure</h2>
+    <p class="su-lede">Get an alert when a park or waterway changes status. Choose what to watch and, if you like, a date range.</p>
+
+    <div class="su-field">
+      <label for="su-kind">Watch</label>
+      <select id="su-kind">
+        <option value="all">Everywhere</option>
+        <option value="place">Near a city, state, or ZIP</option>
+      </select>
+      <p class="su-hint">Want just one or two parks? Tap a dot on the map and use “Follow this park” in the card.</p>
+    </div>
+
+    <div class="su-field" id="su-place-wrap" hidden>
+      <label for="su-loc">Location</label>
+      <div class="su-inline">
+        <input id="su-loc" type="text" placeholder="City, state, or ZIP" autocomplete="off">
+        <select id="su-radius">
+          <option value="20">within 20 mi</option>
+          <option value="50" selected>within 50 mi</option>
+          <option value="100">within 100 mi</option>
+          <option value="200">within 200 mi</option>
+        </select>
+      </div>
+      <p class="su-hint" id="su-loc-hint"></p>
+      <div id="su-near-list" class="su-near-list"></div>
+    </div>
+
+    <div class="su-field">
+      <label>Only between <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <div class="su-inline">
+        <input id="su-from" type="date" aria-label="From date">
+        <span style="color:var(--muted)">to</span>
+        <input id="su-to" type="date" aria-label="To date">
+      </div>
+    </div>
+
+    <div class="su-row">
+      <input id="su-email" type="email" placeholder="you@example.com" aria-label="Email address">
+      <button id="su-email-btn" class="btn primary">Email me updates</button>
+    </div>
+    <div class="su-or">— or —</div>
+    <button id="su-push-btn" class="btn ghost">🔔 Enable browser alerts</button>
+    <p class="su-msg" id="su-msg" role="status" aria-live="polite"></p>
+    <p class="su-note">You won't be alerted for routine "closed today per scheduled hours" closures. Unsubscribe anytime.</p>
+  </div>
+</div></section>
+
+<section class="about"><div class="wrap">
+  <h2>About this status board</h2>
+  <p>Every status here is derived from the National Park Service's own alerts and operating-hours data. A park reads <b style="color:var(--open)">open</b> when no active closures or hazards are reported, <b style="color:var(--partial)">partially closed</b> when part of it — a trail, road, or area — is closed or under a hazard, and <b style="color:var(--closed)">closed</b> when the whole site is closed or outside its scheduled hours. Most parks sit in the middle: a closed trail rarely means a closed park, so check the reason and the official page before you drive out. More in our <a href="/guides/">guides</a>.</p>
+</div></section>
+
+<footer class="site"><div class="wrap">
+    <a href="https://www.indexernow.com/scan?utm_source=badge&utm_medium=referral&utm_campaign=indexed-by-indexernow" target="_blank" rel="noopener" title="Indexed by IndexerNow"
+   style="display:inline-flex;align-items:center;gap:9px;padding:8px 14px;border:1px solid #26304a;border-radius:10px;background:#0b1020;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <svg width="18" height="18" viewBox="0 0 26 26" aria-hidden="true" style="flex:none"><rect width="26" height="26" rx="7" fill="#6366f1"/><path d="M15 5 L8 15h5l-2 8L20 12h-5z" fill="#ffffff"/></svg>
+  <span style="display:inline-flex;flex-direction:column;line-height:1.15"><span style="font-size:9px;letter-spacing:1.1px;font-weight:700;color:#8b93a7">INDEXED BY</span><span style="font-size:14px;font-weight:700;color:#eef1f8">IndexerNow</span></span>
+</a>
+  <div class="frow">
+    <a class="wordmark" href="#top" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+    <span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span>
+  </div>
+  <span><b>Park Status Today</b> — an independent informational service, not affiliated with the National Park Service.</span>
+  <span class="src">Source: NPS Data API · refreshed hourly · always verify with the official park page before visiting.</span>
+</div></footer>
+
+<div class="backdrop" id="backdrop"></div>
+<aside class="detail" id="detail" aria-live="polite" aria-hidden="true">
+  <div class="dhead">
+    <span class="pill" id="d-pill">—</span>
+    <button class="close" id="d-close" aria-label="Close">✕</button>
+  </div>
+  <div class="body">
+    <h3 id="d-name">—</h3>
+    <div class="meta" id="d-meta"></div>
+    <div class="reason"><span class="rlab">Why this status</span><span id="d-reason"></span></div>
+    <div class="tags" id="d-tags"></div>
+
+    <div id="d-extra"></div>
+
+    <div class="dlinks">
+      <a class="official" id="d-page" href="#">Full status &amp; details →</a>
+      <a class="official ghost" id="d-link" href="#" target="_blank" rel="noopener">View official page ↗</a>
+    </div>
+
+    <div class="d-alerts">
+      <button class="follow" id="d-follow">🔔 Follow this park</button>
+      <div id="d-alert-form" hidden>
+        <p class="da-lead"><b id="da-count">0</b> following · alert me when any of them changes</p>
+        <div class="su-chips" id="da-chips"></div>
+        <div class="su-inline" style="margin:8px 0"><span class="su-hint" style="margin:0">Only between</span>
+          <input id="da-from" type="date" aria-label="From"><span style="color:var(--muted)">to</span><input id="da-to" type="date" aria-label="To"></div>
+        <div class="su-row"><input id="da-email" type="email" placeholder="you@example.com" aria-label="Email">
+          <button class="btn primary" id="da-sub">Email me updates</button></div>
+        <button class="btn ghost" id="da-push" style="width:100%;margin-top:8px">🔔 Enable browser alerts</button>
+        <p class="su-msg" id="da-msg" role="status" aria-live="polite"></p>
+        <p class="su-hint">Routine "closed today per scheduled hours" changes won't alert you.</p>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script>
+const API_URL = "https://parkstatus-api.parkstatus.workers.dev/";
+const SUB_API  = "https://parkstatus-api.parkstatus.workers.dev";
+const VAPID_PUBLIC = "BN13jzaTmu-9k91rWOMlOFTjtIyowSvH2r8V8JugZgS-sMQQkFtn68a6tdS9wgMJJYcCmEU2iP99balHlTJofUA";
+const STATUS_CLASS = {open:"open", partially_closed:"partial", closed:"closed", no_data:"nodata"};
+const STATUS_LABEL = {open:"Open", partially_closed:"Partially closed", closed:"Closed", no_data:"No data"};
+const STATUS_SHORT = {open:"s-open", partially_closed:"s-partial", closed:"s-closed", no_data:"s-no_data"};
+const BEACH_STATUS_LABEL = {open:"Open", advisory:"Water quality advisory", closed:"Closed to swimming",
+  not_in_operation:"Not in operation", pending:"Status updated by another entity"};
+// map a beach's own status vocab onto the unified 4-state model
+const beachMap = s => s==="advisory" ? "partially_closed" : (s==="open"||s==="closed") ? s : "no_data";
+const BEACH_SHORT = {open:"b-open", partially_closed:"b-advisory", closed:"b-closed", no_data:"b-no_data"};
+
+const filter = { statuses:new Set(["open","partially_closed","closed","no_data"]) };
+
+let PARKS=[], BEACHES=[], NYPARKS=[], CAPARKS=[], TXPARKS=[], MNPARKS=[];
+let map, parkCluster, beachCluster, nyCluster, caCluster, txCluster, mnCluster;
+let parkMarkers=[], beachMarkers=[], nyMarkers=[], caMarkers=[], txMarkers=[], mnMarkers=[], selEl=null;
+
+function slugify(s){
+  return String(s).normalize("NFKD").replace(/[̀-ͯ]/g,"")
+    .toLowerCase().replace(/&/g," and ").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+}
+const parkHref = p => "/park/" + (p.slug || slugify(p.fullName)) + "/";
+
+const fmtUpdated = iso => { const d=new Date(iso);
+  return "Updated " + d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}); };
+const fmtSource = iso => { const d=new Date(iso);
+  return "Connected · " + d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}); };
+const t3=(id,v)=>{const el=document.getElementById(id); if(el) el.textContent=v;};
+
+async function boot(){
+  let payload;
+  try{
+    payload = await fetch(API_URL).then(r=>r.json());
+  }catch(e){
+    document.getElementById("loading").textContent="Couldn't reach the status service. Refresh to try again.";
+    ["src-alerts","src-parks","src-beaches","src-nysp","src-casp","src-txsp","src-mnsp"].forEach(id=>t3(id,"Unreachable"));
+    ["hdot-a","hdot-p","hdot-b","hdot-n","hdot-c","hdot-t","hdot-m"].forEach(id=>document.getElementById(id).classList.add("stale"));
+    return;
+  }
+  PARKS = (payload.parks||[]).map(p=>({...p, slug:slugify(p.fullName)}));
+  BEACHES = payload.beaches || [];
+  NYPARKS = payload.nyParks || [];
+  CAPARKS = payload.caParks || [];
+  TXPARKS = payload.txParks || [];
+  MNPARKS = payload.mnParks || [];
+  fetch("/parks-enriched.json",{cache:"force-cache"}).then(r=>r.json()).then(d=>{ ENRICH=d||{}; if(CUR) renderExtra(CUR.id); }).catch(()=>{});
+
+  recount();
+  t3("t-updated", fmtUpdated(payload.updated));
+
+  const src = fmtSource(payload.updated);
+  t3("src-alerts", src); t3("src-parks", src);
+  t3("src-beaches", payload.beachStale ? "Stale — showing last known status" : (src + " · " + BEACHES.length + " NY beaches"));
+  t3("src-nysp", payload.nyParkStale ? "Stale — showing last known status" : (src + " · " + NYPARKS.length + " NY parks"));
+  t3("src-casp", payload.caParkStale ? "Stale — showing last known status" : (src + " · " + CAPARKS.length + " CA units"));
+  t3("src-txsp", payload.txParkStale ? "Stale — showing last known status" : (src + " · " + TXPARKS.length + " TX parks"));
+  t3("src-mnsp", payload.mnParkStale ? "Stale — showing last known status" : (src + " · " + MNPARKS.length + " MN parks"));
+  const stale = (Date.now() - new Date(payload.updated).getTime()) > 3*3600*1000;
+  if(stale){ document.getElementById("hdot-a").classList.add("stale"); document.getElementById("hdot-p").classList.add("stale"); }
+  if(stale || payload.beachStale){ document.getElementById("hdot-b").classList.add("stale"); }
+  if(stale || payload.nyParkStale){ document.getElementById("hdot-n").classList.add("stale"); }
+  if(stale || payload.caParkStale){ document.getElementById("hdot-c").classList.add("stale"); }
+  if(stale || payload.txParkStale){ document.getElementById("hdot-t").classList.add("stale"); }
+  if(stale || payload.mnParkStale){ document.getElementById("hdot-m").classList.add("stale"); }
+
+  drawMap();
+  document.getElementById("loading").style.display="none";
+  wireControls();
+}
+
+// unified status → one of open|partially_closed|closed|no_data
+const uStatus = e => e && e.__beach ? beachMap(e.status) : (e ? e.status : "open");
+
+function everyEntity(){
+  return [
+    ...PARKS, ...NYPARKS, ...CAPARKS, ...TXPARKS, ...MNPARKS,
+    ...BEACHES.map(b=>({ ...b, __beach:true })),
+  ];
+}
+
+function recount(){
+  const c = {open:0, partially_closed:0, closed:0, no_data:0};
+  everyEntity().forEach(e=>{ const s=uStatus(e); if(s in c) c[s]++; });
+  t3("t-open",c.open); t3("t-partial",c.partially_closed); t3("t-closed",c.closed); t3("t-nodata",c.no_data);
+  t3("c-open",c.open); t3("c-partial",c.partially_closed); t3("c-closed",c.closed); t3("c-nodata",c.no_data);
+}
+
+function pinIcon(kind, shortClass, pulse){
+  const small = shortClass==="s-open" || shortClass==="b-open";
+  const shape = kind==="beach" ? "pin-beach" : kind==="nysp" ? "pin-nysp" : "";
+  return L.divIcon({
+    className:"",
+    html:`<span class="pin ${shape} ${shortClass}${small?" small":""}${pulse?" pulse":""}"></span>`,
+    iconSize:[16,16], iconAnchor:[8,8], tooltipAnchor:[0,-8],
+  });
+}
+function clusterIconFn(kind){
+  return function(cluster){
+    const n=cluster.getChildCount();
+    const size=n<10?32:n<50?40:48;
+    return L.divIcon({ html:`<span>${n}</span>`, className:"cl"+(kind?" "+kind:""), iconSize:[size,size] });
+  };
+}
+
+function drawMap(){
+  map = L.map("usmap", {
+    scrollWheelZoom:false, minZoom:3, maxZoom:12, zoomControl:true, worldCopyJump:false,
+    center:[39.5,-98.5], zoom:4,
+  });
+  // Esri "Light Gray Canvas" — keyless, muted base that keeps the status dots dominant.
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom:16,
+    attribution:'Tiles &copy; <a href="https://www.esri.com">Esri</a> &mdash; Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  }).addTo(map);
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom:16, pane:"overlayPane", opacity:0.9,
+  }).addTo(map);
+
+  const hint=document.getElementById("zoomhint");
+  const killHint=()=>{ hint.classList.add("gone"); setTimeout(()=>hint.remove(),400); };
+  map.on("click",()=>{ if(!map.scrollWheelZoom.enabled()){ map.scrollWheelZoom.enable(); killHint(); } });
+  setTimeout(killHint, 6000);
+
+  parkCluster  = L.markerClusterGroup({ maxClusterRadius:46, chunkedLoading:true,
+    showCoverageOnHover:false, iconCreateFunction:clusterIconFn("") });
+  beachCluster = L.markerClusterGroup({ maxClusterRadius:46, chunkedLoading:true,
+    showCoverageOnHover:false, iconCreateFunction:clusterIconFn("beach") });
+  nyCluster    = L.markerClusterGroup({ maxClusterRadius:46, chunkedLoading:true,
+    showCoverageOnHover:false, iconCreateFunction:clusterIconFn("nysp") });
+  caCluster    = L.markerClusterGroup({ maxClusterRadius:46, chunkedLoading:true,
+    showCoverageOnHover:false, iconCreateFunction:clusterIconFn("casp") });
+  txCluster    = L.markerClusterGroup({ maxClusterRadius:46, chunkedLoading:true,
+    showCoverageOnHover:false, iconCreateFunction:clusterIconFn("txsp") });
+  mnCluster    = L.markerClusterGroup({ maxClusterRadius:46, chunkedLoading:true,
+    showCoverageOnHover:false, iconCreateFunction:clusterIconFn("mnsp") });
+
+  parkMarkers = PARKS.filter(p=>p.lat&&p.lon).map(p=>{
+    const m = L.marker([p.lat,p.lon], {
+      icon: pinIcon("park", STATUS_SHORT[p.status], p.status!=="open"),
+      keyboard:true, title:p.fullName+" — "+STATUS_LABEL[p.status],
+    });
+    m.bindTooltip(p.fullName+" · "+STATUS_LABEL[p.status], {direction:"top", className:"pk-tip", opacity:1});
+    m.on("click",()=>openDetail(p));
+    return {m, p};
+  });
+  beachMarkers = BEACHES.filter(b=>b.lat&&b.lon).map(b=>{
+    const u = beachMap(b.status);
+    const m = L.marker([b.lat,b.lon], {
+      icon: pinIcon("beach", BEACH_SHORT[u]||"b-no_data", u==="partially_closed"||u==="closed"),
+      keyboard:true, title:b.name+" — "+(BEACH_STATUS_LABEL[b.status]||b.status),
+    });
+    m.bindTooltip(b.name+" · "+(BEACH_STATUS_LABEL[b.status]||b.status), {direction:"top", className:"pk-tip", opacity:1});
+    m.on("click",()=>openBeachDetail(b));
+    return {m, b};
+  });
+  nyMarkers = NYPARKS.filter(p=>p.lat&&p.lon).map(p=>{
+    const m = L.marker([p.lat,p.lon], {
+      icon: pinIcon("nysp", STATUS_SHORT[p.status], p.status!=="open"),
+      keyboard:true, title:p.name+" — "+STATUS_LABEL[p.status],
+    });
+    m.bindTooltip(p.name+" · "+STATUS_LABEL[p.status], {direction:"top", className:"pk-tip", opacity:1});
+    m.on("click",()=>openNYDetail(p));
+    return {m, p};
+  });
+  caMarkers = CAPARKS.filter(p=>p.lat&&p.lon).map(p=>{
+    const m = L.marker([p.lat,p.lon], {
+      icon: pinIcon("nysp", STATUS_SHORT[p.status], p.status!=="open"),
+      keyboard:true, title:p.name+" — "+STATUS_LABEL[p.status],
+    });
+    m.bindTooltip(p.name+" · "+STATUS_LABEL[p.status], {direction:"top", className:"pk-tip", opacity:1});
+    m.on("click",()=>openCADetail(p));
+    return {m, p};
+  });
+  const stateMarkers = (list, opener) => list.filter(p=>p.lat&&p.lon).map(p=>{
+    const m = L.marker([p.lat,p.lon], {
+      icon: pinIcon("nysp", STATUS_SHORT[p.status], p.status!=="open"),
+      keyboard:true, title:p.name+" — "+STATUS_LABEL[p.status],
+    });
+    m.bindTooltip(p.name+" · "+STATUS_LABEL[p.status], {direction:"top", className:"pk-tip", opacity:1});
+    m.on("click",()=>opener(p));
+    return {m, p};
+  });
+  txMarkers = stateMarkers(TXPARKS, openTXDetail);
+  mnMarkers = stateMarkers(MNPARKS, openMNDetail);
+
+  map.addLayer(parkCluster);
+  map.addLayer(beachCluster);
+  map.addLayer(nyCluster);
+  map.addLayer(caCluster);
+  map.addLayer(txCluster);
+  map.addLayer(mnCluster);
+  applyFilters();
+
+  setTimeout(()=>map.invalidateSize(), 60);
+  window.addEventListener("resize", ()=>map.invalidateSize());
+}
+
+function applyFilters(){
+  if(!map) return;
+  const showPark = ({p}) => filter.statuses.has(p.status);
+  const showBeach = ({b}) => filter.statuses.has(beachMap(b.status));
+  [[parkCluster,parkMarkers,showPark],[nyCluster,nyMarkers,showPark],
+   [caCluster,caMarkers,showPark],[txCluster,txMarkers,showPark],
+   [mnCluster,mnMarkers,showPark],[beachCluster,beachMarkers,showBeach]
+  ].forEach(([cl,mk,test])=>{
+    cl.clearLayers();
+    cl.addLayers(mk.filter(test).map(x=>x.m));
+  });
+}
+
+function markSel(el){
+  if(selEl) selEl.classList.remove("sel-wrap");
+  selEl = el || null;
+  if(selEl) selEl.classList.add("sel-wrap");
+}
+function focusPark(p){
+  const rec = parkMarkers.find(x=>x.p.parkCode===p.parkCode);
+  if(!rec || !map) return;
+  parkCluster.zoomToShowLayer(rec.m, ()=>{ const el=rec.m.getElement(); if(el) markSel(el); });
+}
+function focusBeach(b){
+  const rec = beachMarkers.find(x=>x.b.id===b.id);
+  if(!rec || !map) return;
+  beachCluster.zoomToShowLayer(rec.m, ()=>{ const el=rec.m.getElement(); if(el) markSel(el); });
+}
+function focusNY(p){
+  const rec = nyMarkers.find(x=>x.p.id===p.id);
+  if(!rec || !map) return;
+  nyCluster.zoomToShowLayer(rec.m, ()=>{ const el=rec.m.getElement(); if(el) markSel(el); });
+}
+function focusCA(p){
+  const rec = caMarkers.find(x=>x.p.id===p.id);
+  if(!rec || !map) return;
+  caCluster.zoomToShowLayer(rec.m, ()=>{ const el=rec.m.getElement(); if(el) markSel(el); });
+}
+function focusTX(p){
+  const rec = txMarkers.find(x=>x.p.id===p.id);
+  if(!rec || !map) return;
+  txCluster.zoomToShowLayer(rec.m, ()=>{ const el=rec.m.getElement(); if(el) markSel(el); });
+}
+function focusMN(p){
+  const rec = mnMarkers.find(x=>x.p.id===p.id);
+  if(!rec || !map) return;
+  mnCluster.zoomToShowLayer(rec.m, ()=>{ const el=rec.m.getElement(); if(el) markSel(el); });
+}
+
+function haversineMi(la1,lo1,la2,lo2){
+  const R=3958.8,r=Math.PI/180;
+  const dLa=(la2-la1)*r,dLo=(lo2-lo1)*r;
+  const a=Math.sin(dLa/2)**2+Math.cos(la1*r)*Math.cos(la2*r)*Math.sin(dLo/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+
+// one flat, searchable index of every entity with a focus()/open() action
+function searchIndex(){
+  const rows=[];
+  const add=(list,tag,st,mk,eidf,focus,open,namef=e=>e.name,statef=e=>e.states||e.state||"")=>list.forEach(e=>{
+    if(!e.lat||!e.lon) return;
+    rows.push({ name:namef(e), tag, st, states:statef(e), status:mk(e),
+      lat:e.lat, lon:e.lon, eid:eidf(e), focus:()=>focus(e), open:()=>open(e) });
+  });
+  add(PARKS,"","", e=>e.status, e=>"nps:"+e.parkCode, focusPark, openDetail, e=>e.fullName);
+  add(NYPARKS,"· NY","NY", e=>e.status, e=>e.id, focusNY, openNYDetail);
+  add(CAPARKS,"· CA","CA", e=>e.status, e=>e.id, focusCA, openCADetail);
+  add(TXPARKS,"· TX","TX", e=>e.status, e=>e.id, focusTX, openTXDetail);
+  add(MNPARKS,"· MN","MN", e=>e.status, e=>e.id, focusMN, openMNDetail);
+  add(BEACHES,"(beach)","NY", e=>beachMap(e.status), e=>e.id, focusBeach, openBeachDetail);
+  return rows;
+}
+const US_STATES={alabama:"AL",alaska:"AK",arizona:"AZ",arkansas:"AR",california:"CA",colorado:"CO",connecticut:"CT",delaware:"DE",florida:"FL",georgia:"GA",hawaii:"HI",idaho:"ID",illinois:"IL",indiana:"IN",iowa:"IA",kansas:"KS",kentucky:"KY",louisiana:"LA",maine:"ME",maryland:"MD",massachusetts:"MA",michigan:"MI",minnesota:"MN",mississippi:"MS",missouri:"MO",montana:"MT",nebraska:"NE",nevada:"NV","new hampshire":"NH","new jersey":"NJ","new mexico":"NM","new york":"NY","north carolina":"NC","north dakota":"ND",ohio:"OH",oklahoma:"OK",oregon:"OR",pennsylvania:"PA","rhode island":"RI","south carolina":"SC","south dakota":"SD",tennessee:"TN",texas:"TX",utah:"UT",vermont:"VT",virginia:"VA",washington:"WA","west virginia":"WV",wisconsin:"WI",wyoming:"WY","district of columbia":"DC","puerto rico":"PR"};
+function stateCodeFor(q){
+  const s=q.trim().toLowerCase();
+  if(US_STATES[s]) return US_STATES[s];
+  if(/^[a-z]{2}$/.test(s) && Object.values(US_STATES).includes(s.toUpperCase())) return s.toUpperCase();
+  return null;
+}
+
+let geoTimer=null;
+function wireControls(){
+  document.querySelectorAll(".toggle[data-status]").forEach(t=>{
+    const st=t.dataset.status, box=t.querySelector("input");
+    box.addEventListener("change",()=>{
+      box.checked?filter.statuses.add(st):filter.statuses.delete(st);
+      t.classList.toggle("off",!box.checked);
+      applyFilters();
+    });
+  });
+
+  const q=document.getElementById("q"), res=document.getElementById("results"), nn=document.getElementById("near-note");
+  const isZip = v => /^\d{5}(-\d{4})?$/.test(v.trim());
+  const looksLikePlace = v => isZip(v) || /,\s*[A-Za-z]{2,}$/.test(v) || v.split(/\s+/).length>=2;
+  let zipGeo=null; // last resolved zip point, for the radius picker
+
+  function radiusControl(cur){
+    return '<div style="padding:8px 11px;border-bottom:1px solid #eef1f5;font-size:12px;color:var(--muted)">Radius: '+
+      [20,50,100,200].map(m=>'<button data-mi="'+m+'" class="rad'+(m===cur?' on':'')+'" style="border:0;background:none;cursor:pointer;font:inherit;font-size:12px;color:'+(m===cur?'var(--navy)':'var(--muted)')+';font-weight:'+(m===cur?'700':'400')+';margin:0 6px 0 0">'+m+' mi</button>').join("")+'</div>';
+  }
+  function renderRows(rows, headHTML){
+    res.innerHTML = headHTML || "";
+    rows.slice(0,40).forEach(r=>{
+      const b=document.createElement("button"); b.setAttribute("role","option");
+      const tag=r.tag?' <span style="color:var(--muted)">'+r.tag+'</span>':'';
+      b.innerHTML='<span class="dot '+STATUS_CLASS[r.status]+'"></span><span class="nm">'+r.name+tag+'</span>';
+      b.addEventListener("click",()=>{ q.value=r.name; res.classList.remove("show"); r.focus(); r.open(); });
+      res.appendChild(b);
+    });
+    res.querySelectorAll("button.rad").forEach(bt=>bt.addEventListener("click",e=>{ e.stopPropagation(); zipShow(Number(bt.dataset.mi)); }));
+    res.classList.toggle("show", rows.length>0 || !!headHTML);
+  }
+
+  function stateShow(code){
+    const inState = r => (r.states||"").split(",").map(s=>s.trim().toUpperCase()).includes(code);
+    const rows = searchIndex().filter(inState).sort((a,b)=>a.name.localeCompare(b.name));
+    // fit the map to them
+    if(rows.length && map){
+      const b=L.latLngBounds(rows.map(r=>[r.lat,r.lon])); map.flyToBounds(b.pad(0.15),{maxZoom:8});
+    }
+    nn.hidden=false; nn.innerHTML='Parks &amp; waterways in <b>'+code+'</b> — '+rows.length+' found.';
+    renderRows(rows);
+  }
+  function zipShow(mi){
+    if(!zipGeo) return;
+    zipRadius=mi;
+    map.flyTo([zipGeo.lat,zipGeo.lon], mi<=20?11:mi<=50?9:mi<=100?8:7);
+    const near=searchIndex().map(r=>({ ...r, mi:haversineMi(zipGeo.lat,zipGeo.lon,r.lat,r.lon) }))
+      .filter(r=>r.mi<=mi).sort((a,b)=>a.mi-b.mi);
+    nn.hidden=false;
+    nn.innerHTML='Within <b>'+mi+' mi</b> of <b>'+zipGeo.label+'</b> — '+near.length+' found.';
+    renderRows(near.map(r=>({ ...r, tag:(r.tag?r.tag+' ':'')+'· '+r.mi.toFixed(0)+' mi' })), radiusControl(mi));
+  }
+  let zipRadius=50;
+
+  async function placeSearch(raw){
+    try{
+      const g=await fetch(SUB_API+"/geocode?q="+encodeURIComponent(raw)).then(r=>r.json());
+      if(!g || g.error || typeof g.lat!=="number"){ res.classList.remove("show"); return; }
+      if(isZip(raw)){ zipGeo=g; zipShow(zipRadius); return; }
+      map.flyTo([g.lat,g.lon], 9);
+      const near=searchIndex().map(r=>({ ...r, mi:haversineMi(g.lat,g.lon,r.lat,r.lon) }))
+        .sort((a,b)=>a.mi-b.mi).slice(0,12);
+      nn.hidden=false;
+      nn.innerHTML='Near <b>'+g.label+'</b> — nearest '+near.length+':';
+      renderRows(near.map(r=>({ ...r, tag:(r.tag?r.tag+' ':'')+'· '+r.mi.toFixed(0)+' mi' })));
+    }catch(_){ res.classList.remove("show"); }
+  }
+
+  q.addEventListener("input",()=>{
+    const raw=q.value.trim(), v=raw.toLowerCase();
+    clearTimeout(geoTimer); nn.hidden=true; zipGeo=null;
+    if(!v){ res.classList.remove("show"); res.innerHTML=""; return; }
+    const sc=stateCodeFor(raw);
+    if(sc){ stateShow(sc); return; }
+    const hits=searchIndex().filter(r=>r.name.toLowerCase().includes(v)).sort((a,b)=>a.name.length-b.name.length);
+    if(hits.length){ renderRows(hits); return; }
+    if(raw.length>=3 && looksLikePlace(raw)) geoTimer=setTimeout(()=>placeSearch(raw), 450);
+    else res.classList.remove("show");
+  });
+  q.addEventListener("keydown",e=>{
+    if(e.key==="Enter"){ const raw=q.value.trim(); if(!raw) return;
+      if(stateCodeFor(raw)) return stateShow(stateCodeFor(raw));
+      if(!searchIndex().some(r=>r.name.toLowerCase().includes(raw.toLowerCase()))) placeSearch(raw);
+    }
+  });
+
+  document.addEventListener("click",e=>{if(!e.target.closest(".search"))res.classList.remove("show");});
+  document.getElementById("d-close").addEventListener("click",closeDetail);
+  document.getElementById("backdrop").addEventListener("click",closeDetail);
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDetail();});
+  wireAlerts();
+}
+
+let ENRICH = {};        // id -> {description, history, address, phone, website, hours, photo, wiki, gmaps}
+let CUR = null;         // {id, name, lat, lon}
+const rmTags = s => String(s).replace(/[<>]/g,"");
+const fmtPhone = s => { const d=String(s||"").replace(/\D/g,""); return d.length===10 ? "("+d.slice(0,3)+") "+d.slice(3,6)+"-"+d.slice(6) : (d.length===11&&d[0]==="1") ? "("+d.slice(1,4)+") "+d.slice(4,7)+"-"+d.slice(7) : s; };
+
+function renderExtra(id){
+  const en = ENRICH[id] || {};
+  let h = "";
+  if(en.photo) h += '<img class="dphoto" src="'+en.photo+'" alt="" loading="lazy" onerror="this.remove()">';
+  const about = en.description || en.history;
+  if(about) h += '<p class="about">'+rmTags(about).slice(0,420)+(en.wiki?' <a href="'+en.wiki+'" target="_blank" rel="noopener">more ↗</a>':'')+'</p>';
+  const row = (k,v)=> v ? '<div class="vrow"><span class="vk">'+k+'</span><span class="vv">'+v+'</span></div>' : '';
+  h += row("Address", en.address ? rmTags(en.address) : "");
+  h += row("Phone", en.phone ? '<a href="tel:'+en.phone.replace(/[^\d+]/g,"")+'">'+rmTags(fmtPhone(en.phone))+'</a>' : "");
+  if(en.website) h += row("Website", '<a href="'+en.website+'" target="_blank" rel="noopener">'+rmTags(en.website.replace(/^https?:\/\//,"").replace(/\/$/,"")).slice(0,42)+' ↗</a>');
+  if(en.hours && en.hours.rows) h += row("Hours",
+    '<table class="hrs">'+en.hours.rows.map(r=>'<tr><td>'+r.d+'</td><td>'+rmTags(r.h)+'</td></tr>').join("")+'</table>'
+    +(en.hours.note?'<span class="hn">'+rmTags(en.hours.note)+'</span>':''));
+  if(en.gmaps) h += row("Reviews", '<a href="'+en.gmaps+'" target="_blank" rel="noopener">Ratings &amp; reviews on Google Maps ↗</a>');
+  document.getElementById("d-extra").innerHTML = h;
+}
+function beginDetail(id, name, lat, lon){
+  CUR = { id, name, lat, lon };
+  renderExtra(id);
+  syncFollowUI();
+  // "Full status & details" -> the park's own page (skip for beaches/waterways)
+  const dp = document.getElementById("d-page");
+  if(id.indexOf("ny-")===0){ dp.style.display="none"; }
+  else {
+    const slug = (ENRICH[id] && ENRICH[id].slug) || slugify(name);
+    dp.style.display=""; dp.href="/park/"+slug+"/"; dp.textContent="Full status & details →";
+  }
+}
+
+function openDetail(p){
+  const cls=STATUS_CLASS[p.status];
+  const pill=document.getElementById("d-pill");
+  pill.className="pill "+cls; pill.textContent=STATUS_LABEL[p.status];
+  document.getElementById("d-page").style.display=""; document.getElementById("d-page").href=parkHref(p);
+  document.getElementById("d-name").textContent=p.fullName;
+  document.getElementById("d-meta").textContent=(p.designation||"National Park Service site")+(p.states?" · "+p.states:"");
+  document.getElementById("d-reason").textContent=p.reason;
+  const c=p.counts||{}; const tags=[];
+  if(c.partial_closure)tags.push(c.partial_closure+" closure"+(c.partial_closure>1?"s":""));
+  if(c.danger)tags.push(c.danger+" hazard"+(c.danger>1?"s":""));
+  if(c.caution)tags.push(c.caution+" caution"+(c.caution>1?"s":""));
+  if(c.info)tags.push(c.info+" notice"+(c.info>1?"s":""));
+  const tg=document.getElementById("d-tags");
+  tg.innerHTML=tags.length?tags.map(x=>'<span class="tag">'+x+'</span>').join(""):'<span class="tag">no active alerts</span>';
+  { const l=document.getElementById("d-link"); l.href=p.url||"https://www.nps.gov/findapark/index.htm"; l.textContent="View official NPS page ↗"; }
+  beginDetail("nps:"+p.parkCode, p.fullName, p.lat, p.lon);
+  openPanel();
+}
+
+function openBeachDetail(bh){
+  const cls=STATUS_CLASS[beachMap(bh.status)];
+  const pill=document.getElementById("d-pill");
+  pill.className="pill "+cls; pill.textContent=BEACH_STATUS_LABEL[bh.status]||bh.status;
+  document.getElementById("d-page").style.display="none";
+  document.getElementById("d-name").textContent=bh.name;
+  document.getElementById("d-meta").textContent="Waterway"+(bh.waterbody?" · "+bh.waterbody:"")+(bh.county?" · "+bh.county+" County, NY":"");
+  document.getElementById("d-reason").textContent=bh.reason;
+  const tags=[];
+  if(bh.startDate) tags.push("Since "+bh.startDate+(bh.endDate?" – "+bh.endDate:""));
+  if(bh.jurisdiction) tags.push(bh.jurisdiction);
+  const tg=document.getElementById("d-tags");
+  tg.innerHTML=tags.length?tags.map(x=>'<span class="tag">'+x+'</span>').join(""):'<span class="tag">no active advisory</span>';
+  { const l=document.getElementById("d-link"); l.href=bh.jurisdictionUrl||"https://beachadvisory.health.ny.gov/#/tab/map"; l.textContent="View beach advisory ↗"; }
+  beginDetail(bh.id, bh.name, bh.lat, bh.lon);
+  openPanel();
+}
+
+function openStateParkDetail(p, label, linkText, linkFallback){
+  const cls=STATUS_CLASS[p.status];
+  const pill=document.getElementById("d-pill");
+  pill.className="pill "+cls; pill.textContent=STATUS_LABEL[p.status];
+  document.getElementById("d-name").textContent=p.name;
+  document.getElementById("d-meta").textContent=label+(p.county?" · "+p.county+(/^near /.test(p.county)?"":" County"):"");
+  document.getElementById("d-reason").textContent=p.reason;
+  const tags=[];
+  (p.tags||[]).forEach(t=>{ if(t) tags.push(rmTags(t).slice(0,110)); });
+  (p.alerts||[]).forEach(a=>{
+    const generic=/^(park (visitor )?alert)$/i.test((a.title||"").trim());
+    const s=rmTags((generic?a.message:a.title)||a.message||a.title||"").slice(0,120);
+    if(s) tags.push(s);
+  });
+  const tg=document.getElementById("d-tags");
+  tg.innerHTML = tags.length ? tags.map(x=>'<span class="tag">'+x+'</span>').join("") : '<span class="tag">no active alerts</span>';
+  document.getElementById("d-page").style.display="none";
+  const link=document.getElementById("d-link");
+  link.href=p.url||linkFallback; link.textContent=linkText;
+  beginDetail(p.id, p.name, p.lat, p.lon);
+  openPanel();
+}
+const openNYDetail = p => openStateParkDetail(p, "New York State Park", "View on parks.ny.gov ↗", "https://parks.ny.gov/visit/state-parks");
+const openTXDetail = p => openStateParkDetail(p, "Texas State Park", "View on tpwd.texas.gov ↗", "https://tpwd.texas.gov/state-parks");
+const openMNDetail = p => openStateParkDetail(p, "Minnesota State Park", "View on dnr.state.mn.us ↗", "https://www.dnr.state.mn.us/state_parks");
+
+function openCADetail(p){
+  const cls=STATUS_CLASS[p.status];
+  const pill=document.getElementById("d-pill");
+  pill.className="pill "+cls; pill.textContent=STATUS_LABEL[p.status];
+  document.getElementById("d-name").textContent=p.name;
+  const ro = (p.reopen && p.reopen!=="Unknown") ? " · reopens "+p.reopen : "";
+  document.getElementById("d-meta").textContent="California State Park"+(p.county?" · "+p.county+" County":"")+ro;
+  document.getElementById("d-reason").textContent=p.reason;
+  const tags=(p.tags||[]).slice();
+  if(p.status!=="open" && p.reopen==="Unknown") tags.push("reopening date unknown");
+  const tg=document.getElementById("d-tags");
+  tg.innerHTML = tags.length
+    ? tags.map(x=>'<span class="tag">'+rmTags(x)+'</span>').join("")
+    : '<span class="tag">'+(p.status==="open"?"no active closures":"no facility detail listed")+'</span>';
+  document.getElementById("d-page").style.display="none";
+  const link=document.getElementById("d-link");
+  link.href=p.url||"https://www.parks.ca.gov/"; link.textContent="View on parks.ca.gov ↗";
+  beginDetail(p.id, p.name, p.lat, p.lon);
+  openPanel();
+}
+
+function openPanel(){
+  document.getElementById("detail").classList.add("open");
+  document.getElementById("detail").setAttribute("aria-hidden","false");
+  document.getElementById("backdrop").classList.add("show");
+}
+function closeDetail(){
+  document.getElementById("detail").classList.remove("open");
+  document.getElementById("detail").setAttribute("aria-hidden","true");
+  document.getElementById("backdrop").classList.remove("show");
+  const dp=document.getElementById("d-page"); dp.textContent="Full status & details →";
+  markSel(null);
+}
+
+/* ===== alerts: followed parks (localStorage) + card form + bottom section ===== */
+let follows = [];
+try { follows = JSON.parse(localStorage.getItem("ps_follows")||"[]"); if(!Array.isArray(follows)) follows=[]; } catch(_){ follows=[]; }
+const saveFollows = ()=>{ try{ localStorage.setItem("ps_follows", JSON.stringify(follows.slice(0,60))); }catch(_){} };
+const isFollowed = id => follows.some(f=>f.id===id);
+const emailRe = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+function urlB64ToUint8(b64){ const pad="=".repeat((4-b64.length%4)%4);
+  const s=(b64+pad).replace(/-/g,"+").replace(/_/g,"/"); const raw=atob(s);
+  return Uint8Array.from([...raw].map(c=>c.charCodeAt(0))); }
+async function doPush(scope, msg, summary){
+  if(!("serviceWorker" in navigator)||!("PushManager" in window)){ msg("This browser doesn't support push alerts. Try email.",false); return; }
+  msg("Setting up browser alerts…",true);
+  try{
+    if(await Notification.requestPermission()!=="granted"){ msg("Browser alerts weren't allowed.",false); return; }
+    const reg=await navigator.serviceWorker.register("/sw.js"); await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlB64ToUint8(VAPID_PUBLIC)});
+    const r=await fetch(SUB_API+"/push/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscription:sub,scope})});
+    if(!r.ok) throw 0;
+    msg("Browser alerts are on — "+summary+".",true);
+  }catch(_){ msg("Couldn't enable browser alerts. Try again, or use email.",false); }
+}
+
+/* ---- card: follow toggle + per-park alert form ---- */
+function toggleFollow(){
+  if(!CUR) return;
+  const i=follows.findIndex(f=>f.id===CUR.id);
+  if(i>=0) follows.splice(i,1); else follows.push({id:CUR.id, name:CUR.name});
+  saveFollows(); syncFollowUI();
+}
+function syncFollowUI(){
+  const b=document.getElementById("d-follow"); if(!b) return;
+  const on = CUR && isFollowed(CUR.id);
+  b.textContent = on ? "✓ Following — tap to unfollow" : "🔔 Follow this park";
+  b.classList.toggle("on", !!on);
+  document.getElementById("d-alert-form").hidden = follows.length===0;
+  document.getElementById("da-count").textContent = follows.length;
+  const chips=document.getElementById("da-chips");
+  chips.innerHTML = follows.map((f,i)=>'<span class="su-chip">'+rmTags(f.name).slice(0,34)+' <button data-i="'+i+'" aria-label="Remove">✕</button></span>').join("");
+  chips.querySelectorAll("button").forEach(bt=>bt.onclick=()=>{ follows.splice(+bt.dataset.i,1); saveFollows(); syncFollowUI(); });
+}
+function daMsg(t,ok){ const m=document.getElementById("da-msg"); m.textContent=t; m.className="su-msg "+(ok?"ok":"err"); }
+function cardScope(){
+  const from=document.getElementById("da-from").value||undefined, to=document.getElementById("da-to").value||undefined;
+  if(from&&to&&from>to){ daMsg("The \"from\" date is after the \"to\" date.",false); return null; }
+  return { kind:"parks", parks:follows.map(f=>f.id), label:follows.map(f=>f.name).join(", ").slice(0,80), from, to };
+}
+async function cardEmail(){
+  if(!follows.length){ daMsg("Follow a park first.",false); return; }
+  const email=document.getElementById("da-email").value.trim();
+  if(!emailRe.test(email)){ daMsg("Enter a valid email address.",false); return; }
+  const scope=cardScope(); if(!scope) return;
+  daMsg("Signing you up…",true);
+  try{ const r=await fetch(SUB_API+"/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,scope})});
+    if(!r.ok) throw 0; daMsg("You're on the list for "+follows.length+" park"+(follows.length>1?"s":"")+".",true);
+    document.getElementById("da-email").value="";
+  }catch(_){ daMsg("Couldn't sign you up — try again.",false); }
+}
+async function cardPush(){
+  if(!follows.length){ daMsg("Follow a park first.",false); return; }
+  const scope=cardScope(); if(!scope) return;
+  await doPush(scope, daMsg, follows.length+" park"+(follows.length>1?"s":""));
+}
+
+/* ---- bottom section: Everywhere / Near a place (with pick-specific checklist) ---- */
+let placeGeo = null;
+function suMsg(text,ok){ const m=document.getElementById("su-msg"); m.textContent=text; m.className="su-msg "+(ok?"ok":"err"); }
+function syncSignupUI(){ document.getElementById("su-place-wrap").hidden = document.getElementById("su-kind").value!=="place"; }
+function nearbyList(lat,lon,mi){
+  return searchIndex().map(r=>({ ...r, dmi:haversineMi(lat,lon,r.lat,r.lon) }))
+    .filter(r=>r.dmi<=mi).sort((a,b)=>a.dmi-b.dmi).slice(0,40);
+}
+function renderNearChecklist(){
+  const box=document.getElementById("su-near-list"); if(!box) return;
+  if(!placeGeo){ box.innerHTML=""; return; }
+  const mi=Number(document.getElementById("su-radius").value);
+  const list=nearbyList(placeGeo.lat,placeGeo.lon,mi);
+  box.innerHTML = list.length
+    ? '<p class="su-hint" style="margin:6px 0 4px">'+list.length+' within '+mi+' mi — leave all unchecked to watch the whole area, or tick specific ones:</p>'
+      + list.map(r=>'<label class="su-check"><input type="checkbox" value="'+r.eid+'" data-name="'+rmTags(r.name)+'"><span>'+rmTags(r.name)+(r.tag?' <span style="color:var(--muted)">'+r.tag+'</span>':'')+'</span></label>').join("")
+    : '<p class="su-hint" style="margin:6px 0">Nothing in our coverage within '+mi+' mi yet — you\'ll still get area-wide alerts.</p>';
+}
+function buildScope(){
+  const kind=document.getElementById("su-kind").value;
+  const from=document.getElementById("su-from").value||undefined, to=document.getElementById("su-to").value||undefined;
+  if(from&&to&&from>to){ suMsg("The \"from\" date is after the \"to\" date.",false); return null; }
+  if(kind==="place"){
+    if(!placeGeo){ suMsg("Enter a city, state, or ZIP first.",false); return null; }
+    const picked=[...document.querySelectorAll("#su-near-list input:checked")];
+    if(picked.length) return { kind:"parks", parks:picked.map(c=>c.value), label:picked.map(c=>c.dataset.name).join(", ").slice(0,80), from, to };
+    return { kind:"geo", lat:placeGeo.lat, lon:placeGeo.lon, radiusMi:Number(document.getElementById("su-radius").value), label:placeGeo.label, from, to };
+  }
+  return { kind:"all", from, to };
+}
+const scopeSummary = sc => sc.kind==="all" ? "everywhere"
+  : sc.kind==="geo" ? ("within "+sc.radiusMi+" mi of "+sc.label)
+  : ((sc.parks||[]).length+" park"+((sc.parks||[]).length>1?"s":""));
+async function emailSubmit(){
+  const email=document.getElementById("su-email").value.trim();
+  if(!emailRe.test(email)){ suMsg("Enter a valid email address.",false); return; }
+  const scope=buildScope(); if(!scope) return;
+  suMsg("Signing you up…",true);
+  try{ const r=await fetch(SUB_API+"/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,scope})});
+    if(!r.ok) throw 0; suMsg("You're on the list — "+scopeSummary(scope)+".",true);
+    document.getElementById("su-email").value="";
+  }catch(_){ suMsg("Couldn't sign you up just now — try again.",false); }
+}
+async function enablePush(){ const scope=buildScope(); if(!scope) return; await doPush(scope, suMsg, scopeSummary(scope)); }
+
+function wireAlerts(){
+  document.getElementById("d-follow").addEventListener("click",toggleFollow);
+  document.getElementById("da-sub").addEventListener("click",cardEmail);
+  document.getElementById("da-push").addEventListener("click",cardPush);
+  document.getElementById("da-email").addEventListener("keydown",e=>{if(e.key==="Enter")cardEmail();});
+  syncFollowUI();
+
+  document.getElementById("su-kind").addEventListener("change",syncSignupUI);
+  const loc=document.getElementById("su-loc"), hint=document.getElementById("su-loc-hint");
+  let t=null;
+  const doGeo=async()=>{
+    const v=loc.value.trim(); placeGeo=null; renderNearChecklist();
+    if(v.length<3){ hint.textContent=""; return; }
+    hint.textContent="Locating…";
+    try{
+      const g=await fetch(SUB_API+"/geocode?q="+encodeURIComponent(v)).then(r=>r.json());
+      if(g && !g.error && typeof g.lat==="number"){ placeGeo=g; hint.innerHTML='📍 '+g.label; renderNearChecklist(); }
+      else hint.textContent="Couldn't find that place — try a ZIP or \"City, ST\".";
+    }catch(_){ hint.textContent="Couldn't look that up right now."; }
+  };
+  loc.addEventListener("input",()=>{ clearTimeout(t); t=setTimeout(doGeo,500); });
+  loc.addEventListener("blur",doGeo);
+  document.getElementById("su-radius").addEventListener("change",renderNearChecklist);
+  document.getElementById("su-email-btn").addEventListener("click",emailSubmit);
+  document.getElementById("su-push-btn").addEventListener("click",enablePush);
+  document.getElementById("su-email").addEventListener("keydown",e=>{if(e.key==="Enter")emailSubmit();});
+  syncSignupUI();
+}
+
+/* shutdown banner */
+fetch("/shutdown.json",{cache:"no-store"}).then(r=>r.json()).then(function(s){
+  if(!s||!s.active)return;
+  const b=document.getElementById("shutdown-banner"); if(!b)return;
+  b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||'')+' <a href="'+(s.url||'#')+'">'+(s.cta||'Learn more →')+'</a></div>';
+  b.className="show";
+}).catch(function(){});
+
+boot();
+</script>
+</body>
+</html>

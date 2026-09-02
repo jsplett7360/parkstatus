@@ -1,0 +1,18 @@
+name = "parkstatus-api"
+main = "worker.js"
+compatibility_date = "2026-05-24"
+
+# Runs hourly (NPS refreshes its own data roughly every 2h; hourly polling
+# just picks up changes sooner and stays far under the 1,000 req/hr limit).
+[triggers]
+crons = ["0 * * * *"]
+
+# Create with: wrangler kv namespace create PARKS_KV
+# then paste the returned id below.
+[[kv_namespaces]]
+binding = "PARKS_KV"
+id = "3e2d28888f2c4aea8221d7f5e45317f9"
+
+# Secrets (set via CLI, never in this file):
+#   wrangler secret put NPS_API_KEY      <- your NPS key
+#   wrangler secret put REBUILD_TOKEN    <- any random string, lets you force a refresh

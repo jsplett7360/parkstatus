@@ -1,0 +1,42 @@
+name: Deploy site to Hostinger
+
+# Pushes the contents of public_html/ to the Hostinger web root over FTP.
+# Runs automatically whenever public_html/ changes on main, and can be run by hand.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "public_html/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: hostinger-deploy
+  cancel-in-progress: true
+
+jobs:
+  ftp-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync public_html/ to Hostinger
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./public_html/
+          # Most Hostinger domain-scoped FTP accounts land directly in the web
+          # root, so the default is "./". If your FTP user lands one level up,
+          # set a repository Variable FTP_SERVER_DIR to "./public_html/".
+          server-dir: ${{ vars.FTP_SERVER_DIR || './' }}
+          # Never let the sync delete server-managed files.
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            .htaccess
+            .well-known/**
