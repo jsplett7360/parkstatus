@@ -731,7 +731,7 @@ async function rebuild(env, { notify = false } = {}) {
       const n = nowIndex[id], o = prevIndex[id];
       if (o && o.status !== n.status)
         changes.push({ id, name: n.name, from: o.status, to: n.status, reason: n.reason,
-          url: n.url, lat: n.lat, lon: n.lon, scheduledOnly: n.scheduledOnly });
+          url: n.url, lat: n.lat, lon: n.lon, scheduledOnly: n.scheduledOnly, county: n.county });
     }
   } catch (_) {}
 
@@ -746,12 +746,68 @@ async function rebuild(env, { notify = false } = {}) {
   }));
 
   if (notify && changes.length) await notifyChanges(env, changes);
+  if (changes.length) await pingIndexNow(changes);
   return { tally, count: parksOut.length, changes: changes.length,
     beachTally, beachCount: beachesOut.length, beachStale,
     nyParkTally, nyParkCount: nyParksOut.length, nyParkStale,
     caParkTally, caParkCount: caParksOut.length, caParkStale,
     txParkTally, txParkCount: txParksOut.length, txParkStale,
     mnParkTally, mnParkCount: mnParksOut.length, mnParkStale };
+}
+
+// ===================== IndexNow ===========================================
+// Ping IndexNow (Bing, Yandex, Seznam, Naver…) with the specific pages whose
+// status just changed, so a fresh closure gets re-crawled in minutes instead
+// of on the search engines' own schedule. Key is public — it's published at
+// https://parkstatus.today/<key>.txt and only proves we control the domain.
+const INDEXNOW_KEY = "2a821d1da0b1eca28a37f6bbf86e301c";
+const INDEXNOW_HOST = "parkstatus.today";
+
+// Beach-hub slug — must match build-parks.js grouping ("<state>-<county>-county").
+function beachCountySlug(county) {
+  const c = String(county || "").trim();
+  if (!c) return "";
+  return ("NY-" + c + (/count(y|ies)$/i.test(c) ? "" : "-county"))
+    .normalize("NFKD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+async function pingIndexNow(changes) {
+  try {
+    if (!changes || !changes.length) return;
+
+    // id -> our page slug, from the deployed static list
+    const slugById = {};
+    try {
+      const r = await fetch(SITE + "/parks.json", { cf: { cacheTtl: 300 } });
+      if (r.ok) { const d = await r.json(); for (const p of d.parks || []) slugById[p.id] = p.slug; }
+    } catch (_) {}
+
+    const urls = new Set([SITE + "/", SITE + "/park/"]);
+    let beachTouched = false;
+    for (const ch of changes) {
+      if (String(ch.id).startsWith("ny-")) {
+        beachTouched = true;
+        const s = beachCountySlug(ch.county);
+        if (s) urls.add(SITE + "/beach/" + s + "/");
+      } else {
+        const s = slugById[ch.id];
+        if (s) urls.add(SITE + "/park/" + s + "/");
+      }
+    }
+    if (beachTouched) urls.add(SITE + "/beach/");
+
+    const urlList = [...urls].slice(0, 9000);
+    const res = await fetch("https://api.indexnow.org/indexnow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ host: INDEXNOW_HOST, key: INDEXNOW_KEY, keyLocation: SITE + "/" + INDEXNOW_KEY + ".txt", urlList }),
+    });
+    console.log("indexnow:", res.status, urlList.length, "urls,", changes.length, "changes");
+  } catch (e) {
+    console.error("indexnow failed:", e);
+  }
 }
 
 // ===================== subscribers =========================================
@@ -768,7 +824,7 @@ function indexEntities(b) {
       const id = pfx + raw;
       m[id] = { id, name: namef(e), status: statusf ? statusf(e.status) : e.status,
         reason: e.reason || "", lat: Number(e.lat), lon: Number(e.lon),
-        url: e.url || SITE, scheduledOnly: !!e.scheduledOnly };
+        url: e.url || SITE, scheduledOnly: !!e.scheduledOnly, county: e.county || "" };
     }
   };
   add(b.parks, "nps:", e => e.fullName);
@@ -958,6 +1014,19 @@ export default {
     const token = url.searchParams.get("token");
 
     if (url.pathname === "/rebuild" && token === env.REBUILD_TOKEN) return json(await rebuild(env, { notify: false }));
+
+    // Manual IndexNow ping — submits the hub pages (used for first-time
+    // verification and after a bulk site change). /indexnow?token=..
+    if (url.pathname === "/indexnow" && token === env.REBUILD_TOKEN) {
+      const urlList = [SITE + "/", SITE + "/park/", SITE + "/beach/", SITE + "/sitemap.xml"];
+      try {
+        const r = await fetch("https://api.indexnow.org/indexnow", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ host: INDEXNOW_HOST, key: INDEXNOW_KEY, keyLocation: SITE + "/" + INDEXNOW_KEY + ".txt", urlList }),
+        });
+        return json({ ok: r.status, submitted: urlList });
+      } catch (e) { return json({ error: String(e) }, 502); }
+    }
 
     // Geocode a city / state / ZIP to lat,lon (used by search + signup).
     if (url.pathname === "/geocode") {
