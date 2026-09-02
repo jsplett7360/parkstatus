@@ -6,7 +6,7 @@ name: Refresh park data
 
 on:
   schedule:
-    - cron: "0 8 1 * *" # 08:00 UTC on the 1st of every month
+    - cron: "0 8 * * *" # 08:00 UTC daily
   workflow_dispatch:
 
 permissions:
