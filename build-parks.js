@@ -638,6 +638,42 @@ function sitemap(list, updatedISO, beachHubs) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
 }
 
+// ===================== llms.txt ==========================================
+// https://llmstxt.org — a curated map of the site for language models.
+function llmsTxt(updatedISO, entities, beachHubs, tally) {
+  const nps = entities.filter((e) => e.source === "nps").length;
+  const state = entities.length - nps;
+  const asOf = fmtLong(updatedISO);
+  return `# Park Status Today
+
+> Live open / partially-closed / closed status for U.S. national parks, four state park systems (New York, California, Texas, Minnesota), and New York public beaches. Every status is derived hourly from official sources: National Park Service alerts and operating hours, state park-system alerts, and state / county health-department beach monitoring.
+
+Park Status Today is an independent informational service, not affiliated with the National Park Service or any state or county agency. Each status is our reading of public data, not an official determination, and is refreshed hourly. Every park page and beach-county page states the current status as plain text with the UTC time it was last checked, and carries schema.org structured data (TouristAttraction / Park, FAQPage with a dated answer, and — where known — openingHoursSpecification).
+
+Coverage as of ${asOf}: ${nps} National Park Service units, ${state} state parks, and ${beachHubs.reduce((n, h) => n + h.beaches.length, 0)} monitored New York beaches across ${beachHubs.length} counties. Site-wide that is ${tally.open} open, ${tally.partially_closed} partially closed, ${tally.closed} closed, ${tally.no_data} without data.
+
+## Parks
+- [All park & waterway statuses, A–Z](${SITE}/park/): browsable directory of every national and state park tracked, each linking to a status + visitor-info page at ${SITE}/park/<slug>/
+- [Full sitemap](${SITE}/sitemap.xml): every page on the site
+
+## Beaches
+- [Beach water quality & closures by county](${SITE}/beach/): New York public beaches grouped by county, with current swimming advisories and closures at ${SITE}/beach/<county>/
+
+## Guides
+- [How we check park status](${SITE}/guides/how-we-check-park-status.html): the method and sources behind every status
+- [Why national parks close](${SITE}/guides/why-national-parks-close.html)
+- [NPS alerts explained](${SITE}/guides/nps-alerts-explained.html): Danger, Closure, Caution, Information
+- [National parks during a government shutdown](${SITE}/guides/national-parks-government-shutdown.html)
+
+## Structured data
+- [Status API (JSON)](${API}): current open/partial/closed status, coordinates, and reason for every park and beach, updated hourly
+- [Park enrichment data (JSON)](${SITE}/parks-enriched.json): descriptions, operating hours, addresses, and Wikipedia extracts keyed by park id
+
+## Attribution
+Cite as "Park Status Today (parkstatus.today)". Status figures are time-sensitive — include the "as of" date shown on the page.
+`;
+}
+
 // ===================== beach county hubs ==================================
 function beachRow(b) {
   const cls = BEACH_CLASS[beach4(b.status)] || "nodata";
@@ -986,6 +1022,7 @@ async function main() {
       states: statesText(e), status: e.status, source: e.source, url: `${SITE}/park/${e.slug}/` })),
   }));
   fs.writeFileSync(path.join(OUT, "sitemap.xml"), sitemap(entities, updatedISO, beachHubs));
+  fs.writeFileSync(path.join(OUT, "llms.txt"), llmsTxt(updatedISO, entities, beachHubs, tally));
 
   const withWiki = Object.values(enriched).filter((x) => x.history).length;
   const withNps = Object.values(enriched).filter((x) => x.hours || x.address).length;

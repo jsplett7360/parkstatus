@@ -1,0 +1,27 @@
+# Park Status Today
+
+> Live open / partially-closed / closed status for U.S. national parks, four state park systems (New York, California, Texas, Minnesota), and New York public beaches. Every status is derived hourly from official sources: National Park Service alerts and operating hours, state park-system alerts, and state / county health-department beach monitoring.
+
+Park Status Today is an independent informational service, not affiliated with the National Park Service or any state or county agency. Each status is our reading of public data, not an official determination, and is refreshed hourly. Every park page and beach-county page states the current status as plain text with the UTC time it was last checked, and carries schema.org structured data (TouristAttraction / Park, FAQPage with a dated answer, and — where known — openingHoursSpecification).
+
+Coverage as of September 2, 2026: 474 National Park Service units, 405 state parks, and 358 monitored New York beaches across 15 counties. Site-wide that is 810 open, 288 partially closed, 51 closed, 88 without data.
+
+## Parks
+- [All park & waterway statuses, A–Z](https://parkstatus.today/park/): browsable directory of every national and state park tracked, each linking to a status + visitor-info page at https://parkstatus.today/park/<slug>/
+- [Full sitemap](https://parkstatus.today/sitemap.xml): every page on the site
+
+## Beaches
+- [Beach water quality & closures by county](https://parkstatus.today/beach/): New York public beaches grouped by county, with current swimming advisories and closures at https://parkstatus.today/beach/<county>/
+
+## Guides
+- [How we check park status](https://parkstatus.today/guides/how-we-check-park-status.html): the method and sources behind every status
+- [Why national parks close](https://parkstatus.today/guides/why-national-parks-close.html)
+- [NPS alerts explained](https://parkstatus.today/guides/nps-alerts-explained.html): Danger, Closure, Caution, Information
+- [National parks during a government shutdown](https://parkstatus.today/guides/national-parks-government-shutdown.html)
+
+## Structured data
+- [Status API (JSON)](https://parkstatus-api.parkstatus.workers.dev/): current open/partial/closed status, coordinates, and reason for every park and beach, updated hourly
+- [Park enrichment data (JSON)](https://parkstatus.today/parks-enriched.json): descriptions, operating hours, addresses, and Wikipedia extracts keyed by park id
+
+## Attribution
+Cite as "Park Status Today (parkstatus.today)". Status figures are time-sensitive — include the "as of" date shown on the page.
