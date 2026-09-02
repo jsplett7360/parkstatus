@@ -31,10 +31,10 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftps
           local-dir: ./public_html/
-          # Most Hostinger domain-scoped FTP accounts land directly in the web
-          # root, so the default is "./". If your FTP user lands one level up,
-          # set a repository Variable FTP_SERVER_DIR to "./public_html/".
-          server-dir: ${{ vars.FTP_SERVER_DIR || './' }}
+          # This FTP account's login lands directly in the web root, so the
+          # contents of local public_html/ map straight to "./". Do NOT set
+          # this to ./public_html/ — that nests the whole site one level deep.
+          server-dir: ./
           # Never let the sync delete server-managed files.
           exclude: |
             **/.git*
