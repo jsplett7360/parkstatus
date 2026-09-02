@@ -1,6 +1,7 @@
 name = "parkstatus-api"
 main = "worker.js"
 compatibility_date = "2026-05-24"
+# deployed via Cloudflare Workers Builds (Git integration) on push to main
 
 # Runs hourly (NPS refreshes its own data roughly every 2h; hourly polling
 # just picks up changes sooner and stays far under the 1,000 req/hr limit).
