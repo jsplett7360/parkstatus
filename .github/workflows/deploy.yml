@@ -13,7 +13,9 @@ on:
 
 concurrency:
   group: hostinger-deploy
-  cancel-in-progress: true
+  # Queue deploys — never cancel one mid-upload (an interrupted FTP sync can
+  # leave the server and the sync-state file inconsistent).
+  cancel-in-progress: false
 
 jobs:
   ftp-deploy:
