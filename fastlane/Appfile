@@ -1,0 +1,2 @@
+app_identifier("parkstatus.today.app")
+team_id(ENV["APPLE_TEAM_ID"])

@@ -142,6 +142,8 @@ function deriveBeachReason(b) {
 const CRAWL_UA = "ParkStatusToday/1.0 (+https://parkstatus.today; hourly polling, contact via site)";
 const slugify = s => String(s).normalize("NFKD").replace(/[̀-ͯ]/g, "")
   .toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+// A status change reads as "natural disaster" if the reason/name mentions one.
+const DISASTER_RE = /wildfire|\bfire\b|hurricane|tropical storm|\bflood|storm surge|evacuat|earthquake|tornado|mudslide|landslide|volcan/i;
 
 async function fetchNYBeaches() {
   const r = await fetch(NY_BEACH_API, { headers: { "User-Agent": CRAWL_UA } });
@@ -972,7 +974,8 @@ async function rebuild(env, { notify = false } = {}) {
       const n = nowIndex[id], o = prevIndex[id];
       if (o && o.status !== n.status)
         changes.push({ id, name: n.name, from: o.status, to: n.status, reason: n.reason,
-          url: n.url, lat: n.lat, lon: n.lon, scheduledOnly: n.scheduledOnly, county: n.county });
+          url: n.url, lat: n.lat, lon: n.lon, scheduledOnly: n.scheduledOnly, county: n.county,
+          disaster: DISASTER_RE.test((n.reason || "") + " " + (n.name || "")) });
     }
   } catch (_) {}
 
@@ -1131,17 +1134,37 @@ async function notifyChanges(env, changes) {
   // Never notify for a purely scheduled-operating-hours closure.
   const real = changes.filter(ch => !(ch.to === "closed" && ch.scheduledOnly));
   if (!real.length) return;
-  const [emailSubs, pushSubs] = await Promise.all([listSubs(env, "sub:email:"), listSubs(env, "sub:push:")]);
+  const [emailSubs, pushSubs, nativeSubs] = await Promise.all([
+    listSubs(env, "sub:email:"), listSubs(env, "sub:push:"), listSubs(env, "push:native:"),
+  ]);
+  // id -> our page slug, for native deep links back into the app
+  const slugById = {};
+  if (nativeSubs.length) {
+    try {
+      const r = await fetch(SITE + "/parks.json", { cf: { cacheTtl: 300 } });
+      if (r.ok) { const d = await r.json(); for (const p of d.parks || []) slugById[p.id] = p.slug; }
+    } catch (_) {}
+  }
+  const appUrl = ch => slugById[ch.id] ? `${SITE}/park/${slugById[ch.id]}/` : SITE;
+
   for (const ch of real) {
     const c = { ...ch, fullName: ch.name, parkCode: ch.id };
+    const title = `${ch.name} is now ${STATUS_TEXT_X[ch.to]}`;
     for (const s of emailSubs.filter(sub => changeMatchesSub(ch, sub)))
-      await sendEmail(env, s.email, `${ch.name} is now ${STATUS_TEXT_X[ch.to]}`, emailHtml(c)).catch(() => {});
+      await sendEmail(env, s.email, title, emailHtml(c)).catch(() => {});
     for (const s of pushSubs.filter(sub => changeMatchesSub(ch, sub))) {
       try {
-        const st = await sendPush(env, s.subscription, {
-          title: `${ch.name} is now ${STATUS_TEXT_X[ch.to]}`,
-          body: ch.reason || "", url: ch.url || SITE, tag: ch.id });
+        const st = await sendPush(env, s.subscription, { title, body: ch.reason || "", url: ch.url || SITE, tag: ch.id });
         if (st === 404 || st === 410) await env.PARKS_KV.delete(s._key);
+      } catch (_) {}
+    }
+    for (const s of nativeSubs) {
+      const sc = s.scope || {};
+      const hit = (Array.isArray(sc.parks) && sc.parks.includes(ch.id)) || (sc.disasters && ch.disaster);
+      if (!hit || s.platform !== "ios") continue; // Android/FCM: not yet
+      try {
+        const st = await sendAPNs(env, s.token, { title, body: ch.reason || "", url: appUrl(ch), tag: ch.id });
+        if (st === 400 || st === 410) await env.PARKS_KV.delete(s._key);
       } catch (_) {}
     }
   }
@@ -1221,6 +1244,44 @@ async function sendPush(env, sub, payloadObj) {
     body,
   });
   return res.status;
+}
+
+// ===================== APNs (native iOS push) =============================
+// JWT provider token signed with the .p8 APNs key (ES256). Reused ~40 min.
+let _apnsJwt = { token: "", exp: 0 };
+async function apnsJwt(env) {
+  const now = Math.floor(Date.now() / 1000);
+  if (_apnsJwt.token && now < _apnsJwt.exp) return _apnsJwt.token;
+  const b64 = String(env.APNS_AUTH_KEY || "").replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
+  const pkcs8 = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey("pkcs8", pkcs8, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  const si = `${jsonB64u({ alg: "ES256", kid: env.APNS_KEY_ID })}.${jsonB64u({ iss: env.APNS_TEAM_ID, iat: now })}`;
+  const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, enc.encode(si));
+  _apnsJwt = { token: `${si}.${bytesToB64u(sig)}`, exp: now + 40 * 60 };
+  return _apnsJwt.token;
+}
+async function sendAPNs(env, token, { title, body, url, tag }) {
+  const jwt = await apnsJwt(env);
+  const r = await fetch(`https://api.push.apple.com/3/device/${token}`, {
+    method: "POST",
+    headers: {
+      authorization: `bearer ${jwt}`,
+      "apns-topic": env.APNS_BUNDLE_ID || "parkstatus.today.app",
+      "apns-push-type": "alert",
+      "apns-priority": "10",
+      ...(tag ? { "apns-collapse-id": String(tag).replace(/[^\w:-]/g, "").slice(0, 63) } : {}),
+    },
+    body: JSON.stringify({ aps: { alert: { title, body: (body || "").slice(0, 240) }, sound: "default" }, url: url || SITE }),
+  });
+  return r.status; // 200 delivered; 400/410 => dead token
+}
+
+function sanitizeNativeScope(raw) {
+  const s = { label: "app" };
+  if (raw && raw.label) s.label = String(raw.label).slice(0, 40);
+  s.parks = (raw && Array.isArray(raw.parks) ? raw.parks : []).slice(0, 100).map(x => String(x).slice(0, 60));
+  s.disasters = !raw || raw.disasters !== false;
+  return s;
 }
 
 // ===================== HTTP ================================================
@@ -1340,6 +1401,29 @@ export default {
       const id = await sha1(sub.endpoint);
       await env.PARKS_KV.put("sub:push:" + id, JSON.stringify({ subscription: sub, scope, ts: new Date().toISOString() }));
       return json({ ok: true, scope });
+    }
+
+    // Native app (Capacitor) push registration: { platform, installId, token, scope }
+    if (url.pathname === "/push/native/subscribe" && req.method === "POST") {
+      const b = await readJSON(req);
+      if (!b || !b.token || !b.installId) return json({ ok: false, error: "missing token/installId" }, 400);
+      const scope = sanitizeNativeScope(b.scope);
+      await env.PARKS_KV.put("push:native:" + String(b.installId).slice(0, 80), JSON.stringify({
+        platform: b.platform === "android" ? "android" : "ios",
+        token: String(b.token).slice(0, 400), scope, ts: new Date().toISOString(),
+      }));
+      return json({ ok: true, scope });
+    }
+
+    // Manual native push test: /push/native/test?token=REBUILD_TOKEN
+    if (url.pathname === "/push/native/test" && token === env.REBUILD_TOKEN) {
+      const subs = await listSubs(env, "push:native:");
+      const out = [];
+      for (const s of subs.filter(x => x.platform === "ios")) {
+        try { out.push(await sendAPNs(env, s.token, { title: "Test alert — Park Status", body: "Native notifications are working.", url: SITE, tag: "test" })); }
+        catch (e) { out.push(String(e)); }
+      }
+      return json({ ok: true, ios_devices: subs.filter(x => x.platform === "ios").length, results: out });
     }
 
     const data = await env.PARKS_KV.get("status:latest");

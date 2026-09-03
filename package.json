@@ -4,7 +4,11 @@
   "description": "",
   "main": "worker.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:site": "node build-parks.js",
+    "cap:sync": "cap sync ios",
+    "ios:open": "cap open ios",
+    "assets": "capacitor-assets generate --ios --iconBackgroundColor '#0b1b35'"
   },
   "keywords": [],
   "author": "",
@@ -12,5 +16,16 @@
   "type": "commonjs",
   "devDependencies": {
     "wrangler": "^4.127.1"
+  },
+  "dependencies": {
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/browser": "^6.0.6",
+    "@capacitor/cli": "^6.2.2",
+    "@capacitor/core": "^6.2.2",
+    "@capacitor/ios": "^6.2.2",
+    "@capacitor/preferences": "^6.0.4",
+    "@capacitor/push-notifications": "^6.0.5",
+    "@capacitor/splash-screen": "^6.0.4",
+    "@capacitor/status-bar": "^6.0.3"
   }
 }

@@ -556,6 +556,7 @@ ${stripHtml(tally, updatedISO)}
   }).catch(function(){});
 })();
 </script>
+<script src="/app-native.js" defer></script>
 </body>
 </html>
 `;
@@ -622,6 +623,7 @@ ${rows}
   }).catch(function(){});
 })();
 </script>
+<script src="/app-native.js" defer></script>
 </body>
 </html>
 `;
@@ -943,6 +945,7 @@ ${rows}
   }).catch(function(){});
 })();
 </script>
+<script src="/app-native.js" defer></script>
 </body>
 </html>
 `;
@@ -1028,6 +1031,7 @@ ${cards}
   }).catch(function(){});
 })();
 </script>
+<script src="/app-native.js" defer></script>
 </body>
 </html>
 `;

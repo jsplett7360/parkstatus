@@ -12,3 +12,26 @@ public_html.zip
 .DS_Store
 **/.DS_Store
 Thumbs.db
+
+# ---- signing keys / secrets — never commit ----
+*.p8
+*.p12
+*.mobileprovision
+*.jks
+*.keystore
+google-services.json
+**/GoogleService-Info.plist
+fastlane/report.xml
+fastlane/*.env
+
+# ---- Capacitor native build output ----
+ios/App/Pods/
+ios/App/build/
+ios/App/App/public/
+ios/DerivedData/
+android/
+.gradle/
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+Gemfile.lock

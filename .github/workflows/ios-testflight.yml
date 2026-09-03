@@ -1,0 +1,44 @@
+name: iOS · TestFlight
+
+# Builds the Capacitor iOS app and uploads it to TestFlight.
+# Trigger: push a tag like `ios-v1.0.3`, or run manually.
+
+on:
+  push:
+    tags: ["ios-v*"]
+  workflow_dispatch:
+
+jobs:
+  testflight:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+
+      # Regenerate the bundled site (needs the live status API + NPS + Wikipedia)
+      # so the app ships current park pages. Comment out to ship public_html as-is.
+      - name: Rebuild bundled site
+        env:
+          NPS_API_KEY: ${{ secrets.NPS_API_KEY }}
+        run: node build-parks.js || echo "site rebuild skipped/failed — shipping committed public_html"
+
+      - name: Capacitor sync (copies web assets, runs pod install)
+        run: npx cap sync ios
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Fastlane → TestFlight
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: bundle exec fastlane ios beta

@@ -1,0 +1,20 @@
+{
+  "appId": "parkstatus.today.app",
+  "appName": "Park Status Today",
+  "webDir": "public_html",
+  "server": { "iosScheme": "https", "androidScheme": "https" },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#f4f6f9",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "PushNotifications": { "presentationOptions": ["badge", "sound", "alert"] },
+    "SplashScreen": {
+      "launchShowDuration": 500,
+      "backgroundColor": "#0b1b35",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP"
+    }
+  }
+}
