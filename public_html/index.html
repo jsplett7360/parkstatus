@@ -83,10 +83,11 @@
     font-size:clamp(15px,2.2vw,19px);margin:0;color:#3a4864}
   @media(max-width:820px){.hero .wrap{padding:10px 22px 0}}
 
-  .board{display:grid;grid-template-columns:262px 1fr;gap:22px;align-items:start;padding-bottom:26px}
+  .board{display:grid;grid-template-columns:1fr 262px;gap:22px;align-items:start;padding-bottom:26px}
   @media(max-width:820px){.board{grid-template-columns:1fr}}
   .rail{position:sticky;top:14px;display:flex;flex-direction:column;gap:16px}
-  @media(max-width:820px){.rail{position:static}}
+  /* mobile/tablet: map first (source order), then Parks & Waterways, then Find a park */
+  @media(max-width:820px){.rail{position:static;flex-direction:column-reverse}}
   .panelbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 15px 16px;box-shadow:var(--shadow)}
   .panelbox h2{font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 11px;font-weight:700}
 
@@ -295,6 +296,14 @@
 
 <main class="wrap" id="map">
   <div class="board">
+    <div class="mapwrap">
+      <div class="mapframe">
+        <div id="usmap" role="region" aria-label="Map of U.S. national park sites and New York beaches by status"></div>
+        <div class="zoomhint" id="zoomhint">Scroll-zoom is off — click the map, or use + / −</div>
+        <div class="loading" id="loading">Loading current park status…</div>
+      </div>
+    </div>
+
     <aside class="rail">
       <div class="panelbox">
         <h2>Find a park</h2>
@@ -312,14 +321,6 @@
         <label class="toggle" data-status="no_data"><span class="lab"><span class="dot nodata"></span>No data</span><span class="count" id="c-nodata">—</span><input type="checkbox" checked></label>
       </div>
     </aside>
-
-    <div class="mapwrap">
-      <div class="mapframe">
-        <div id="usmap" role="region" aria-label="Map of U.S. national park sites and New York beaches by status"></div>
-        <div class="zoomhint" id="zoomhint">Scroll-zoom is off — click the map, or use + / −</div>
-        <div class="loading" id="loading">Loading current park status…</div>
-      </div>
-    </div>
   </div>
 </main>
 
