@@ -91,3 +91,5 @@ footer.site .sister a{color:#fff;font-weight:bold}
 #shutdown-banner .sb-in{max-width:1080px;margin:0 auto;padding:11px 22px;font-size:14px}
 #shutdown-banner strong{font-family:var(--font-display);letter-spacing:-.5px;margin-right:6px}
 #shutdown-banner a{color:#fff;font-weight:bold;text-decoration:underline;white-space:nowrap}
+
+footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;color:#7f8da6;opacity:.9;border-top:1px solid #1e2c49;padding-top:12px;margin-top:2px}

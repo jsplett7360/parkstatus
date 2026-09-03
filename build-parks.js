@@ -28,6 +28,7 @@ const API = process.env.STATUS_API || "https://parkstatus-api.parkstatus.workers
 const NPS_KEY = process.env.NPS_API_KEY || "";
 const SITE = "https://parkstatus.today";
 const OUT = path.join(__dirname, "public_html");
+const CORP_LINE = "© 2026 The Association of Recreation and District Spaces Corp. · A property of Little Ideas Big Story, Corp.";
 const PARK_DIR = path.join(OUT, "park");
 const UA = "ParkStatusToday/1.0 (+https://parkstatus.today; daily static build)";
 
@@ -488,7 +489,7 @@ ${stripHtml(tally, updatedISO)}
     <a class="btn ghost" href="/#map">← Back to the map</a>
   </div>
 
-  ${photo ? `<img class="hero-photo" src="${esc(photo)}" alt="${name}" loading="lazy">` : ""}
+  ${photo ? `<img class="hero-photo" src="${esc(photo)}" alt="${name}" loading="lazy" width="820" height="349" style="display:block;width:100%;aspect-ratio:40/17;max-height:340px;object-fit:cover;border-radius:14px">` : ""}
 
   ${overview ? `<article><h2>About ${name}</h2><p id="p-about">${esc(overview)}</p>${en && en.wiki ? `<p><a href="${esc(en.wiki)}" target="_blank" rel="noopener">Read more on Wikipedia ↗</a> <span class="disc" style="opacity:.7">Text from Wikipedia, CC BY-SA.</span></p>` : ""}</article>` : ""}
 
@@ -518,6 +519,7 @@ ${stripHtml(tally, updatedISO)}
   <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
   <span><b>Park Status Today</b> — an independent informational service, not affiliated with the National Park Service or any state agency.</span>
   <span class="disc">Live status refreshed hourly · always confirm with the official park page before you travel.</span>
+  <span class="corp">${CORP_LINE}</span>
 </div></footer>
 
 <script>
@@ -599,6 +601,7 @@ ${rows}
 <footer class="site"><div class="wrap">
   <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
   <span class="disc">Live status refreshed hourly · always confirm with the official park page before you travel.</span>
+  <span class="corp">${CORP_LINE}</span>
 </div></footer>
 <script>
 (function(){
@@ -669,7 +672,7 @@ h1{font-family:var(--font-display);font-weight:900;letter-spacing:-2px;line-heig
 .btn{font:inherit;font-size:14px;font-weight:bold;border-radius:10px;padding:11px 16px;text-decoration:none;border:1px solid transparent}
 .btn.primary{background:var(--navy);color:#fff}.btn.primary:hover{background:var(--navy-2);color:#fff}
 .btn.ghost{background:#fff;color:var(--navy);border-color:var(--line)}.btn.ghost:hover{border-color:var(--navy)}
-.hero-photo{width:100%;max-height:340px;object-fit:cover;border-radius:14px;border:1px solid var(--line);margin:0 0 8px}
+.hero-photo{display:block;width:100%;aspect-ratio:40/17;max-height:340px;object-fit:cover;border-radius:14px;border:1px solid var(--line);margin:0 0 8px}
 article{padding:6px 0 4px}
 article h2{font-family:var(--font-display);font-weight:900;letter-spacing:-1.2px;font-size:24px;margin:26px 0 10px}
 article p{font-size:16px;margin:0 0 14px}
@@ -708,6 +711,7 @@ footer.site .frow{display:flex;flex-wrap:wrap;align-items:center;justify-content
 footer.site .frow .wordmark{color:#fff;font-size:20px}
 footer.site .sister{font-family:var(--font-mono);font-size:12px;color:#9fb0c9}
 footer.site .sister a{color:#fff;font-weight:bold}
+footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.02em;color:#7f8da6;opacity:.9;border-top:1px solid #1e2c49;padding-top:12px;margin-top:4px}
 #shutdown-banner{display:none}
 #shutdown-banner.show{display:block;background:var(--closed);color:#fff}
 #shutdown-banner .sb-in{max-width:1080px;margin:0 auto;padding:11px 22px;font-size:14px}
@@ -906,6 +910,7 @@ ${rows}
   <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
   <span><b>Park Status Today</b> — an independent informational service, not affiliated with any state or county agency.</span>
   <span class="disc">Live status refreshed hourly · always confirm with the operating agency before you travel.</span>
+  <span class="corp">${CORP_LINE}</span>
 </div></footer>
 <script>
 (function(){
@@ -1005,6 +1010,7 @@ ${cards}
 <footer class="site"><div class="wrap">
   <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
   <span class="disc">Live status refreshed hourly · always confirm with the operating agency before you travel.</span>
+  <span class="corp">${CORP_LINE}</span>
 </div></footer>
 <script>
 (function(){
