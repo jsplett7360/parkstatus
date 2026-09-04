@@ -33,7 +33,7 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
-          bundler-cache: true
+      - run: gem install fastlane --no-document
 
       - name: Fastlane → TestFlight
         env:
@@ -41,4 +41,4 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
-        run: bundle exec fastlane ios beta
+        run: fastlane ios beta

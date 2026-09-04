@@ -40,6 +40,8 @@ Repo → Settings → Secrets and variables → Actions:
 | `ASC_KEY_P8_BASE64` | `base64 -i ~/keys/parkstatus/AuthKey_T3B57QK45Z.p8` |
 | `NPS_API_KEY` | already set (the workflow rebuilds the bundled site) |
 
+The CI workflow installs fastlane with `gem install fastlane` (no Gemfile/bundler).
+
 ---
 
 ## First build — do this one locally in Xcode
@@ -49,14 +51,19 @@ CI signing is fussy for a brand-new app; the first TestFlight build is easiest f
 ```bash
 # one-time Mac setup
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-sudo gem install cocoapods            # or: brew install cocoapods
+brew install cocoapods                 # (or: sudo gem install cocoapods)
+xcodebuild -downloadPlatform iOS       # ~8.5 GB — the iOS 26 platform/runtime
 
 # in the repo
 npm ci
-npm run build:site                    # regenerate public_html (needs NPS_API_KEY in env)
-npx cap sync ios                      # copy web assets + pod install
-npx cap open ios                      # opens ios/App/App.xcworkspace in Xcode
+NPS_API_KEY=xxxx npm run build:site    # regenerate public_html
+(cd ios/App && pod install)            # plain pod install — no Gemfile/bundler
+npx cap copy ios                       # copy web assets into the Xcode project
+npx cap open ios                       # opens ios/App/App.xcworkspace in Xcode
 ```
+
+> `npx cap sync ios` also works but shells out to `pod install`; run `pod install`
+> directly if your Homebrew Ruby is too new for other gems.
 
 In Xcode:
 1. Select the **App** target → **Signing & Capabilities** → check **Automatically manage signing**, Team = *Joshua Splett (MGK33AG8ZK)*.
