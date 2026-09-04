@@ -25,6 +25,7 @@
 const API = "https://developer.nps.gov/api/v1";
 const NY_BEACH_API = "https://beachadvisory.health.ny.gov/doh7/beachesadvisory/beaches";
 const SITE = "https://parkstatus.today";
+const WORKER_ORIGIN = "https://parkstatus-api.parkstatus.workers.dev";
 const VAPID_PUBLIC = "BN13jzaTmu-9k91rWOMlOFTjtIyowSvH2r8V8JugZgS-sMQQkFtn68a6tdS9wgMJJYcCmEU2iP99balHlTJofUA";
 const VAPID_SUBJECT = "mailto:alerts@parkstatus.today";
 const MAIL_FROM = "Park Status Today <alerts@parkstatus.today>";
@@ -1150,8 +1151,10 @@ async function notifyChanges(env, changes) {
   for (const ch of real) {
     const c = { ...ch, fullName: ch.name, parkCode: ch.id };
     const title = `${ch.name} is now ${STATUS_TEXT_X[ch.to]}`;
-    for (const s of emailSubs.filter(sub => changeMatchesSub(ch, sub)))
-      await sendEmail(env, s.email, title, emailHtml(c)).catch(() => {});
+    for (const s of emailSubs.filter(sub => changeMatchesSub(ch, sub))) {
+      const unsubUrl = await unsubscribeUrl(env, s.email);
+      await sendEmail(env, s.email, title, emailHtml(c, unsubUrl)).catch(() => {});
+    }
     for (const s of pushSubs.filter(sub => changeMatchesSub(ch, sub))) {
       try {
         const st = await sendPush(env, s.subscription, { title, body: ch.reason || "", url: ch.url || SITE, tag: ch.id });
@@ -1170,7 +1173,7 @@ async function notifyChanges(env, changes) {
   }
 }
 
-function emailHtml(ch) {
+function emailHtml(ch, unsubUrl) {
   const color = { open: "#14785d", partially_closed: "#9a6a0f", closed: "#ee263b" }[ch.to] || "#0b1b35";
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0e1726">
     <p style="font:700 12px ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:#667185;margin:0 0 6px">Park Status Today</p>
@@ -1179,8 +1182,49 @@ function emailHtml(ch) {
     <p style="font-size:14px;margin:0 0 20px">Previously: ${STATUS_TEXT_X[ch.from] || ch.from}.</p>
     <a href="${esc(ch.url || SITE)}" style="background:#0b1b35;color:#fff;text-decoration:none;font-weight:bold;font-size:14px;padding:11px 16px;border-radius:9px;display:inline-block">View the official park page →</a>
     <p style="font-size:11px;color:#8a93a3;margin:24px 0 0">You're receiving this because you follow this park on parkstatus.today. Status is our reading of NPS data — always confirm with the park.</p>
+    ${emailUnsubLine(unsubUrl)}
   </div>`;
 }
+
+// Human-readable description of an email scope, for the confirmation email.
+function scopeSummaryText(scope) {
+  const sc = scope || { kind: "all" };
+  let base;
+  if (sc.kind === "parks") {
+    const n = (Array.isArray(sc.parks) ? sc.parks.length : 0);
+    base = sc.label ? sc.label : (n === 1 ? "1 followed park" : `${n} followed parks`);
+  } else if (sc.kind === "geo") {
+    base = `parks within ${sc.radiusMi || 50} mi of ${sc.label || "the location you chose"}`;
+  } else {
+    base = "all parks and waterways";
+  }
+  if (sc.from || sc.to) base += ` (${sc.from || "now"} through ${sc.to || "ongoing"})`;
+  return base;
+}
+
+function confirmEmailHtml(scope, unsubUrl) {
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0e1726">
+    <p style="font:700 12px ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:#667185;margin:0 0 6px">Park Status Today</p>
+    <h1 style="font-family:'Arial Black',Arial,sans-serif;font-size:22px;margin:0 0 4px;color:#0b1b35">You're subscribed.</h1>
+    <p style="font-size:15px;color:#33405a;margin:8px 0 16px">You'll get an email when the status changes for <strong>${esc(scopeSummaryText(scope))}</strong> — open, partially closed, or closed. Closures that are just a park's normal scheduled hours don't trigger an alert.</p>
+    <a href="${esc(SITE)}/#signup" style="background:#0b1b35;color:#fff;text-decoration:none;font-weight:bold;font-size:14px;padding:11px 16px;border-radius:9px;display:inline-block">Manage your alerts →</a>
+    <p style="font-size:11px;color:#8a93a3;margin:24px 0 0">Park Status Today is an independent informational service, not affiliated with the National Park Service or any state agency. Status is refreshed hourly.</p>
+    ${emailUnsubLine(unsubUrl)}
+  </div>`;
+}
+
+function emailUnsubLine(unsubUrl) {
+  return unsubUrl ? `<p style="font-size:11px;margin:10px 0 0"><a href="${esc(unsubUrl)}" style="color:#667185">Unsubscribe from Park Status Today alerts</a></p>` : "";
+}
+
+// Per-email unsubscribe token, derived from REBUILD_TOKEN so no extra secret is needed.
+async function unsubToken(env, email) {
+  return (await sha1(email.toLowerCase() + "|" + (env.REBUILD_TOKEN || "") + "|unsub")).slice(0, 20);
+}
+async function unsubscribeUrl(env, email) {
+  return `${WORKER_ORIGIN}/unsubscribe?email=${encodeURIComponent(email)}&t=${await unsubToken(env, email)}`;
+}
+
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 // ===================== email (Resend) ======================================
@@ -1371,7 +1415,10 @@ export default {
       const to = url.searchParams.get("email");
       const demo = { fullName: "Yellowstone National Park", from: "open", to: "partially_closed",
         reason: "Test alert — this confirms notifications are working.", url: SITE };
-      if (to && EMAIL_RE.test(to)) result.email = await sendEmail(env, to, "Test alert from Park Status Today", emailHtml(demo)).catch(e => String(e));
+      if (to && EMAIL_RE.test(to)) {
+        const unsubUrl = await unsubscribeUrl(env, to);
+        result.email = await sendEmail(env, to, "Test alert from Park Status Today", emailHtml(demo, unsubUrl)).catch(e => String(e));
+      }
       const pushSubs = await listSubs(env, "sub:push:");
       result.push = [];
       for (const s of pushSubs) {
@@ -1390,7 +1437,36 @@ export default {
       const email = b.email.toLowerCase().slice(0, 200);
       const scope = sanitizeScope(b.scope);
       await env.PARKS_KV.put("sub:email:" + email, JSON.stringify({ email, scope, ts: new Date().toISOString() }));
+      const unsubUrl = await unsubscribeUrl(env, email);
+      await sendEmail(env, email, "You're subscribed — Park Status Today", confirmEmailHtml(scope, unsubUrl)).catch(() => {});
       return json({ ok: true, scope });
+    }
+
+    // One-click unsubscribe from an email footer. GET shows a confirm page
+    // (never unsubscribes on GET alone — some mail clients prefetch links);
+    // POST from that page's form actually removes the subscription.
+    if (url.pathname === "/unsubscribe") {
+      const email = (url.searchParams.get("email") || "").toLowerCase().trim();
+      const t = url.searchParams.get("t") || "";
+      const validToken = EMAIL_RE.test(email) && t && t === await unsubToken(env, email);
+      const page = (title, body, status = 200) => new Response(
+        `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)} — Park Status Today</title>
+<style>body{font-family:Arial,Helvetica,sans-serif;background:#f4f6f9;color:#0e1726;max-width:480px;margin:60px auto;padding:0 20px;text-align:center}
+h1{font-family:'Arial Black',Arial,sans-serif;font-size:24px;margin:0 0 12px}
+p{font-size:15px;color:#33405a;line-height:1.6}
+button,.btn{background:#0b1b35;color:#fff;border:0;font:inherit;font-weight:bold;font-size:14px;padding:12px 20px;border-radius:9px;cursor:pointer;text-decoration:none;display:inline-block;margin-top:14px}
+</style></head><body>${body}</body></html>`,
+        { status, headers: { "Content-Type": "text/html; charset=utf-8" } });
+
+      if (!validToken) return page("Link expired", `<h1>That link isn't valid</h1><p>Please use the unsubscribe link from a recent Park Status Today email.</p><a class="btn" href="${esc(SITE)}/">Go to the site</a>`, 400);
+
+      if (req.method === "POST") {
+        await env.PARKS_KV.delete("sub:email:" + email);
+        return page("Unsubscribed", `<h1>You're unsubscribed</h1><p>${esc(email)} won't receive any more Park Status Today alert emails.</p><a class="btn" href="${esc(SITE)}/">Back to the site</a>`);
+      }
+      return page("Unsubscribe?", `<h1>Unsubscribe ${esc(email)}?</h1><p>You'll stop getting Park Status Today alert emails for your current subscription.</p>
+<form method="POST" action="${esc(url.pathname + url.search)}"><button type="submit">Confirm unsubscribe</button></form>`);
     }
 
     if (url.pathname === "/push/subscribe" && req.method === "POST") {
