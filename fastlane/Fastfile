@@ -16,7 +16,10 @@ platform :ios do
 
     setup_ci
 
-    build = (ENV["GITHUB_RUN_NUMBER"] || Time.now.to_i.to_s)
+    # Epoch seconds: always unique, always increasing, safely under Apple's 2^32
+    # per-component cap. (GITHUB_RUN_NUMBER restarts at 1 for a new workflow and
+    # would collide with the build already on TestFlight.)
+    build = Time.now.to_i.to_s
     increment_build_number(build_number: build, xcodeproj: "ios/App/App.xcodeproj")
 
     build_app(
