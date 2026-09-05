@@ -1,0 +1,58 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- IndexerNow pixel -->
+<script>(function(){try{var q=new URLSearchParams(location.search);navigator.sendBeacon("https://www.indexernow.com/api/pixel/rFr2Mq0S1bpnXV_rmsqgDYT0",JSON.stringify({path:location.pathname,referrer:document.referrer||"",utm:{source:q.get("utm_source")||"",medium:q.get("utm_medium")||"",campaign:q.get("utm_campaign")||""}}));}catch(e){}})();</script>
+<title>Privacy Policy</title>
+<meta name="description" content="What Park Status Today collects, why, and how to opt out — for the website and the iOS app.">
+<link rel="canonical" href="https://parkstatus.today/privacy.html">
+<meta name="robots" content="index, follow">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/guides/guides.css">
+</head><body><div id="shutdown-banner"></div>
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  <nav class="site"><a href="/">Map</a><a href="/guides/">Guides</a><a href="/park/">All parks</a><a href="https://parkstatus-api.parkstatus.workers.dev/">API</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+</div></header>
+<main class="wrap"><div class="crumbs"><a href="/">Home</a> / Privacy</div><div class="hero"><p class="eyebrow">Legal</p><h1>Privacy Policy.</h1><p class="lede">What we collect on the website and in the iOS app, why, and how to opt out. Last updated September 2026.</p></div><article>
+
+<p>Park Status Today ("we") publishes live open/closed status for U.S. national and state parks, at parkstatus.today and in the Park Status Today iOS app. This page describes what we collect across both.</p>
+
+<h2>What we collect</h2>
+<ul>
+<li><b>Email address</b> — only if you sign up for alerts. Stored with the parks, area, or date range you chose, so we know what to email you about. Used solely to send status-change alerts and a one-time confirmation when you sign up.</li>
+<li><b>Push notification token</b> — only if you enable browser push or install the iOS app and allow notifications. This is an opaque identifier your browser or Apple's push service gives us; it isn't linked to your name or any other identity. Used solely to deliver the alerts you've opted into (followed parks, and — in the app — a disaster-alerts toggle).</li>
+<li><b>Standard web analytics</b> — we use Google Analytics on the website to see aggregate traffic (pages viewed, rough device/location). We don't use it to identify individuals.</li>
+<li><b>Nothing else.</b> No accounts, no passwords, no payment or financial information, no contacts, no photos, no location tracking beyond a ZIP/city/place you type into search (which is sent to a geocoder to find coordinates and is not stored by us).</li>
+</ul>
+
+<h2>How we use it</h2>
+<p>Strictly to run the alerts feature: matching a status change against what you subscribed to, and sending you that one email or notification. We don't sell data, and we don't share it with advertisers or data brokers. The only outside services involved are the ones that operate the alert pipeline itself:</p>
+<ul>
+<li><b>Cloudflare</b> — hosts the status API and stores subscriptions (Workers KV).</li>
+<li><b>Resend</b> — delivers alert and confirmation emails on our behalf.</li>
+<li><b>Apple (APNs) / your browser's push service</b> — delivers push notifications on our behalf.</li>
+<li><b>Google Analytics</b> — aggregate website usage, website only.</li>
+</ul>
+<p>None of these get more than what's needed to do that one job — for example, Resend receives an email address and a message; it doesn't get your subscription history.</p>
+
+<h2>Your choices</h2>
+<ul>
+<li><b>Unsubscribe from email</b> — every alert and confirmation email has an unsubscribe link. One click (plus a confirm, so a link scanner in your inbox can't unsubscribe you by accident) removes you immediately.</li>
+<li><b>Turn off push</b> — disable notifications for the site in your browser, or for the app in iOS Settings → Notifications, at any time.</li>
+<li><b>Delete your data</b> — email <a href="mailto:alerts@parkstatus.today">alerts@parkstatus.today</a> and we'll remove your subscription and any stored push token.</li>
+</ul>
+
+<h2>Children</h2>
+<p>Park Status Today isn't directed at children, and we don't knowingly collect information from anyone under 13.</p>
+
+<h2>Changes</h2>
+<p>If this policy changes in a way that matters, we'll update the date at the top of this page.</p>
+
+<div class="callout"><b>Questions?</b> Email <a href="mailto:alerts@parkstatus.today">alerts@parkstatus.today</a>.</div>
+</article></main><footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="#top" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span><b style="color:#fff;font-family:var(--font-display)">Park Status Today</b> — an independent informational service, not affiliated with the National Park Service or any state agency.</span>
+  <span class="disc"><a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
+  <span class="corp">© 2026 The Association of Recreation and District Spaces Corp. · A property of Little Ideas Big Story, Corp.</span>
+</div></footer>
+<script>(function(){fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';b.className="show";}).catch(function(){});})();</script></body></html>

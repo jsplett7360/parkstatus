@@ -519,6 +519,7 @@ ${stripHtml(tally, updatedISO)}
   <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
   <span><b>Park Status Today</b> — an independent informational service, not affiliated with the National Park Service or any state agency.</span>
   <span class="disc">Live status refreshed hourly · always confirm with the official park page before you travel.</span>
+  <span class="disc"><a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
   <span class="corp">${CORP_LINE}</span>
 </div></footer>
 
@@ -602,6 +603,7 @@ ${rows}
 <footer class="site"><div class="wrap">
   <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
   <span class="disc">Live status refreshed hourly · always confirm with the official park page before you travel.</span>
+  <span class="disc"><a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
   <span class="corp">${CORP_LINE}</span>
 </div></footer>
 <script>
@@ -748,6 +750,8 @@ function sitemap(list, updatedISO, beachHubs) {
     { loc: `${SITE}/guides/why-national-parks-close.html`, freq: "monthly", pri: "0.7" },
     { loc: `${SITE}/guides/nps-alerts-explained.html`, freq: "monthly", pri: "0.7" },
     { loc: `${SITE}/guides/how-we-check-park-status.html`, freq: "monthly", pri: "0.6" },
+    { loc: `${SITE}/privacy.html`, freq: "yearly", pri: "0.3" },
+    { loc: `${SITE}/support.html`, freq: "yearly", pri: "0.3" },
   ];
   const parkUrls = list.slice().sort((a, b) => a.slug.localeCompare(b.slug))
     .map((e) => ({ loc: `${SITE}/park/${e.slug}/`, freq: "hourly", pri: "0.7" }));
@@ -912,6 +916,7 @@ ${rows}
   <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
   <span><b>Park Status Today</b> — an independent informational service, not affiliated with any state or county agency.</span>
   <span class="disc">Live status refreshed hourly · always confirm with the operating agency before you travel.</span>
+  <span class="disc"><a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
   <span class="corp">${CORP_LINE}</span>
 </div></footer>
 <script>
@@ -1013,6 +1018,7 @@ ${cards}
 <footer class="site"><div class="wrap">
   <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
   <span class="disc">Live status refreshed hourly · always confirm with the operating agency before you travel.</span>
+  <span class="disc"><a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
   <span class="corp">${CORP_LINE}</span>
 </div></footer>
 <script>

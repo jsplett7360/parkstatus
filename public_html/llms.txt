@@ -4,7 +4,7 @@
 
 Park Status Today is an independent informational service, not affiliated with the National Park Service or any state or county agency. Each status is our reading of public data, not an official determination, and is refreshed hourly. Every park page and beach-county page states the current status as plain text with the UTC time it was last checked, and carries schema.org structured data (TouristAttraction / Park, FAQPage with a dated answer, and — where known — openingHoursSpecification).
 
-Coverage as of September 3, 2026: 474 National Park Service units, 814 state parks, and 358 monitored New York beaches across 15 counties. Site-wide that is 1217 open, 298 partially closed, 42 closed, 89 without data.
+Coverage as of September 4, 2026: 474 National Park Service units, 814 state parks, and 358 monitored New York beaches across 15 counties. Site-wide that is 1236 open, 284 partially closed, 37 closed, 89 without data.
 
 ## Parks
 - [All park & waterway statuses, A–Z](https://parkstatus.today/park/): browsable directory of every national and state park tracked, each linking to a status + visitor-info page at https://parkstatus.today/park/<slug>/
