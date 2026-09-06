@@ -26,6 +26,7 @@ platform :ios do
       workspace: WORKSPACE,
       scheme: SCHEME,
       export_method: "app-store",
+      api_key: api_key,                       # lets xcodebuild auth to Apple for -allowProvisioningUpdates
       xcargs: "-allowProvisioningUpdates",
       export_options: {
         signingStyle: "automatic",
