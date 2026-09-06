@@ -17,13 +17,19 @@ _Snapshot for picking work back up after a context compaction. Updated 2026-09-0
 - Worker: `sendAPNs()` (production APNs, `api.push.apple.com`), native subs in `notifyChanges()`, status changes tagged `disaster` on wildfire/hurricane/flood/etc.
 - Icons/splash: placeholder from `node assets/make-icon.js` — swap `assets/icon.png` for real art, then `npm run assets`.
 - Deployment target raised 13.0 → 15.0 (clears the App Store Connect "MinimumOSVersion too low" warning).
-- **Done:** first build archived + uploaded to App Store Connect (2026-09-05).
+- Device family = `1` (iPhone only); `TARGETED_DEVICE_FAMILY = 1` in pbxproj.
+- **Done:** first build uploaded from Xcode (2026-09-05); CI build+upload working end-to-end via `git tag ios-v1.0.7` (2026-09-06).
+- **Ship a new build:** `git tag ios-vX.Y.Z && git push origin ios-vX.Y.Z` — that's it. Workflow rebuilds park pages, `cap sync`, match(readonly) signing, archive, upload to TestFlight. Build number = epoch seconds (auto).
 - **Next:**
-  1. App Store Connect → app → TestFlight → add self as Internal Tester → install via TestFlight app on iPhone.
+  1. TestFlight: `joshsplett2@gmail.com` is an internal tester in the "LIBS" group (that Apple ID = the App Store Connect account holder AND the phone's App Store ID). Answer export compliance on each build (standard HTTPS → exempt) so it reaches "Testing".
   2. Test push: allow notifications, follow a park, `curl "https://parkstatus-api.parkstatus.workers.dev/push/native/test?token=<REBUILD_TOKEN>"` → banner.
-  3. Fill App Store listing: description, keywords, category, age rating, screenshots (device family is still `1,2` = iPhone+iPad → either provide iPad screenshots or set to `1` iPhone-only), Privacy Policy URL + Support URL (the two pages above).
+  3. Fill App Store listing: description, keywords, category, age rating, iPhone screenshots, Privacy Policy URL + Support URL (the two pages above).
   4. Submit for App Store review. Guideline 4.2 (webview wrapper) risk is mitigated by native push + in-app browser + offline bundling — note that in App Review notes if needed.
-- **CI:** `.github/workflows/ios-testflight.yml` — push a tag `ios-v*` → build + upload to TestFlight via App Store Connect API key. Needs GitHub secrets `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64` (all added). Uses `gem install fastlane`, no Gemfile.
+- **CI:** `.github/workflows/ios-testflight.yml` — tag `ios-v*` (or manual dispatch; `lane` input `beta`/`certs`). Runs on **macos-15 + Xcode 26** (Apple requires the iOS 26 SDK for uploads; macos-14/Xcode 15 uploads are rejected).
+- **Signing = fastlane match** (`fastlane/Matchfile`, `fastlane/Fastfile`). App Store cert + profile live encrypted in **private repo `jsplett7360/parkstatus-certs`**. CI pulls them read-only (`beta` lane) so it can't exhaust the per-account cert limit — which is exactly what broke the old `-allowProvisioningUpdates` approach (individual account caps Development certs at 2; every CI run minted a new one).
+  - GitHub secrets (repo `jsplett7360/parkstatus`): `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64`, `MATCH_PASSWORD` (cert-repo encryption passphrase — in Josh's password manager), `MATCH_DEPLOY_KEY` (SSH private key; matching **read-write deploy key** `fastlane-match-ci` on `parkstatus-certs`).
+  - To (re)create or renew signing assets: run the workflow manually with `lane = certs` (needs an ASC API key with App Manager/Admin role — the current one worked).
+- Stale `ios-v1.0.2`..`ios-v1.0.6` tags are failed attempts; safe to delete.
 
 ## Android — deferred
 Pending Play Console identity verification (needs a second device). Checklist in `MOBILE.md`.
