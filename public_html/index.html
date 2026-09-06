@@ -260,10 +260,6 @@
   #d-extra table.hrs td:first-child{color:var(--muted);font-family:var(--font-mono);width:38px}
   #d-extra .hn{display:block;font-size:11.5px;color:var(--muted);margin-top:4px}
   .d-alerts{border-top:1px solid var(--line);margin-top:14px;padding-top:14px}
-  .da-lead{font-size:13px;color:var(--ink-soft);margin:0 0 8px}
-  #d-alert-form .su-row{margin-top:8px}
-  #d-alert-form .su-row input{flex:1;min-width:150px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:14px}
-  #d-alert-form input[type=date]{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px}
   .dlinks{display:flex;flex-direction:column;gap:8px}
   .official{display:inline-block;background:var(--navy);color:#fff;text-decoration:none;font-size:13px;font-weight:700;padding:10px 14px;border-radius:9px;text-align:center}
   .official:hover{background:var(--navy-2)}
@@ -271,6 +267,26 @@
   .official.ghost:hover{border-color:var(--navy)}
   .backdrop{position:fixed;inset:0;background:rgba(14,23,38,.3);opacity:0;pointer-events:none;transition:opacity .2s;z-index:1900}
   .backdrop.show{opacity:1;pointer-events:auto}
+
+  /* unified Alerts panel */
+  .btn-alerts.on::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#fff;margin-left:7px;vertical-align:middle}
+  #alerts{z-index:2001}
+  #alerts .dhead strong{font-family:var(--font-display);font-size:19px;letter-spacing:-.5px;color:var(--ink)}
+  .al-note{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:13px;line-height:1.5;margin:0 0 14px}
+  .al-note b{color:var(--ink)}
+  .al-note .btn{margin-top:10px;padding:9px 14px;font-size:13px}
+  .al-seg{display:flex;gap:8px}
+  .al-segbtn{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line);border-radius:9px;padding:9px 6px;font-size:13px;cursor:pointer}
+  .al-segbtn input{margin:0;flex:none}
+  .al-segbtn:has(input:checked){border-color:var(--navy);background:var(--paper);font-weight:bold}
+  .al-opt{display:flex;gap:9px;align-items:flex-start;font-size:14px;padding:5px 0;cursor:pointer;line-height:1.4}
+  .al-opt input{margin-top:3px;flex:none}
+  .al-opt b{font-family:var(--font-mono);font-size:12px;color:var(--muted);font-weight:400}
+  #alerts .su-inline input[type=text]{flex:1;min-width:130px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:14px;background:#fff}
+  #alerts .su-inline select{width:auto;flex:none}
+  #alerts .su-field select{width:100%}
+  html.in-app .js-web-only{display:none!important}
+  html:not(.in-app) .js-app-only{display:none!important}
 </style>
 </head>
 <body>
@@ -283,7 +299,7 @@
     <a href="/park/" class="hide-sm">All parks</a>
     <a href="/guides/" class="hide-sm">Guides</a>
     <a href="https://parkstatus-api.parkstatus.workers.dev/" target="_blank" rel="noopener" class="hide-sm">API</a>
-    <a href="#signup" class="btn-alerts">Get alerts</a>
+    <a href="#alerts" class="btn-alerts" id="open-alerts">Get alerts</a>
   </nav>
 </div></header>
 
@@ -367,49 +383,9 @@
   <div class="su-card">
     <p class="eyebrow">Alerts</p>
     <h2>Never miss a closure</h2>
-    <p class="su-lede">Get an alert when a park or waterway changes status. Choose what to watch and, if you like, a date range.</p>
-
-    <div class="su-field">
-      <label for="su-kind">Watch</label>
-      <select id="su-kind">
-        <option value="all">Everywhere</option>
-        <option value="place">Near a city, state, or ZIP</option>
-      </select>
-      <p class="su-hint">Want just one or two parks? Tap a dot on the map and use “Follow this park” in the card.</p>
-    </div>
-
-    <div class="su-field" id="su-place-wrap" hidden>
-      <label for="su-loc">Location</label>
-      <div class="su-inline">
-        <input id="su-loc" type="text" placeholder="City, state, or ZIP" autocomplete="off">
-        <select id="su-radius">
-          <option value="20">within 20 mi</option>
-          <option value="50" selected>within 50 mi</option>
-          <option value="100">within 100 mi</option>
-          <option value="200">within 200 mi</option>
-        </select>
-      </div>
-      <p class="su-hint" id="su-loc-hint"></p>
-      <div id="su-near-list" class="su-near-list"></div>
-    </div>
-
-    <div class="su-field">
-      <label>Only between <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
-      <div class="su-inline">
-        <input id="su-from" type="date" aria-label="From date">
-        <span style="color:var(--muted)">to</span>
-        <input id="su-to" type="date" aria-label="To date">
-      </div>
-    </div>
-
-    <div class="su-row">
-      <input id="su-email" type="email" placeholder="you@example.com" aria-label="Email address">
-      <button id="su-email-btn" class="btn primary">Email me updates</button>
-    </div>
-    <div class="su-or">— or —</div>
-    <button id="su-push-btn" class="btn ghost">🔔 Enable browser alerts</button>
-    <p class="su-msg" id="su-msg" role="status" aria-live="polite"></p>
-    <p class="su-note">You won't be alerted for routine "closed today per scheduled hours" closures. Unsubscribe anytime.</p>
+    <p class="su-lede">Get a browser or email alert when a park or waterway changes status. Choose the parks you follow, an area near you, or everywhere — plus optional wildfire, hurricane &amp; flood alerts.</p>
+    <button class="btn primary" id="su-open" style="font-size:16px">🔔 Set up alerts</button>
+    <p class="su-note">You won't be alerted for routine "closed today per scheduled hours" closures. Turn alerts off any time from the same panel.</p>
   </div>
 </div></section>
 
@@ -455,18 +431,72 @@
 
     <div class="d-alerts">
       <button class="follow" id="d-follow">🔔 Follow this park</button>
-      <div id="d-alert-form" hidden>
-        <p class="da-lead"><b id="da-count">0</b> following · alert me when any of them changes</p>
-        <div class="su-chips" id="da-chips"></div>
-        <div class="su-inline" style="margin:8px 0"><span class="su-hint" style="margin:0">Only between</span>
-          <input id="da-from" type="date" aria-label="From"><span style="color:var(--muted)">to</span><input id="da-to" type="date" aria-label="To"></div>
-        <div class="su-row"><input id="da-email" type="email" placeholder="you@example.com" aria-label="Email">
-          <button class="btn primary" id="da-sub">Email me updates</button></div>
-        <button class="btn ghost" id="da-push" style="width:100%;margin-top:8px">🔔 Enable browser alerts</button>
-        <p class="su-msg" id="da-msg" role="status" aria-live="polite"></p>
-        <p class="su-hint">Routine "closed today per scheduled hours" changes won't alert you.</p>
+      <p class="su-hint" id="d-follow-hint" hidden>Following <b id="d-follow-n">0</b> · <a href="#alerts" id="d-manage">manage alerts →</a></p>
+    </div>
+  </div>
+</aside>
+
+<aside class="detail" id="alerts" aria-hidden="true" aria-label="Alerts">
+  <div class="dhead">
+    <strong>Alerts</strong>
+    <button class="close" id="al-close" aria-label="Close">✕</button>
+  </div>
+  <div class="body">
+    <div class="al-note" id="al-note" hidden></div>
+
+    <div class="su-field js-web-only" id="al-channel-field">
+      <label>How to reach you</label>
+      <div class="al-seg">
+        <label class="al-segbtn"><input type="radio" name="al-ch" value="push" checked> Browser</label>
+        <label class="al-segbtn"><input type="radio" name="al-ch" value="email"> Email</label>
+      </div>
+      <div id="al-email-wrap" hidden style="margin-top:8px">
+        <input id="al-email" type="email" placeholder="you@example.com" aria-label="Email address"
+          style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:14px;background:#fff">
       </div>
     </div>
+    <p class="su-hint js-app-only" style="margin-top:0">Notifications are managed by iOS — turn them on or off for "Park Status Today" in Settings → Notifications.</p>
+
+    <div class="su-field">
+      <label>What to watch</label>
+      <label class="al-opt"><input type="radio" name="al-scope" value="parks" checked>
+        <span>Parks I follow <b id="al-nfollow">(0)</b></span></label>
+      <div class="su-chips" id="al-chips" style="margin:2px 0 10px 25px"></div>
+      <div class="js-web-only">
+        <label class="al-opt"><input type="radio" name="al-scope" value="geo"> <span>Near a place</span></label>
+        <div id="al-geo-wrap" hidden style="margin:2px 0 8px 25px">
+          <div class="su-inline">
+            <input id="al-loc" type="text" placeholder="City, state, or ZIP" autocomplete="off">
+            <select id="al-radius">
+              <option value="20">within 20 mi</option>
+              <option value="50" selected>within 50 mi</option>
+              <option value="100">within 100 mi</option>
+              <option value="200">within 200 mi</option>
+            </select>
+          </div>
+          <p class="su-hint" id="al-loc-hint"></p>
+          <div id="al-near-list" class="su-near-list"></div>
+        </div>
+        <label class="al-opt"><input type="radio" name="al-scope" value="all"> <span>Everywhere</span></label>
+      </div>
+    </div>
+
+    <div class="su-field js-web-only">
+      <label>Only between <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <div class="su-inline">
+        <input id="al-from" type="date" aria-label="From date">
+        <span style="color:var(--muted)">to</span>
+        <input id="al-to" type="date" aria-label="To date">
+      </div>
+    </div>
+
+    <label class="al-opt" style="margin-top:2px"><input type="checkbox" id="al-disasters">
+      <span>Also alert me to wildfires, hurricanes &amp; floods affecting any park</span></label>
+
+    <button class="btn primary" id="al-save" style="width:100%;margin-top:16px">Turn on alerts</button>
+    <button class="btn ghost js-web-only" id="al-off" hidden style="width:100%;margin-top:8px">Turn off browser alerts</button>
+    <p class="su-msg" id="al-msg" role="status" aria-live="polite"></p>
+    <p class="su-note">Routine "closed today per scheduled hours" changes won't alert you. Your email or push token is used only to send these alerts — see our <a href="/privacy.html">privacy policy</a>.</p>
   </div>
 </aside>
 
@@ -881,8 +911,8 @@ function wireControls(){
 
   document.addEventListener("click",e=>{if(!e.target.closest(".search"))res.classList.remove("show");});
   document.getElementById("d-close").addEventListener("click",closeDetail);
-  document.getElementById("backdrop").addEventListener("click",closeDetail);
-  document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDetail();});
+  document.getElementById("backdrop").addEventListener("click",()=>{ closeDetail(); closeAlerts(); });
+  document.addEventListener("keydown",e=>{if(e.key==="Escape" && !document.getElementById("alerts").classList.contains("open"))closeDetail();});
   wireAlerts();
 }
 
@@ -1016,12 +1046,13 @@ function openPanel(){
 function closeDetail(){
   document.getElementById("detail").classList.remove("open");
   document.getElementById("detail").setAttribute("aria-hidden","true");
-  document.getElementById("backdrop").classList.remove("show");
+  if(!document.getElementById("alerts").classList.contains("open"))
+    document.getElementById("backdrop").classList.remove("show");
   const dp=document.getElementById("d-page"); dp.textContent="Full status & details →";
   markSel(null);
 }
 
-/* ===== alerts: followed parks (localStorage) + card form + bottom section ===== */
+/* ===== Alerts: one panel — followed parks / area / everywhere · browser or email ===== */
 let follows = [];
 try { follows = JSON.parse(localStorage.getItem("ps_follows")||"[]"); if(!Array.isArray(follows)) follows=[]; } catch(_){ follows=[]; }
 const saveFollows = ()=>{ try{ localStorage.setItem("ps_follows", JSON.stringify(follows.slice(0,60))); }catch(_){} };
@@ -1030,132 +1061,259 @@ const emailRe = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 function urlB64ToUint8(b64){ const pad="=".repeat((4-b64.length%4)%4);
   const s=(b64+pad).replace(/-/g,"+").replace(/_/g,"/"); const raw=atob(s);
   return Uint8Array.from([...raw].map(c=>c.charCodeAt(0))); }
-async function doPush(scope, msg, summary){
-  if(!("serviceWorker" in navigator)||!("PushManager" in window)){ msg("This browser doesn't support push alerts. Try email.",false); return; }
-  msg("Setting up browser alerts…",true);
-  try{
-    if(await Notification.requestPermission()!=="granted"){ msg("Browser alerts weren't allowed.",false); return; }
-    const reg=await navigator.serviceWorker.register("/sw.js"); await navigator.serviceWorker.ready;
-    const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlB64ToUint8(VAPID_PUBLIC)});
-    const r=await fetch(SUB_API+"/push/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscription:sub,scope})});
-    if(!r.ok) throw 0;
-    msg("Browser alerts are on — "+summary+".",true);
-  }catch(_){ msg("Couldn't enable browser alerts. Try again, or use email.",false); }
+
+// Capacitor injects window.Capacitor synchronously; app-native.js (deferred)
+// adds the .in-app class later, so detect the native shell directly here.
+const IN_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())
+  || document.documentElement.classList.contains("in-app");
+const IS_IOS = /iP(hone|ad|od)/.test(navigator.platform||"") ||
+  (/Mac/.test(navigator.platform||"") && (navigator.maxTouchPoints||0) > 1);
+const IS_STANDALONE = navigator.standalone===true ||
+  (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+const PUSH_OK = ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window);
+const $ = id => document.getElementById(id);
+const val = id => { const e=$(id); return e ? e.value : ""; };
+
+function readPushState(){ try{ const s=JSON.parse(localStorage.getItem("ps_push_state")||"null"); return (s&&typeof s==="object")?s:null; }catch(_){ return null; } }
+function writePushState(s){ try{ s ? localStorage.setItem("ps_push_state", JSON.stringify(s)) : localStorage.removeItem("ps_push_state"); }catch(_){} updateBell(); }
+function readPrefs(){ try{ const p=JSON.parse(localStorage.getItem("ps_alert_prefs")||"{}"); return (p&&typeof p==="object")?p:{}; }catch(_){ return {}; } }
+function writePrefs(p){ try{ localStorage.setItem("ps_alert_prefs", JSON.stringify(p)); }catch(_){} }
+
+function updateBell(){
+  const a=$("open-alerts"); if(!a) return;
+  const st=readPushState();
+  const on = IN_APP ? (follows.length>0 || readPrefs().disasters===true) : !!(st && st.on);
+  a.classList.toggle("on", on);
 }
 
-/* ---- card: follow toggle + per-park alert form ---- */
+/* ---- map card: follow toggle ---- */
 function toggleFollow(){
   if(!CUR) return;
   const i=follows.findIndex(f=>f.id===CUR.id);
+  const nowOn = i<0;
   if(i>=0) follows.splice(i,1); else follows.push({id:CUR.id, name:CUR.name});
   saveFollows(); syncFollowUI();
+  if(nowOn) openAlerts();
 }
 function syncFollowUI(){
-  const b=document.getElementById("d-follow"); if(!b) return;
+  const b=$("d-follow"); if(!b) return;
   const on = CUR && isFollowed(CUR.id);
   b.textContent = on ? "✓ Following — tap to unfollow" : "🔔 Follow this park";
   b.classList.toggle("on", !!on);
-  document.getElementById("d-alert-form").hidden = follows.length===0;
-  document.getElementById("da-count").textContent = follows.length;
-  const chips=document.getElementById("da-chips");
-  chips.innerHTML = follows.map((f,i)=>'<span class="su-chip">'+rmTags(f.name).slice(0,34)+' <button data-i="'+i+'" aria-label="Remove">✕</button></span>').join("");
-  chips.querySelectorAll("button").forEach(bt=>bt.onclick=()=>{ follows.splice(+bt.dataset.i,1); saveFollows(); syncFollowUI(); });
-}
-function daMsg(t,ok){ const m=document.getElementById("da-msg"); m.textContent=t; m.className="su-msg "+(ok?"ok":"err"); }
-function cardScope(){
-  const from=document.getElementById("da-from").value||undefined, to=document.getElementById("da-to").value||undefined;
-  if(from&&to&&from>to){ daMsg("The \"from\" date is after the \"to\" date.",false); return null; }
-  return { kind:"parks", parks:follows.map(f=>f.id), label:follows.map(f=>f.name).join(", ").slice(0,80), from, to };
-}
-async function cardEmail(){
-  if(!follows.length){ daMsg("Follow a park first.",false); return; }
-  const email=document.getElementById("da-email").value.trim();
-  if(!emailRe.test(email)){ daMsg("Enter a valid email address.",false); return; }
-  const scope=cardScope(); if(!scope) return;
-  daMsg("Signing you up…",true);
-  try{ const r=await fetch(SUB_API+"/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,scope})});
-    if(!r.ok) throw 0; daMsg("You're on the list for "+follows.length+" park"+(follows.length>1?"s":"")+".",true);
-    document.getElementById("da-email").value="";
-  }catch(_){ daMsg("Couldn't sign you up — try again.",false); }
-}
-async function cardPush(){
-  if(!follows.length){ daMsg("Follow a park first.",false); return; }
-  const scope=cardScope(); if(!scope) return;
-  await doPush(scope, daMsg, follows.length+" park"+(follows.length>1?"s":""));
+  const h=$("d-follow-hint");
+  if(h){ h.hidden = follows.length===0; $("d-follow-n").textContent = follows.length; }
+  updateBell();
 }
 
-/* ---- bottom section: Everywhere / Near a place (with pick-specific checklist) ---- */
-let placeGeo = null;
-function suMsg(text,ok){ const m=document.getElementById("su-msg"); m.textContent=text; m.className="su-msg "+(ok?"ok":"err"); }
-function syncSignupUI(){ document.getElementById("su-place-wrap").hidden = document.getElementById("su-kind").value!=="place"; }
-function nearbyList(lat,lon,mi){
-  return searchIndex().map(r=>({ ...r, dmi:haversineMi(lat,lon,r.lat,r.lon) }))
-    .filter(r=>r.dmi<=mi).sort((a,b)=>a.dmi-b.dmi).slice(0,40);
+/* ---- the panel ---- */
+let alGeo = null;
+const alMsg = (t,ok)=>{ const m=$("al-msg"); m.textContent=t; m.className="su-msg "+(ok?"ok":"err"); };
+const showNote = html => { const n=$("al-note"); n.innerHTML=html; n.hidden=false; };
+const iosInstallNote = ()=> '<b>On iPhone, add this site to your Home Screen first.</b> In Safari tap Share → "Add to Home Screen", then open Park Status from the new icon and turn on alerts there. Email works right here in the meantime.';
+const blockedNote = ()=> '<b>Browser alerts are blocked for this site.</b> Open your browser\'s site settings for parkstatus.today, set Notifications to "Allow", then try again — or use Email above.';
+
+const scopeSummary = sc => (sc.kind==="all" ? "everywhere"
+  : sc.kind==="geo" ? ("parks within "+sc.radiusMi+" mi of "+sc.label)
+  : ((sc.parks||[]).length+" followed park"+((sc.parks||[]).length===1?"":"s")))
+  + (sc.disasters ? " + disaster alerts" : "");
+
+function alScope(){
+  const from=val("al-from")||undefined, to=val("al-to")||undefined;
+  if(from&&to&&from>to) return { err:'The "from" date is after the "to" date.' };
+  const dis = $("al-disasters").checked || undefined;
+  const kind = IN_APP ? "parks" : ((document.querySelector("input[name=al-scope]:checked")||{}).value || "parks");
+  if(kind==="parks"){
+    if(!follows.length && !dis) return { err:"Follow at least one park, or switch on disaster alerts." };
+    return { kind:"parks", parks:follows.map(f=>f.id), label:(follows.map(f=>f.name).join(", ").slice(0,80))||"followed parks", from, to, disasters:dis };
+  }
+  if(kind==="geo"){
+    if(!alGeo) return { err:'Enter a city, state, or ZIP for "Near a place".' };
+    const picked=[...document.querySelectorAll("#al-near-list input:checked")];
+    if(picked.length) return { kind:"parks", parks:picked.map(c=>c.value), label:picked.map(c=>c.dataset.name).join(", ").slice(0,80), from, to, disasters:dis };
+    return { kind:"geo", lat:alGeo.lat, lon:alGeo.lon, radiusMi:Number(val("al-radius")||50), label:alGeo.label, from, to, disasters:dis };
+  }
+  return { kind:"all", from, to, disasters:dis };
 }
-function renderNearChecklist(){
-  const box=document.getElementById("su-near-list"); if(!box) return;
-  if(!placeGeo){ box.innerHTML=""; return; }
-  const mi=Number(document.getElementById("su-radius").value);
-  const list=nearbyList(placeGeo.lat,placeGeo.lon,mi);
+
+function alNearList(){
+  const box=$("al-near-list"); if(!box) return;
+  if(!alGeo){ box.innerHTML=""; return; }
+  const mi=Number(val("al-radius")||50);
+  const list=searchIndex().map(r=>({ ...r, dmi:haversineMi(alGeo.lat,alGeo.lon,r.lat,r.lon) }))
+    .filter(r=>r.dmi<=mi).sort((a,b)=>a.dmi-b.dmi).slice(0,40);
   box.innerHTML = list.length
-    ? '<p class="su-hint" style="margin:6px 0 4px">'+list.length+' within '+mi+' mi — leave all unchecked to watch the whole area, or tick specific ones:</p>'
+    ? '<p class="su-hint" style="margin:6px 0 4px">'+list.length+' within '+mi+' mi — leave unchecked to watch the whole area, or tick specific ones:</p>'
       + list.map(r=>'<label class="su-check"><input type="checkbox" value="'+r.eid+'" data-name="'+rmTags(r.name)+'"><span>'+rmTags(r.name)+(r.tag?' <span style="color:var(--muted)">'+r.tag+'</span>':'')+'</span></label>').join("")
     : '<p class="su-hint" style="margin:6px 0">Nothing in our coverage within '+mi+' mi yet — you\'ll still get area-wide alerts.</p>';
 }
-function buildScope(){
-  const kind=document.getElementById("su-kind").value;
-  const from=document.getElementById("su-from").value||undefined, to=document.getElementById("su-to").value||undefined;
-  if(from&&to&&from>to){ suMsg("The \"from\" date is after the \"to\" date.",false); return null; }
-  if(kind==="place"){
-    if(!placeGeo){ suMsg("Enter a city, state, or ZIP first.",false); return null; }
-    const picked=[...document.querySelectorAll("#su-near-list input:checked")];
-    if(picked.length) return { kind:"parks", parks:picked.map(c=>c.value), label:picked.map(c=>c.dataset.name).join(", ").slice(0,80), from, to };
-    return { kind:"geo", lat:placeGeo.lat, lon:placeGeo.lon, radiusMi:Number(document.getElementById("su-radius").value), label:placeGeo.label, from, to };
+
+function renderStatus(){
+  const note=$("al-note"), saveBtn=$("al-save"), offBtn=$("al-off"), st=readPushState();
+  note.hidden=true; offBtn.hidden=true;
+  if(IN_APP){ saveBtn.textContent="Save"; return; }
+  const ch=(document.querySelector("input[name=al-ch]:checked")||{}).value || "push";
+  if(ch==="email"){ saveBtn.textContent="Email me alerts"; return; }
+  if(!PUSH_OK){ showNote('<b>Browser alerts aren\'t supported here.</b> Switch to Email above.'); saveBtn.textContent="Turn on alerts"; return; }
+  if(IS_IOS && !IS_STANDALONE){ showNote(iosInstallNote()); saveBtn.textContent="Turn on alerts"; return; }
+  if(Notification.permission==="denied"){ showNote(blockedNote()); saveBtn.textContent="Turn on alerts"; return; }
+  if(st && st.on){ saveBtn.textContent="Update alerts"; offBtn.hidden=false;
+    showNote('<b>Browser alerts are on</b> — '+scopeSummary(st.scope||{})+'. Change the options below and press Update.'); }
+  else saveBtn.textContent="Turn on alerts";
+}
+
+function renderAlerts(){
+  const st=readPushState(), prefs=readPrefs();
+  $("al-nfollow").textContent = "("+follows.length+")";
+  const chips=$("al-chips");
+  chips.innerHTML = follows.length
+    ? follows.map((f,i)=>'<span class="su-chip">'+rmTags(f.name).slice(0,32)+' <button data-i="'+i+'" aria-label="Remove">✕</button></span>').join("")
+    : '<span class="su-hint" style="margin:0">No parks followed yet — tap a dot on the map, then "Follow this park".</span>';
+  chips.querySelectorAll("button").forEach(bt=>bt.onclick=()=>{ follows.splice(+bt.dataset.i,1); saveFollows(); syncFollowUI(); renderAlerts(); });
+
+  $("al-disasters").checked = IN_APP ? (prefs.disasters!==false) : !!(st && st.scope && st.scope.disasters);
+
+  if(!IN_APP){
+    const sc=(st && st.scope) || {};
+    const kind = (sc.kind==="geo"||sc.kind==="all") ? sc.kind : "parks";
+    const rb=document.querySelector('input[name=al-scope][value="'+kind+'"]'); if(rb) rb.checked=true;
+    $("al-geo-wrap").hidden = kind!=="geo";
+    $("al-from").value = sc.from || "";
+    $("al-to").value = sc.to || "";
+    if(kind==="geo" && sc.label && !val("al-loc")) $("al-loc").value = sc.label;
   }
-  return { kind:"all", from, to };
+  renderStatus();
 }
-const scopeSummary = sc => sc.kind==="all" ? "everywhere"
-  : sc.kind==="geo" ? ("within "+sc.radiusMi+" mi of "+sc.label)
-  : ((sc.parks||[]).length+" park"+((sc.parks||[]).length>1?"s":""));
-async function emailSubmit(){
-  const email=document.getElementById("su-email").value.trim();
-  if(!emailRe.test(email)){ suMsg("Enter a valid email address.",false); return; }
-  const scope=buildScope(); if(!scope) return;
-  suMsg("Signing you up…",true);
-  try{ const r=await fetch(SUB_API+"/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,scope})});
-    if(!r.ok) throw 0; suMsg("You're on the list — "+scopeSummary(scope)+".",true);
-    document.getElementById("su-email").value="";
-  }catch(_){ suMsg("Couldn't sign you up just now — try again.",false); }
+
+async function enablePush(scope){
+  if(!PUSH_OK){ alMsg("This browser can't do push alerts — use Email instead.",false); return false; }
+  if(IS_IOS && !IS_STANDALONE){ showNote(iosInstallNote()); return false; }
+  if(Notification.permission==="denied"){ showNote(blockedNote()); return false; }
+  alMsg("Turning on browser alerts…",true);
+  try{
+    const perm = Notification.permission==="granted" ? "granted" : await Notification.requestPermission();
+    if(perm!=="granted"){
+      if(Notification.permission==="denied"){ alMsg("",true); showNote(blockedNote()); }
+      else alMsg('No problem — press "Turn on alerts" again when you\'re ready.',false);
+      return false;
+    }
+    const reg = await navigator.serviceWorker.register("/sw.js"); await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlB64ToUint8(VAPID_PUBLIC) });
+    const r = await fetch(SUB_API+"/push/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscription:sub,scope})});
+    if(!r.ok) throw 0;
+    writePushState({ on:true, scope, endpoint:sub.endpoint, ts:Date.now() });
+    return true;
+  }catch(_){ alMsg("Couldn't turn on browser alerts. Try again, or use Email.",false); return false; }
 }
-async function enablePush(){ const scope=buildScope(); if(!scope) return; await doPush(scope, suMsg, scopeSummary(scope)); }
+
+async function turnOffPush(){
+  alMsg("Turning off…",true);
+  let endpoint = (readPushState()||{}).endpoint;
+  try{
+    if("serviceWorker" in navigator){
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg && await reg.pushManager.getSubscription();
+      if(sub) endpoint = sub.endpoint;
+      if(endpoint) await fetch(SUB_API+"/push/unsubscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoint})}).catch(()=>{});
+      if(sub) await sub.unsubscribe().catch(()=>{});
+    }
+  }catch(_){}
+  writePushState(null);
+  renderAlerts();
+  alMsg("Browser alerts are off.",true);
+}
+
+async function saveEmail(scope){
+  const email = val("al-email").trim();
+  if(!emailRe.test(email)){ alMsg("Enter a valid email address.",false); return; }
+  alMsg("Signing you up…",true);
+  try{
+    const r = await fetch(SUB_API+"/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,scope})});
+    if(!r.ok) throw 0;
+    alMsg("Check your inbox to confirm — then you'll get alerts for "+scopeSummary(scope)+".",true);
+  }catch(_){ alMsg("Couldn't sign you up — try again.",false); }
+}
+
+async function onSave(){
+  const sc = alScope();
+  if(sc.err){ alMsg(sc.err,false); return; }
+  if(IN_APP){
+    writePrefs({ disasters: $("al-disasters").checked });
+    saveFollows();
+    alMsg("Saved — the app will update your alerts.",true);
+    updateBell();
+    setTimeout(closeAlerts, 900);
+    return;
+  }
+  const ch=(document.querySelector("input[name=al-ch]:checked")||{}).value || "push";
+  if(ch==="email"){ await saveEmail(sc); return; }
+  const ok = await enablePush(sc);
+  if(ok){ alMsg("Browser alerts are on — "+scopeSummary(sc)+".",true); renderStatus(); }
+}
+
+async function migrateExisting(){
+  if(IN_APP || readPushState() || !PUSH_OK) return;
+  try{
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg && await reg.pushManager.getSubscription();
+    if(sub && Notification.permission==="granted"){
+      writePushState({ on:true, scope:{ kind:"parks", parks:follows.map(f=>f.id), label:"followed parks" }, endpoint:sub.endpoint, ts:Date.now() });
+    }
+  }catch(_){}
+}
+
+function openAlerts(){
+  const d=$("detail"); d.classList.remove("open"); d.setAttribute("aria-hidden","true");
+  renderAlerts();
+  const p=$("alerts");
+  p.classList.add("open"); p.setAttribute("aria-hidden","false");
+  $("backdrop").classList.add("show");
+  const f=$(IN_APP?"al-disasters":"al-save"); if(f) setTimeout(()=>f.focus(),60);
+}
+function closeAlerts(){
+  const p=$("alerts");
+  p.classList.remove("open"); p.setAttribute("aria-hidden","true");
+  if(!$("detail").classList.contains("open")) $("backdrop").classList.remove("show");
+  $("al-msg").textContent="";
+}
 
 function wireAlerts(){
-  document.getElementById("d-follow").addEventListener("click",toggleFollow);
-  document.getElementById("da-sub").addEventListener("click",cardEmail);
-  document.getElementById("da-push").addEventListener("click",cardPush);
-  document.getElementById("da-email").addEventListener("keydown",e=>{if(e.key==="Enter")cardEmail();});
-  syncFollowUI();
+  $("d-follow").addEventListener("click",toggleFollow);
+  $("d-manage").addEventListener("click",e=>{ e.preventDefault(); openAlerts(); });
+  $("open-alerts").addEventListener("click",e=>{ e.preventDefault(); openAlerts(); });
+  $("su-open").addEventListener("click",openAlerts);
+  $("al-close").addEventListener("click",closeAlerts);
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape" && $("alerts").classList.contains("open")) closeAlerts(); });
 
-  document.getElementById("su-kind").addEventListener("change",syncSignupUI);
-  const loc=document.getElementById("su-loc"), hint=document.getElementById("su-loc-hint");
-  let t=null;
+  document.querySelectorAll("input[name=al-ch]").forEach(r=>r.addEventListener("change",()=>{
+    $("al-email-wrap").hidden = !document.querySelector("input[name=al-ch][value=email]").checked;
+    renderStatus();
+  }));
+  document.querySelectorAll("input[name=al-scope]").forEach(r=>r.addEventListener("change",()=>{
+    $("al-geo-wrap").hidden = (document.querySelector("input[name=al-scope]:checked")||{}).value!=="geo";
+  }));
+
+  const loc=$("al-loc"), hint=$("al-loc-hint"); let gt=null;
   const doGeo=async()=>{
-    const v=loc.value.trim(); placeGeo=null; renderNearChecklist();
-    if(v.length<3){ hint.textContent=""; return; }
+    const q=loc.value.trim(); alGeo=null; alNearList();
+    if(q.length<3){ hint.textContent=""; return; }
     hint.textContent="Locating…";
     try{
-      const g=await fetch(SUB_API+"/geocode?q="+encodeURIComponent(v)).then(r=>r.json());
-      if(g && !g.error && typeof g.lat==="number"){ placeGeo=g; hint.innerHTML='📍 '+g.label; renderNearChecklist(); }
-      else hint.textContent="Couldn't find that place — try a ZIP or \"City, ST\".";
+      const g=await fetch(SUB_API+"/geocode?q="+encodeURIComponent(q)).then(r=>r.json());
+      if(g && !g.error && typeof g.lat==="number"){ alGeo=g; hint.innerHTML='📍 '+g.label; alNearList(); }
+      else hint.textContent='Couldn\'t find that — try a ZIP or "City, ST".';
     }catch(_){ hint.textContent="Couldn't look that up right now."; }
   };
-  loc.addEventListener("input",()=>{ clearTimeout(t); t=setTimeout(doGeo,500); });
+  loc.addEventListener("input",()=>{ clearTimeout(gt); gt=setTimeout(doGeo,500); });
   loc.addEventListener("blur",doGeo);
-  document.getElementById("su-radius").addEventListener("change",renderNearChecklist);
-  document.getElementById("su-email-btn").addEventListener("click",emailSubmit);
-  document.getElementById("su-push-btn").addEventListener("click",enablePush);
-  document.getElementById("su-email").addEventListener("keydown",e=>{if(e.key==="Enter")emailSubmit();});
-  syncSignupUI();
+  $("al-radius").addEventListener("change",alNearList);
+  $("al-email").addEventListener("keydown",e=>{ if(e.key==="Enter") onSave(); });
+  $("al-save").addEventListener("click",onSave);
+  $("al-off").addEventListener("click",turnOffPush);
+
+  syncFollowUI();
+  migrateExisting();
+  updateBell();
 }
 
 /* shutdown banner */

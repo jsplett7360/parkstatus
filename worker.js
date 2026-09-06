@@ -1112,6 +1112,9 @@ function changeMatchesSub(ch, sub) {
   const todayISO = new Date().toISOString().slice(0, 10);
   if (sc.from && todayISO < sc.from) return false;
   if (sc.to && todayISO > sc.to) return false;
+  // Disaster alerts are an additive opt-in: match any disaster-tagged change
+  // regardless of the park scope (still bounded by the date window above).
+  if (sc.disasters === true && ch.disaster) return true;
   if (sc.kind === "all") return true;
   if (sc.kind === "parks") return Array.isArray(sc.parks) && sc.parks.includes(ch.id);
   if (sc.kind === "geo") return haversineMi(sc.lat, sc.lon, ch.lat, ch.lon) <= (sc.radiusMi || 50);
@@ -1349,6 +1352,7 @@ function sanitizeScope(raw) {
   if (!raw || typeof raw !== "object") return { kind: "all" };
   const s = { kind: ["all", "parks", "geo"].includes(raw.kind) ? raw.kind : "all" };
   if (raw.label) s.label = String(raw.label).slice(0, 80);
+  if (raw.disasters === true) s.disasters = true;
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw.from || "")) s.from = raw.from;
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw.to || "")) s.to = raw.to;
   if (s.kind === "parks") s.parks = (Array.isArray(raw.parks) ? raw.parks : []).slice(0, 50).map(x => String(x).slice(0, 60));
@@ -1477,6 +1481,14 @@ button,.btn{background:#0b1b35;color:#fff;border:0;font:inherit;font-weight:bold
       const id = await sha1(sub.endpoint);
       await env.PARKS_KV.put("sub:push:" + id, JSON.stringify({ subscription: sub, scope, ts: new Date().toISOString() }));
       return json({ ok: true, scope });
+    }
+
+    // Turn off web push for one browser: { endpoint }. Idempotent.
+    if (url.pathname === "/push/unsubscribe" && req.method === "POST") {
+      const b = await readJSON(req);
+      if (!b || !b.endpoint) return json({ ok: false, error: "missing endpoint" }, 400);
+      await env.PARKS_KV.delete("sub:push:" + await sha1(String(b.endpoint)));
+      return json({ ok: true });
     }
 
     // Native app (Capacitor) push registration: { platform, installId, token, scope }
