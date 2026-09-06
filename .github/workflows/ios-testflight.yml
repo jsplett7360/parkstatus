@@ -1,12 +1,22 @@
 name: iOS · TestFlight
 
 # Builds the Capacitor iOS app and uploads it to TestFlight.
-# Trigger: push a tag like `ios-v1.0.3`, or run manually.
+# Trigger: push a tag like `ios-v1.0.6`, or run manually.
+# First-time setup: run manually with lane = "certs" once to populate the
+# parkstatus-certs signing repo, then use tag pushes (lane "beta") from then on.
 
 on:
   push:
     tags: ["ios-v*"]
   workflow_dispatch:
+    inputs:
+      lane:
+        description: "fastlane lane"
+        default: "beta"
+        type: choice
+        options:
+          - beta
+          - certs
 
 jobs:
   testflight:
@@ -15,13 +25,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: SSH auth for fastlane match
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.MATCH_DEPLOY_KEY }}" > ~/.ssh/match_ed25519
+          chmod 600 ~/.ssh/match_ed25519
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          echo "GIT_SSH_COMMAND=ssh -i $HOME/.ssh/match_ed25519 -o IdentitiesOnly=yes" >> "$GITHUB_ENV"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
       - run: npm ci
 
-      # Regenerate the bundled site (needs the live status API + NPS + Wikipedia)
-      # so the app ships current park pages. Comment out to ship public_html as-is.
+      # Regenerate the bundled site so the app ships current park pages.
       - name: Rebuild bundled site
         env:
           NPS_API_KEY: ${{ secrets.NPS_API_KEY }}
@@ -35,10 +52,11 @@ jobs:
           ruby-version: "3.3"
       - run: gem install fastlane --no-document
 
-      - name: Fastlane → TestFlight
+      - name: Fastlane
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
-        run: fastlane ios beta
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: fastlane ios ${{ inputs.lane || 'beta' }}

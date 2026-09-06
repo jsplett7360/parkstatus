@@ -1,0 +1,8 @@
+git_url("git@github.com:jsplett7360/parkstatus-certs.git")
+storage_mode("git")
+
+type("appstore")
+app_identifier(["parkstatus.today.app"])
+
+# CI authenticates to Apple with the App Store Connect API key (see Fastfile).
+# Certs/profiles are created once, encrypted with MATCH_PASSWORD, and reused.
