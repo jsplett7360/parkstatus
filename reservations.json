@@ -1,0 +1,33 @@
+{
+  "_note": "Curated timed-entry / vehicle-reservation requirements, keyed by entity id. Dates + booking URLs are best-effort for the 2026 season and SHOULD get a human verification pass each spring. Read by build-parks.js; additive to parks-enriched.json.",
+  "nps:acad": {
+    "name": "Cadillac Summit Road vehicle reservation",
+    "season": "late May through mid-October",
+    "url": "https://www.recreation.gov/timed-entry/10086910",
+    "summary": "A vehicle reservation is required to drive Cadillac Summit Road from late May through mid-October. Reservations open on Recreation.gov up to 90 days ahead, with a batch of next-day reservations released at 10 a.m. the day before. No reservation is needed to enter the rest of Acadia."
+  },
+  "nps:romo": {
+    "name": "Timed-entry permit",
+    "season": "late May through mid-October",
+    "url": "https://www.recreation.gov/timed-entry/10086910",
+    "summary": "Rocky Mountain National Park uses a timed-entry permit system in peak season (roughly late May through mid-October). Two permit types are sold on Recreation.gov: one covering the Bear Lake Road corridor and one for the rest of the park. Permits are released the month prior, with next-day permits at 7 p.m. A permit is not required outside the timed-entry window or before 5 a.m. / after 6 p.m."
+  },
+  "nps:hale": {
+    "name": "Haleakalā sunrise reservation",
+    "season": "year-round, 3 a.m. to 7 a.m. only",
+    "url": "https://www.recreation.gov/timed-entry/10086745",
+    "summary": "Entering the summit area of Haleakalā between 3 a.m. and 7 a.m. for sunrise requires a reservation, booked on Recreation.gov up to 60 days ahead (a small number release 48 hours prior). No reservation is needed to visit the summit after 7 a.m. or the Kīpahulu (coastal) District."
+  },
+  "nps:shen": {
+    "name": "Old Rag day-use ticket",
+    "season": "March 1 through November 30",
+    "url": "https://www.recreation.gov/timed-entry/10089009",
+    "summary": "Hiking the Old Rag area (including Ridge, Saddle, and Weakley Hollow fire roads) requires a day-use ticket from March 1 through November 30 — 400 per day, sold on Recreation.gov 30 days ahead plus a next-day batch. The rest of Shenandoah and Skyline Drive need no reservation."
+  },
+  "nps:cave": {
+    "name": "Timed-entry reservation",
+    "season": "year-round",
+    "url": "https://www.recreation.gov/timed-entry/10087741",
+    "summary": "Entry to the Carlsbad Cavern (via the Natural Entrance or elevator) requires a timed-entry reservation, booked on Recreation.gov. Reservations are released in a rolling window; some same-day slots are held back. Ranger-guided tours are booked separately."
+  }
+}

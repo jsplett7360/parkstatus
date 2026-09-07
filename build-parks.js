@@ -41,6 +41,10 @@ const STATUS_SENTENCE = { open: "is open", partially_closed: "is partially close
 const DOW = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const DOW_LABEL = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
 
+// Curated timed-entry / vehicle-reservation requirements, keyed by entity id
+// (e.g. "nps:romo"). Best-effort for the current season — verify each spring.
+const RESERVATIONS = (() => { try { return require("./reservations.json"); } catch (_) { return {}; } })();
+
 const esc = (s) =>
   String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const fmtPhone = (s) => { const d = String(s || "").replace(/\D/g, "");
@@ -201,6 +205,25 @@ function npsHours(p) {
   const rows = DOW.map((d) => ({ d: DOW_LABEL[d], h: (g.standardHours[d] || "").trim() || "—" }));
   if (rows.every((r) => r.h === "—")) return null;
   return { rows, note: clip(g.name || g.description || "", 140) };
+}
+
+// NPS `entranceFees` is an array of { title, cost, description } tiers, plus a
+// separate free-entrance-days concept. Reduce it to one headline the page can
+// bake, or { free:true } for the many fee-free units.
+function npsFee(p) {
+  const fees = Array.isArray(p && p.entranceFees) ? p.entranceFees : [];
+  const num = (f) => parseFloat(String((f && f.cost) || "").replace(/[^0-9.]/g, "")) || 0;
+  const url = (p && p.feesAtWorkUrl) || (p && p.url) || "";
+  if (!fees.length) return null;                       // no data — say nothing
+  const paid = fees.filter((f) => num(f) > 0);
+  if (!paid.length) return { free: true, url };         // all $0 — a valid, searched answer
+  const vehicle = paid.find((f) => /vehicle/i.test(f.title || "")) || paid[0];
+  const person = paid.find((f) => /per[- ]?person|individual|bicycle|on foot/i.test(f.title || ""));
+  const parts = [`$${num(vehicle).toFixed(0)} per vehicle`];
+  if (person) parts.push(`$${num(person).toFixed(0)} per person`);
+  const dm = /(?:valid|good)\s+(?:for\s+)?(\d+)\s*days?/i.exec((vehicle && vehicle.description) || "");
+  return { free: false, display: parts.join(", "), validDays: dm ? Number(dm[1]) : null,
+    note: clip((vehicle && vehicle.description) || "", 180), url };
 }
 
 // ===================== assemble entities ===================================
@@ -367,6 +390,15 @@ function visitorBlock(en) {
   if (en.hours && en.hours.rows) {
     bits.push(`<div class="vi"><b>Hours</b><table class="hrs">${en.hours.rows.map(r=>`<tr><td>${r.d}</td><td>${esc(r.h)}</td></tr>`).join("")}</table>${en.hours.note?`<span class="hn">${esc(en.hours.note)}</span>`:""}</div>`);
   }
+  if (en.fee) {
+    const f = en.fee;
+    const txt = f.free ? "Free — no entrance fee"
+      : `${esc(f.display)}${f.validDays ? `, valid ${f.validDays} days` : ""}`;
+    bits.push(`<div class="vi"><b>Entrance fee</b><span>${txt}${f.url ? ` · <a href="${esc(f.url)}" target="_blank" rel="noopener">fee details ↗</a>` : ""}</span></div>`);
+  }
+  if (en.reservation) {
+    bits.push(`<div class="vi"><b>Reservation</b><span>Required — ${esc(en.reservation.name.toLowerCase())} (${esc(en.reservation.season)}). <a href="${esc(en.reservation.url)}" target="_blank" rel="noopener">Book ↗</a></span></div>`);
+  }
   if (en.directions) bits.push(`<div class="vi"><b>Getting there</b><span>${esc(clip(en.directions, 320))}</span></div>`);
   if (en.gmaps) bits.push(`<div class="vi"><b>Reviews</b><a href="${esc(en.gmaps)}" target="_blank" rel="noopener">See ratings &amp; reviews on Google Maps ↗</a></div>`);
   return bits.length ? `<section class="visitor"><h2>Visitor info</h2>${bits.join("")}</section>` : "";
@@ -409,6 +441,25 @@ function pageHtml(e, en, updatedISO, tally) {
       acceptedAnswer: { "@type": "Answer", text: hoursText + (en.hours.note ? ` (${en.hours.note})` : "") },
     });
   }
+  if (en && en.fee) {
+    faq.push({
+      "@type": "Question",
+      name: `How much does it cost to enter ${e.name}?`,
+      acceptedAnswer: { "@type": "Answer", text: en.fee.free
+        ? `${e.name} is free to enter — there is no entrance fee.`
+        : `${e.name} charges ${en.fee.display}${en.fee.validDays ? `, valid for ${en.fee.validDays} days` : ""}. Fees are waived on the National Park Service's fee-free days; check the official site for current pricing.` },
+    });
+  }
+  if (e.source === "nps") {
+    const r = en && en.reservation;
+    faq.push({
+      "@type": "Question",
+      name: `Does ${e.name} require a reservation?`,
+      acceptedAnswer: { "@type": "Answer", text: r
+        ? `Yes — ${r.summary}`
+        : `No timed-entry or vehicle reservation is required to enter ${e.name}. Individual tours, campgrounds, or backcountry permits may still need to be booked separately.` },
+    });
+  }
 
   const graph = [
     { "@type": "BreadcrumbList", itemListElement: [
@@ -435,6 +486,7 @@ function pageHtml(e, en, updatedISO, tally) {
     if (typeof e.lat === "number" && typeof e.lon === "number") place.geo = { "@type": "GeoCoordinates", latitude: e.lat, longitude: e.lon };
     const specs = hoursSpec(en && en.hours);
     if (specs.length) place.openingHoursSpecification = specs;
+    if (en && en.fee) place.isAccessibleForFree = en.fee.free === true;
     graph.push(place);
   }
   const jsonld = { "@context": "https://schema.org", "@graph": graph };
@@ -495,21 +547,28 @@ ${stripHtml(tally, updatedISO)}
 
   ${visitorBlock(en)}
 
+  ${en && en.reservation ? `<article><h2>Reservations at ${name}</h2>
+    <p id="p-resv">${esc(en.reservation.summary)}</p>
+    <p><a class="btn primary" href="${esc(en.reservation.url)}" target="_blank" rel="noopener">Book on Recreation.gov ↗</a></p>
+    <p class="checked">Reservation window: ${esc(en.reservation.season)}. Confirm on the official site before you travel — programs change year to year.</p>
+  </article>` : ""}
+
   <article>
     <h2>How we read this status</h2>
-    <p>Status here is <strong>our reading</strong> of ${
-      e.source === "nps" ? "the National Park Service's alerts and operating-hours data"
-      : e.source === "usfs" ? "NIFC wildfire perimeters overlaid on this forest's boundary — it flags active fires in or next to the forest, but does not track road, trail, or seasonal closures"
-      : "the park system's public alerts"} — open, partially closed, or closed — not an official determination. It refreshes hourly. See <a href="/guides/how-we-check-park-status.html">how we check park status</a>.</p>
+    <p>This is <strong>our reading</strong> of ${
+      e.source === "nps" ? "the National Park Service's own alerts and hours"
+      : e.source === "usfs" ? "NIFC wildfire perimeters over this forest's boundary — active fires only, not road, trail, or seasonal closures"
+      : "the park system's public alerts"}, refreshed hourly — not an official determination. Full method: <a href="/guides/how-we-check-park-status.html">how we check park status</a>.</p>
   </article>
 
   <div class="related">
     <h2>Before you go</h2>
     <div class="cards">
-      <a class="gcard" href="/guides/why-national-parks-close.html"><div class="t">Why parks close</div><div class="d">Wildfire, weather, wildlife, construction — the real reasons a park or road shuts.</div></a>
+      ${e.source === "nps"
+        ? `<a class="gcard" href="/guides/national-parks-government-shutdown.html"><div class="t">Parks &amp; government shutdowns</div><div class="d">What closes, what stays open, and how a funding lapse changes park status.</div></a>`
+        : `<a class="gcard" href="/guides/why-national-parks-close.html"><div class="t">Why parks close</div><div class="d">Wildfire, weather, wildlife, construction — the real reasons a park or road shuts.</div></a>`}
       <a class="gcard" href="/guides/nps-alerts-explained.html"><div class="t">NPS alerts explained</div><div class="d">Danger, Closure, Caution, Information — what each type means.</div></a>
       <a class="gcard" href="/park/"><div class="t">All park statuses</div><div class="d">Every park and waterway we track, A–Z.</div></a>
-      <a class="gcard" href="/beach/"><div class="t">Beach closures</div><div class="d">Swimming advisories and water-quality closures by county.</div></a>
       <a class="gcard" href="/#map"><div class="t">Live map</div><div class="d">See what's open near you right now.</div></a>
     </div>
   </div>
@@ -1126,6 +1185,8 @@ async function main() {
       website: np ? np.url : e.url || "",
       hours: np ? npsHours(np) : null,
       directions: np ? clip(np.directionsInfo, 400) : "",
+      fee: np ? npsFee(np) : null,
+      reservation: RESERVATIONS[e.id] || null,
       gmaps,
     };
     // trim empties
