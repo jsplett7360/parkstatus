@@ -1,0 +1,163 @@
+{
+  "_note": "Curated seasonal park-road data, keyed by slug. Typical windows and historical dates are researched best-effort from nps.gov road-status pages and NPS plow/news releases; seasons shift year to year, so re-verify each spring. A row becomes a live page ONLY when datesReviewed is true. Rows with datesReviewed:false are staged (schema complete, historical dates still to confirm) and are not published, not in the sitemap, and not cross-linked.",
+
+  "bear-lake-road": {
+    "name": "Bear Lake Road",
+    "parentIds": ["nps:romo"],
+    "statusUrl": "https://www.nps.gov/romo/planyourvisit/current_road_status.htm",
+    "designation": "",
+    "blurb": "The 9-mile road from the Beaver Meadows entrance up to Bear Lake — Rocky Mountain National Park's most-used corridor.",
+    "seasonal": false,
+    "accessNote": "Bear Lake Road is plowed and open year-round (it's the winter-accessible high-country route when Trail Ridge Road is closed), though sections can close briefly during snowstorms. From late May to mid-October it sits inside Rocky Mountain National Park's timed-entry reservation zone.",
+    "typicalOpen": "",
+    "typicalClose": "",
+    "history": [],
+    "reservationRef": "nps:romo",
+    "isScenicDrive": false,
+    "datesReviewed": true
+  },
+
+  "blue-ridge-parkway": {
+    "name": "Blue Ridge Parkway",
+    "parentIds": ["nps:blri"],
+    "statusUrl": "https://www.nps.gov/blri/planyourvisit/roadclosures.htm",
+    "designation": "",
+    "blurb": "The 469-mile scenic road along the Blue Ridge Mountains from Shenandoah National Park to Great Smoky Mountains National Park.",
+    "seasonal": false,
+    "accessNote": "The Parkway does not close for a fixed season, but individual sections close often and unpredictably — for ice and snow in winter, for rockslides, downed trees and fog year-round, and for construction. The high stretches around Mount Pisgah and Grandfather Mountain are the most closure-prone. The NPS keeps a real-time closure map.",
+    "typicalOpen": "",
+    "typicalClose": "",
+    "history": [],
+    "reservationRef": null,
+    "isScenicDrive": true,
+    "datesReviewed": true
+  },
+
+  "skyline-drive": {
+    "name": "Skyline Drive",
+    "parentIds": ["nps:shen"],
+    "statusUrl": "https://www.nps.gov/shen/planyourvisit/conditions.htm",
+    "designation": "",
+    "blurb": "The 105-mile road running the length of Shenandoah National Park along the crest of the Blue Ridge.",
+    "seasonal": false,
+    "accessNote": "Skyline Drive is open year-round but closes to all traffic during snow and ice — sometimes the whole road, sometimes just a section — until it can be cleared and treated. It also closes at night during deer-management operations in some winters.",
+    "typicalOpen": "",
+    "typicalClose": "",
+    "history": [],
+    "reservationRef": null,
+    "isScenicDrive": true,
+    "datesReviewed": true
+  },
+
+  "hurricane-ridge-road": {
+    "name": "Hurricane Ridge Road",
+    "parentIds": ["nps:olym"],
+    "statusUrl": "https://www.nps.gov/olym/planyourvisit/road-and-area-closures.htm",
+    "designation": "",
+    "blurb": "The 17-mile road climbing from Port Angeles to the Hurricane Ridge subalpine area in Olympic National Park.",
+    "seasonal": false,
+    "accessNote": "Open daily in summer. From roughly late November through March the road is open Friday, Saturday and Sunday only (plus some holidays), and only when it has been plowed and avalanche conditions allow — check the park's gate status before driving up. Visitor services at the top have been limited since the Hurricane Ridge Day Lodge burned down in May 2023.",
+    "typicalOpen": "",
+    "typicalClose": "",
+    "history": [],
+    "reservationRef": null,
+    "isScenicDrive": false,
+    "datesReviewed": true
+  },
+
+  "going-to-the-sun-road": {
+    "name": "Going-to-the-Sun Road",
+    "parentIds": ["nps:glac"],
+    "statusUrl": "https://www.nps.gov/glac/planyourvisit/gtsr-status.htm",
+    "designation": "",
+    "blurb": "The 50-mile road over 6,646-ft Logan Pass — the only route across Glacier National Park.",
+    "seasonal": true,
+    "accessNote": "Only the alpine section over Logan Pass is seasonal. The lower ends stay open year-round, weather permitting: Apgar to Avalanche Creek on the west side, and St. Mary to Rising Sun on the east.",
+    "typicalOpen": "late June to early July",
+    "typicalClose": "the third Monday of October (earlier if heavy snow arrives)",
+    "history": [],
+    "reservationRef": null,
+    "isScenicDrive": true,
+    "datesReviewed": false
+  },
+
+  "trail-ridge-road": {
+    "name": "Trail Ridge Road",
+    "parentIds": ["nps:romo"],
+    "statusUrl": "https://www.nps.gov/romo/planyourvisit/current_road_status.htm",
+    "designation": "US-34",
+    "blurb": "The highest continuous paved road in any U.S. national park, cresting above 12,000 ft as it crosses Rocky Mountain National Park.",
+    "seasonal": true,
+    "accessNote": "The high central section between Many Parks Curve and the Colorado River Trailhead is closed by snow each winter. The lower ends stay open: from the east up to Many Parks Curve, and from the west up to the Colorado River Trailhead.",
+    "typicalOpen": "late May, around Memorial Day",
+    "typicalClose": "mid-October (often the third week), or with the first major snowstorm",
+    "history": [],
+    "reservationRef": null,
+    "isScenicDrive": true,
+    "datesReviewed": false
+  },
+
+  "old-fall-river-road": {
+    "name": "Old Fall River Road",
+    "parentIds": ["nps:romo"],
+    "statusUrl": "https://www.nps.gov/romo/planyourvisit/current_road_status.htm",
+    "designation": "",
+    "blurb": "Rocky Mountain National Park's original auto route to the high country — an 11-mile one-way gravel climb to Fall River Pass.",
+    "seasonal": true,
+    "accessNote": "One-way uphill, gravel, no trailers or large vehicles. It opens later than Trail Ridge Road and closes at the first snowfall.",
+    "typicalOpen": "early July",
+    "typicalClose": "late September to early October",
+    "history": [],
+    "reservationRef": null,
+    "isScenicDrive": false,
+    "datesReviewed": false
+  },
+
+  "tioga-road": {
+    "name": "Tioga Road",
+    "parentIds": ["nps:yose"],
+    "statusUrl": "https://www.nps.gov/yose/planyourvisit/tioga.htm",
+    "designation": "CA-120",
+    "blurb": "The trans-Sierra route across the northern half of Yosemite, topping out at 9,943-ft Tioga Pass.",
+    "seasonal": true,
+    "accessNote": "The stretch from Crane Flat to the Tioga Pass entrance closes for winter. The road to Crane Flat and the Big Oak Flat Road stay open year-round with chains.",
+    "typicalOpen": "late May to early June (but has ranged from mid-May to late July)",
+    "typicalClose": "November, with the first big storm",
+    "history": [],
+    "reservationRef": null,
+    "isScenicDrive": true,
+    "datesReviewed": false
+  },
+
+  "glacier-point-road": {
+    "name": "Glacier Point Road",
+    "parentIds": ["nps:yose"],
+    "statusUrl": "https://www.nps.gov/yose/planyourvisit/tioga.htm",
+    "designation": "",
+    "blurb": "The 16-mile spur to Glacier Point and its head-on view of Half Dome and Yosemite Valley.",
+    "seasonal": true,
+    "accessNote": "Closes for winter beyond the Badger Pass Ski Area turnoff; the road to Badger Pass stays open in ski season.",
+    "typicalOpen": "late May (has ranged from April to July; a full-year rebuild closed it for all of 2022)",
+    "typicalClose": "November, with the first big storm",
+    "history": [],
+    "reservationRef": null,
+    "isScenicDrive": true,
+    "datesReviewed": false
+  },
+
+  "beartooth-highway": {
+    "name": "Beartooth Highway",
+    "parentIds": [],
+    "statusUrl": "https://www.mdt.mt.gov/travinfo/",
+    "designation": "US-212",
+    "blurb": "The 68-mile alpine highway from Red Lodge, Montana over 10,947-ft Beartooth Pass to the Northeast Entrance of Yellowstone.",
+    "seasonal": true,
+    "accessNote": "A U.S. Forest Service scenic byway, not inside a national park. Montana DOT and Wyoming DOT open and close it; snow can shut sections any month of the year.",
+    "typicalOpen": "late May, around Memorial Day weekend",
+    "typicalClose": "mid-October (often Columbus Day), earlier with heavy snow",
+    "history": [],
+    "reservationRef": null,
+    "isScenicDrive": true,
+    "datesReviewed": false
+  }
+}

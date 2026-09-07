@@ -45,6 +45,10 @@ const DOW_LABEL = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "
 // (e.g. "nps:romo"). Best-effort for the current season — verify each spring.
 const RESERVATIONS = (() => { try { return require("./reservations.json"); } catch (_) { return {}; } })();
 
+// Curated seasonal park-road data (see roads.json). Rows publish as /road/<slug>/
+// pages only when datesReviewed === true.
+const ROADS = (() => { try { return require("./roads.json"); } catch (_) { return {}; } })();
+
 const esc = (s) =>
   String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const fmtPhone = (s) => { const d = String(s || "").replace(/\D/g, "");
@@ -192,6 +196,89 @@ async function npsRich() {
     if (start >= Number(d.total) || !d.data.length) break;
   }
   return byCode;
+}
+
+// NPS alerts for a set of parkCodes, grouped by code. Same pagination as npsRich().
+// Used only for road-status Tier B; returns {} with no key.
+async function npsAlerts(parkCodes) {
+  if (!NPS_KEY || !parkCodes.length) return {};
+  const byPark = {};
+  parkCodes.forEach((c) => (byPark[c] = []));
+  let start = 0;
+  for (;;) {
+    const u = `https://developer.nps.gov/api/v1/alerts?parkCode=${parkCodes.join(",")}&limit=50&start=${start}&api_key=${NPS_KEY}`;
+    const r = await fetch(u, { headers: { "User-Agent": UA } });
+    if (!r.ok) throw new Error("NPS alerts " + r.status);
+    const d = await r.json();
+    for (const a of d.data || []) {
+      if (byPark[a.parkCode]) byPark[a.parkCode].push({
+        title: a.title || "", description: a.description || "",
+        category: a.category || "", date: a.lastIndexedDate || "",
+      });
+    }
+    start += (d.data || []).length;
+    if (start >= Number(d.total) || !(d.data || []).length) break;
+  }
+  return byPark;
+}
+
+// Tier B / Tier C road status. `parkStatusById` is the Worker blob's per-park
+// status map, used only for the full-park-closure cascade.
+function roadStatus(road, alertsByPark, parkStatusById) {
+  const CLS = { open: "open", "partially open": "partial", closed: "closed", seasonal: "nodata" };
+  const inSeason = () => {
+    // crude: seasonal roads are "in season" June–September
+    const m = new Date().getUTCMonth();
+    return m >= 5 && m <= 8;
+  };
+
+  // --- Tier B: match this road against its NPS parent(s)' alerts ---
+  const npsParents = (road.parentIds || []).filter((p) => p.startsWith("nps:")).map((p) => p.slice(4));
+  if (npsParents.length && NPS_KEY) {
+    // full-park closure cascades to "closed"
+    for (const code of npsParents) {
+      if ((parkStatusById["nps:" + code] || "") === "closed") {
+        return { tier: "B", status: "closed", cls: "closed",
+          reason: `${road.parentNames || "The park"} is closed.`, date: "" };
+      }
+    }
+    const nameNeedle = road.name.toLowerCase().replace(/\s+(road|highway|drive|parkway)$/i, "").trim();
+    const routeRe = road.designation
+      ? new RegExp("\\b" + road.designation.replace(/[^0-9A-Za-z]/g, "-?") + "\\b", "i") : null;
+    const cutoff = Date.now() - 180 * 864e5;
+    let hit = null;
+    for (const code of npsParents) {
+      for (const a of alertsByPark[code] || []) {
+        if (a.date && Date.parse(a.date) < cutoff) continue;
+        const hay = (a.title + " " + a.description).toLowerCase();
+        const nameMatch = nameNeedle.length > 4 && hay.includes(nameNeedle);
+        const routeMatch = routeRe && routeRe.test(a.title + " " + a.description);
+        if (!nameMatch && !routeMatch) continue;
+        const t = hay;
+        let st;
+        if (/(re-?open|now open|has opened|is open)/.test(t) && !/clos/.test(t.split(/re-?open|now open/)[0] || "")) st = "open";
+        else if (a.category === "Park Closure" || (/clos(e|ed|ure)/.test(t) && !/(partial|one lane|single lane|nightly|overnight|lane closure|delay)/.test(t))) st = "closed";
+        else if (/(partial|one lane|single lane|nightly|overnight|delay|construction|reduced)/.test(t)) st = "partially open";
+        else if (/open/.test(t)) st = "open";
+        else st = "partially open";
+        const rank = { open: 0, "partially open": 1, closed: 2 };
+        if (!hit || rank[st] > rank[hit.status]) hit = { status: st, reason: a.title || clip(a.description, 160), date: a.date };
+      }
+    }
+    if (hit) return { tier: "B", status: hit.status, cls: CLS[hit.status], reason: hit.reason, date: hit.date };
+  }
+
+  // --- Tier C: seasonal statement / year-round statement ---
+  if (road.seasonal) {
+    if (inSeason()) {
+      return { tier: "C", status: "open", cls: "open",
+        reason: `${road.name} is normally open at this time of year. We don't have a live feed for it — confirm with the official status page.`, date: "" };
+    }
+    return { tier: "C", status: "seasonal", cls: "nodata",
+      reason: `${road.name} is closed for the winter. It typically reopens ${road.typicalOpen || "in late spring"}.`, date: "" };
+  }
+  return { tier: "C", status: "open", cls: "open",
+    reason: (road.accessNote || `${road.name} is normally open year-round; sections can close in winter weather.`).split(". ")[0] + ".", date: "" };
 }
 function npsAddress(p) {
   const a = (p.addresses || []).find((x) => x.type === "Physical") || (p.addresses || [])[0];
@@ -404,7 +491,13 @@ function visitorBlock(en) {
   return bits.length ? `<section class="visitor"><h2>Visitor info</h2>${bits.join("")}</section>` : "";
 }
 
-function pageHtml(e, en, updatedISO, tally) {
+// Single source of truth for the generated-page site nav (the homepage header in
+// public_html/index.html is maintained separately).
+function siteNav() {
+  return `<nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/road/">Roads</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>`;
+}
+
+function pageHtml(e, en, updatedISO, tally, roadsHere = []) {
   const name = esc(e.name);
   const cls = STATUS_CLASS[e.status] || "nodata";
   const label = STATUS_LABEL[e.status] || "Status unknown";
@@ -519,7 +612,7 @@ ${photo ? `<meta property="og:image" content="${esc(photo)}">` : ""}
 
 <header class="site"><div class="wrap">
   <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
-  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+  ${siteNav()}
 </div></header>
 
 ${stripHtml(tally, updatedISO)}
@@ -552,6 +645,11 @@ ${stripHtml(tally, updatedISO)}
     <p><a class="btn primary" href="${esc(en.reservation.url)}" target="_blank" rel="noopener">Book on Recreation.gov ↗</a></p>
     <p class="checked">Reservation window: ${esc(en.reservation.season)}. Confirm on the official site before you travel — programs change year to year.</p>
   </article>` : ""}
+
+  ${roadsHere.length ? `<div class="roads-in-park">
+    <h2>Roads in this park</h2>
+    <ul>${roadsHere.map((r) => `<li><a href="/road/${r.slug}/">${esc(r.name)}</a> — ${r.seasonal ? `seasonal, typically opens ${esc(r.typicalOpen || "in late spring")}` : "open year-round"}</li>`).join("")}</ul>
+  </div>` : ""}
 
   <article>
     <h2>How we read this status</h2>
@@ -647,7 +745,7 @@ ${INDEXERNOW}
 <div id="shutdown-banner"></div>
 <header class="site"><div class="wrap">
   <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
-  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+  ${siteNav()}
 </div></header>
 ${stripHtml(tally, updatedISO)}
 <main class="wrap">
@@ -683,6 +781,238 @@ ${rows}
     b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';b.className="show";
   }).catch(function(){});
 })();
+</script>
+<script src="/app-native.js" defer></script>
+</body>
+</html>
+`;
+}
+
+// ===================== road-status pages ==================================
+// road: a roads.json row + { parents:[{name,slug}], parentNames:string }
+// st:   { tier, status, cls, reason, date }  from roadStatus()
+function roadPageHtml(road, st, updatedISO, tally) {
+  const name = esc(road.name);
+  const url = `${SITE}/road/${road.slug}/`;
+  const label = { open: "Open", partial: "Partially open", closed: "Closed", nodata: "Seasonal — closed for winter" }[st.cls] || "Status unknown";
+  const asOf = fmtLong(updatedISO);
+  const gtts = road.slug === "going-to-the-sun-road";
+  const openQ = gtts ? `When does the full Going-to-the-Sun Road over Logan Pass open?` : `When does ${road.name} open?`;
+
+  const parentLinks = road.parents.length
+    ? road.parents.map((p) => `<a href="/park/${p.slug}/">${esc(p.name)}</a>`).join(" · ")
+    : "Not inside a national park unit";
+
+  const histRows = (road.history || []).filter((h) => h.opened)
+    .map((h) => `<tr><td>${h.year}</td><td>${esc(h.opened)}</td></tr>`).join("");
+
+  const faq = [{
+    "@type": "Question", name: `Is ${road.name} open right now?`,
+    acceptedAnswer: { "@type": "Answer", text: `${st.reason} Last checked ${asOf} UTC. Always confirm with the official road-status page before you travel.` },
+  }];
+  if (road.seasonal) {
+    faq.push({
+      "@type": "Question", name: openQ,
+      acceptedAnswer: { "@type": "Answer", text: `${road.name} typically opens ${road.typicalOpen || "in late spring"}. Plowing usually starts in April; the exact date depends on snowpack and can vary by weeks year to year.${road.history && road.history.length ? " Recent opening dates: " + road.history.filter((h) => h.opened).map((h) => `${h.opened} (${h.year})`).join(", ") + "." : ""}` },
+    });
+    faq.push({
+      "@type": "Question", name: `When does ${road.name} close for winter?`,
+      acceptedAnswer: { "@type": "Answer", text: `${road.name} normally closes ${road.typicalClose || "in mid-to-late autumn"}. It can close earlier if a heavy storm arrives.` },
+    });
+  } else {
+    faq.push({
+      "@type": "Question", name: `Is ${road.name} open in winter?`,
+      acceptedAnswer: { "@type": "Answer", text: road.accessNote || `${road.name} is open year-round, though sections can close temporarily during winter storms.` },
+    });
+  }
+
+  const graph = [
+    { "@type": "BreadcrumbList", itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
+      { "@type": "ListItem", position: 2, name: "Roads", item: SITE + "/road/" },
+      { "@type": "ListItem", position: 3, name: road.name, item: url } ] },
+    { "@type": "FAQPage", mainEntity: faq },
+  ];
+  if (road.isScenicDrive && road.parents.length) {
+    graph.push({
+      "@type": "TouristAttraction", name: road.name, description: road.blurb, url,
+      containedInPlace: { "@type": "Park", name: road.parents[0].name, url: `${SITE}/park/${road.parents[0].slug}/` },
+    });
+  }
+  const jsonld = { "@context": "https://schema.org", "@graph": graph };
+
+  const desc = clip(`${road.name}: ${st.reason} ${road.blurb}`, 300);
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PFZYJ3L871"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PFZYJ3L871');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${INDEXERNOW}
+<title>Is ${name} open? Road status &amp; season — Park Status Today</title>
+<meta name="description" content="${esc(desc)}">
+<meta name="theme-color" content="#0b1b35">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="${url}">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Is ${name} open right now?">
+<meta property="og:description" content="${esc(desc)}">
+<meta property="og:url" content="${url}">
+<script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, "\\u003c")}</script>
+<link rel="stylesheet" href="/park/park.css">
+</head>
+<body${road.parents.length ? ` data-parent-id="${esc(road.parents[0].id)}" data-parent-source="${esc(road.parents[0].source)}"` : ""}>
+<div id="shutdown-banner"></div>
+
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  ${siteNav()}
+</div></header>
+
+${stripHtml(tally, updatedISO)}
+
+<main class="wrap">
+  <div class="crumbs"><a href="/">Home</a> / <a href="/road/">Roads</a> / ${name}</div>
+  <h1>Is ${name} open?</h1>
+  <p class="sub">${road.designation ? esc(road.designation) + " · " : ""}${parentLinks}</p>
+
+  <div class="verdict ${st.cls}" id="verdict">
+    <span class="pill ${st.cls}" id="p-pill">${esc(label)}</span>
+    <p class="line">${esc(st.reason)}</p>
+    <p class="checked">Last checked ${esc(new Date(updatedISO).toUTCString())}${st.tier === "B" && st.date ? ` · alert dated ${esc(String(st.date).slice(0, 10))}` : ""}</p>
+  </div>
+
+  <div class="acts">
+    <a class="btn primary" href="${esc(road.statusUrl)}" target="_blank" rel="noopener">Official road status ↗</a>
+    <a class="btn ghost" href="/road/">← All roads</a>
+  </div>
+
+  ${road.blurb ? `<p>${esc(road.blurb)}</p>` : ""}
+  ${road.parents.length ? `<p class="road-parent-status" id="road-parent-status" data-name="${esc(road.parents[0].name)}">${esc(road.parents[0].name)} — check current park status.</p>` : ""}
+
+  ${road.seasonal ? `<article class="road-window">
+    <h2>${esc(openQ)}</h2>
+    <p>Typically open ${esc(road.typicalOpen || "in late spring")} to ${esc(road.typicalClose || "mid-autumn")}. Plowing usually begins in April; the opening date depends entirely on snowpack and can swing several weeks.</p>
+    ${road.accessNote ? `<p>${esc(road.accessNote)}</p>` : ""}
+    ${histRows ? `<table class="road-hist"><tr><th>Year</th><th>Opened</th></tr>${histRows}</table>
+    <p class="src">Opening dates from the National Park Service.</p>` : `<p class="src">Year-by-year opening dates are being verified — for now, use the official status link above.</p>`}
+  </article>` : `<article class="road-window">
+    <h2>Is ${name} open in winter?</h2>
+    <p>${esc(road.accessNote || `${road.name} is open year-round, but sections can close during winter storms until they are cleared.`)}</p>
+  </article>`}
+
+  ${road.reservationRef && RESERVATIONS[road.reservationRef] ? `<article>
+    <h2>Reservations</h2>
+    <p>${esc(RESERVATIONS[road.reservationRef].summary)}</p>
+    <p><a class="btn ghost" href="/park/${esc(road.parents[0] ? road.parents[0].slug : "")}/">Reservation details on the park page →</a></p>
+  </article>` : ""}
+
+  <article>
+    <h2>How we know this</h2>
+    <p>${road.parents.length
+      ? `We watch ${esc(road.parents.map((p) => p.name).join(" and "))}'s official National Park Service alerts for anything that names ${name}${road.designation ? ` or ${esc(road.designation)}` : ""}, and refresh this page with the daily build. ${road.seasonal ? "Between closures we show the typical season and recent opening dates." : "We also show the road's normal winter access pattern above."}`
+      : `${name} isn't inside a national park unit, so there's no NPS alert feed for it — this page shows the typical season and points you to the transportation department that opens and closes it.`} It's our reading of public information, not an official determination. Always check the official link before you drive.</p>
+  </article>
+</main>
+
+<footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span class="disc">Road status refreshed daily · always confirm with the official road-status page before you travel.</span>
+  <span class="disc"><a href="/road/" style="color:#fff">All roads</a> · <a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
+  <span class="corp">${CORP_LINE}</span>
+</div></footer>
+
+<script>
+(function(){
+  var P=document.body.dataset.parentId; if(!P) return;
+  fetch("${API}",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+    var SRC=document.body.dataset.parentSource;
+    var list = SRC==="nps"?d.parks:SRC==="ny"?d.nyParks:SRC==="ca"?d.caParks:SRC==="tx"?d.txParks:SRC==="mn"?d.mnParks:[];
+    var key = SRC==="nps"?"nps:":"";
+    var p=(list||[]).find(function(x){return (key+(x.parkCode||x.id))===P;});
+    if(!p) return;
+    var LABEL={open:"open",partially_closed:"partially closed",closed:"closed",no_data:"status unknown"};
+    var el=document.getElementById("road-parent-status");
+    if(el) el.textContent=el.dataset.name+" is currently "+(LABEL[p.status]||"of unknown status")+".";
+  }).catch(function(){});
+  fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){
+    if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
+    b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';b.className="show";
+  }).catch(function(){});
+})();
+</script>
+<script src="/app-native.js" defer></script>
+</body>
+</html>
+`;
+}
+
+function roadIndexHtml(roads, updatedISO, tally, statuses) {
+  // group by first parent park name; empty parents -> "Other scenic roads"
+  const groups = new Map();
+  for (const r of roads.slice().sort((a, b) => a.name.localeCompare(b.name))) {
+    const key = r.parents.length ? r.parents[0].name : "Other scenic roads";
+    if (!groups.has(key)) groups.set(key, { slug: r.parents.length ? r.parents[0].slug : "", roads: [] });
+    groups.get(key).roads.push(r);
+  }
+  const closed = roads.filter((r) => ["closed", "nodata"].includes(statuses.get(r.slug).cls));
+  const dot = (cls) => `<span class="d ${cls}"></span>`;
+  const line = (r) => {
+    const s = statuses.get(r.slug);
+    const note = r.seasonal
+      ? (s.cls === "nodata" ? `closed — reopens ${esc(r.typicalOpen || "in spring")}` : `open · typically ${esc(r.typicalOpen || "late spring")}–${esc((r.typicalClose || "mid-autumn").split(" ")[0])}`)
+      : "open year-round";
+    return `<li><a href="/road/${r.slug}/">${dot(s.cls)}<span class="nm">${esc(r.name)}</span></a> <span class="st">${note}</span></li>`;
+  };
+  const groupsHtml = [...groups.entries()].sort((a, b) => (a[0] === "Other scenic roads" ? 1 : b[0] === "Other scenic roads" ? -1 : a[0].localeCompare(b[0])))
+    .map(([k, g]) => `<div class="road-group"><h2>${g.slug ? `<a href="/park/${g.slug}/">${esc(k)}</a>` : esc(k)}</h2><ul class="plist">${g.roads.map(line).join("")}</ul></div>`).join("\n");
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PFZYJ3L871"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PFZYJ3L871');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${INDEXERNOW}
+<title>Park road status — seasonal openings &amp; closures — Park Status Today</title>
+<meta name="description" content="Is the road open? Seasonal opening and closing dates and live closure status for ${roads.length} major national-park roads — Going-to-the-Sun, Trail Ridge, Tioga, the Blue Ridge Parkway and more.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="${SITE}/road/">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="Park road status — seasonal openings &amp; closures">
+<meta property="og:url" content="${SITE}/road/">
+<link rel="stylesheet" href="/park/park.css">
+</head>
+<body>
+<div id="shutdown-banner"></div>
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  ${siteNav()}
+</div></header>
+${stripHtml(tally, updatedISO)}
+<main class="wrap">
+  <div class="crumbs"><a href="/">Home</a> / Roads</div>
+  <h1>Park road status</h1>
+  <p class="sub">Seasonal opening and closing dates, plus live closure status where the National Park Service publishes alerts, for major park roads. ${roads.length} roads so far — more on the way.</p>
+  ${closed.length ? `<div class="road-group"><h2>Closed right now</h2><ul class="plist">${closed.map(line).join("")}</ul></div>` : ""}
+  ${groupsHtml}
+  <p class="sub" style="margin-top:24px">Looking for a specific park? <a href="/park/">All park statuses, A–Z →</a></p>
+</main>
+<footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span class="disc">Road status refreshed daily · always confirm with the official road-status page before you travel.</span>
+  <span class="disc"><a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
+  <span class="corp">${CORP_LINE}</span>
+</div></footer>
+<script>
+fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){
+  if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
+  b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';b.className="show";
+}).catch(function(){});
 </script>
 <script src="/app-native.js" defer></script>
 </body>
@@ -796,13 +1126,30 @@ footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;le
 .hubgrid a:hover{border-color:var(--navy)}
 .hubgrid .t{font-weight:bold;margin-bottom:4px}
 .hubgrid .m{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+
+/* road-status pages (additive) */
+.road-window{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:18px 0;background:var(--card)}
+.road-window h2{margin-top:0}
+.road-window .src{font-size:12px;color:var(--muted);margin:10px 0 0}
+.road-hist{border-collapse:collapse;font-size:14px;margin-top:10px}
+.road-hist th,.road-hist td{text-align:left;padding:3px 20px 3px 0;color:var(--muted)}
+.road-hist th{color:var(--ink);font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.road-parent-status{font-size:13px;color:var(--muted);margin:6px 0 0}
+.roads-in-park{margin:22px 0}
+.roads-in-park ul{margin:8px 0 0;padding-left:18px}
+.roads-in-park li{margin:4px 0}
+.road-group{margin:22px 0}
+.road-group h2{font-size:19px;margin:0 0 8px;letter-spacing:-.5px}
+.road-group h2 a{color:inherit;text-decoration:none}
+.road-group .plist li .st{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:8px}
 `;
 
-function sitemap(list, updatedISO, beachHubs) {
+function sitemap(list, updatedISO, beachHubs, roads) {
   const today = updatedISO.slice(0, 10);
   const staticUrls = [
     { loc: `${SITE}/`, freq: "hourly", pri: "1.0" },
     { loc: `${SITE}/park/`, freq: "hourly", pri: "0.9" },
+    { loc: `${SITE}/road/`, freq: "weekly", pri: "0.8" },
     { loc: `${SITE}/beach/`, freq: "daily", pri: "0.8" },
     { loc: `${SITE}/guides/`, freq: "weekly", pri: "0.8" },
     { loc: `${SITE}/guides/national-parks-government-shutdown.html`, freq: "weekly", pri: "0.9" },
@@ -816,14 +1163,16 @@ function sitemap(list, updatedISO, beachHubs) {
     .map((e) => ({ loc: `${SITE}/park/${e.slug}/`, freq: "hourly", pri: "0.7" }));
   const beachUrls = (beachHubs || []).slice().sort((a, b) => a.slug.localeCompare(b.slug))
     .map((h) => ({ loc: `${SITE}/beach/${h.slug}/`, freq: "daily", pri: "0.6" }));
-  const body = [...staticUrls, ...parkUrls, ...beachUrls]
+  const roadUrls = (roads || []).slice().sort((a, b) => a.slug.localeCompare(b.slug))
+    .map((r) => ({ loc: `${SITE}/road/${r.slug}/`, freq: "weekly", pri: "0.7" }));
+  const body = [...staticUrls, ...parkUrls, ...roadUrls, ...beachUrls]
     .map((u) => `  <url><loc>${u.loc}</loc><lastmod>${today}</lastmod><changefreq>${u.freq}</changefreq><priority>${u.pri}</priority></url>`).join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
 }
 
 // ===================== llms.txt ==========================================
 // https://llmstxt.org — a curated map of the site for language models.
-function llmsTxt(updatedISO, entities, beachHubs, tally) {
+function llmsTxt(updatedISO, entities, beachHubs, tally, roads) {
   const nps = entities.filter((e) => e.source === "nps").length;
   const state = entities.length - nps;
   const asOf = fmtLong(updatedISO);
@@ -838,6 +1187,10 @@ Coverage as of ${asOf}: ${nps} National Park Service units, ${state} state parks
 ## Parks
 - [All park & waterway statuses, A–Z](${SITE}/park/): browsable directory of every national and state park tracked, each linking to a status + visitor-info page at ${SITE}/park/<slug>/
 - [Full sitemap](${SITE}/sitemap.xml): every page on the site
+
+## Roads
+- [Park road status](${SITE}/road/): seasonal opening/closing dates and live closure status for major national-park roads, each at ${SITE}/road/<slug>/
+${(roads || []).map((r) => `- [Is ${r.name} open?](${SITE}/road/${r.slug}/)`).join("\n")}
 
 ## Beaches
 - [Beach water quality & closures by county](${SITE}/beach/): New York public beaches grouped by county, with current swimming advisories and closures at ${SITE}/beach/<county>/
@@ -937,7 +1290,7 @@ ${INDEXERNOW}
 <div id="shutdown-banner"></div>
 <header class="site"><div class="wrap">
   <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
-  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+  ${siteNav()}
 </div></header>
 ${stripHtml(tally, updatedISO)}
 <main class="wrap">
@@ -1059,7 +1412,7 @@ ${INDEXERNOW}
 <div id="shutdown-banner"></div>
 <header class="site"><div class="wrap">
   <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
-  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+  ${siteNav()}
 </div></header>
 ${stripHtml(tally, updatedISO)}
 <main class="wrap">
@@ -1196,6 +1549,25 @@ async function main() {
     e._en = en;
   });
 
+  // --- road-status pages: resolve parents, run Tier B, build reverse index ---
+  const entById = new Map(entities.map((e) => [e.id, e]));
+  const roadsAll = Object.entries(ROADS).filter(([k]) => k !== "_note").map(([slug, r]) => ({ slug, ...r }));
+  const published = roadsAll.filter((r) => r.datesReviewed === true).map((r) => {
+    const parents = (r.parentIds || []).map((id) => entById.get(id)).filter(Boolean)
+      .map((e) => ({ id: e.id, source: e.source, name: e.name, slug: e.slug }));
+    return { ...r, parents, parentNames: parents.map((p) => p.name).join(" and ") };
+  });
+  const npsRoadCodes = [...new Set(published.flatMap((r) => r.parentIds || [])
+    .filter((p) => p.startsWith("nps:")).map((p) => p.slice(4)))];
+  const roadAlerts = npsRoadCodes.length
+    ? await npsAlerts(npsRoadCodes).catch((e) => { console.warn("  NPS alerts fetch failed:", e.message); return {}; })
+    : {};
+  const parkStatusById = Object.fromEntries(entities.map((e) => [e.id, e.status]));
+  const roadStatuses = new Map(published.map((r) => [r.slug, roadStatus(r, roadAlerts, parkStatusById)]));
+  const roadsByPark = {};
+  for (const r of published) for (const pid of (r.parentIds || [])) (roadsByPark[pid] ||= []).push(r);
+  process.stdout.write(`  ${published.length}/${roadsAll.length} road pages (rest staged, datesReviewed:false)\n`);
+
   fs.mkdirSync(PARK_DIR, { recursive: true });
   fs.writeFileSync(path.join(PARK_DIR, "park.css"), PARK_CSS);
 
@@ -1203,7 +1575,7 @@ async function main() {
   for (const e of entities) {
     const dir = path.join(PARK_DIR, e.slug);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, "index.html"), pageHtml(e, e._en, updatedISO, tally));
+    fs.writeFileSync(path.join(dir, "index.html"), pageHtml(e, e._en, updatedISO, tally, roadsByPark[e.id] || []));
     n++;
   }
   fs.writeFileSync(path.join(PARK_DIR, "index.html"), directoryHtml(entities, updatedISO, tally));
@@ -1217,14 +1589,23 @@ async function main() {
   }
   fs.writeFileSync(path.join(BEACH_DIR, "index.html"), beachIndexHtml(beachHubs, updatedISO, tally));
 
+  const ROAD_DIR = path.join(OUT, "road");
+  fs.mkdirSync(ROAD_DIR, { recursive: true });
+  for (const r of published) {
+    const dir = path.join(ROAD_DIR, r.slug);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "index.html"), roadPageHtml(r, roadStatuses.get(r.slug), updatedISO, tally));
+  }
+  fs.writeFileSync(path.join(ROAD_DIR, "index.html"), roadIndexHtml(published, updatedISO, tally, roadStatuses));
+
   fs.writeFileSync(path.join(OUT, "parks-enriched.json"), JSON.stringify(enriched));
   fs.writeFileSync(path.join(OUT, "parks.json"), JSON.stringify({
     updated: updatedISO,
     parks: entities.map((e) => ({ id: e.id, slug: e.slug, name: e.name, kind: e.kind,
       states: statesText(e), status: e.status, source: e.source, url: `${SITE}/park/${e.slug}/` })),
   }));
-  fs.writeFileSync(path.join(OUT, "sitemap.xml"), sitemap(entities, updatedISO, beachHubs));
-  fs.writeFileSync(path.join(OUT, "llms.txt"), llmsTxt(updatedISO, entities, beachHubs, tally));
+  fs.writeFileSync(path.join(OUT, "sitemap.xml"), sitemap(entities, updatedISO, beachHubs, published));
+  fs.writeFileSync(path.join(OUT, "llms.txt"), llmsTxt(updatedISO, entities, beachHubs, tally, published));
 
   const withWiki = Object.values(enriched).filter((x) => x.history).length;
   const withNps = Object.values(enriched).filter((x) => x.hours || x.address).length;
@@ -1233,7 +1614,7 @@ async function main() {
     `  ${beachHubs.length} beach county hubs + index\n` +
     `  parks-enriched.json: ${withWiki} with Wikipedia about/history, ${withNps} with NPS visitor info\n` +
     `  baked tally: ${tally.open} open / ${tally.partially_closed} partial / ${tally.closed} closed / ${tally.no_data} no-data\n` +
-    `  sitemap.xml: ${entities.length + beachHubs.length + 9} urls\n  data timestamp: ${updatedISO}\n`
+    `  sitemap.xml: ${entities.length + beachHubs.length + published.length + 10} urls\n  data timestamp: ${updatedISO}\n`
   );
 }
 
