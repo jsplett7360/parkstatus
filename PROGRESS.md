@@ -11,13 +11,37 @@ with git, git wins and the discrepancy gets flagged.
 | Static site (index.html) | Notifications unified into one Alerts panel; typography on half-mast token system |
 | Mobile map | **Not done** — one-finger scroll trap + `.mapframe` still `74vh`. Planned, not started. |
 | Park pages (build-parks.js) | Entrance fee + reservation block + 4-entry FAQ + `isAccessibleForFree` live |
-| Road pages (`/road/`) | **Partial** — `2897960b` shipped generator + `roads.json` (10 rows); 4 year-round roads publish, 6 seasonal staged (`datesReviewed:false`) |
-| CI / deploy | `refresh-park-data.yml` now dispatches `deploy.yml`. **Open:** its `git add` line still omits `public_html/road` + `public_html/llms.txt` |
+| Road pages (`/road/`) | **First cut complete** — 8 published: 4 year-round + Going-to-the-Sun, Trail Ridge, Tioga, Beartooth. Glacier Point + Old Fall River still staged (`datesReviewed:false`). `public_html/road/` generates + deploys on the next daily refresh. |
+| CI / deploy | `refresh-park-data.yml` dispatches `deploy.yml` AND now `git add`s `public_html/road` + `public_html/llms.txt` |
 | Worker | `/push/unsubscribe` added during the notifications work; no other pending change |
 | iOS app | Capacitor wrapper; CI ship on `ios-v*` tag working. No pending app task. |
 | Prompt-engineer / builder workflow | Set up this session (`.claude/` + coordination files) |
 
 ## Log
+
+### 2026-09-07 — Item 1 DONE: road-status first cut finished
+
+- Researched historical opening dates for the 6 staged seasonal roads (NPS news
+  releases + Mono Basin Research Center + local press). Every `history` row carries a
+  `source`.
+- User approved publishing 4: **Going-to-the-Sun Rd** (8 yrs, 2018–25),
+  **Trail Ridge Rd** (2002 record + 2021–25), **Tioga Rd** (8 yrs, 2016–23),
+  **Beartooth Hwy** (2021–26). `datesReviewed` flipped to `true`.
+- Held: **Glacier Point Rd** (only 2016 + 2022 closure + 2026 sourceable) and
+  **Old Fall River Rd** (no ≥3 year-tagged dates) — stay `datesReviewed:false`,
+  `history:[]`. Backfill = a follow-up.
+- `.github/workflows/refresh-park-data.yml` `git add` line now includes
+  `public_html/road` and `public_html/llms.txt` (was the pre-existing deploy gap).
+- Verified via a scratch harness (`build-parks.js` road path, no `NPS_API_KEY`): all 8
+  published roads render; JSON-LD valid (BreadcrumbList + FAQPage, + TouristAttraction
+  for `isScenicDrive` rows with an NPS parent); GTTS uses the "full … over Logan Pass"
+  FAQ; `/road/` index groups by park + "Other scenic roads" (Beartooth). Beartooth
+  (empty `parentIds`) renders "Not inside a national park unit", no crash.
+- Did NOT run a full `node build-parks.js` (no `NPS_API_KEY` — a keyless build would
+  wipe NPS enrichment and violate the byte-identical constraint). `public_html/road/`
+  pages generate + deploy on the next daily refresh cron.
+- `parks-enriched.json` / `parks.json` / `public_html/park/**` untouched.
+- Changed: `roads.json`, `.github/workflows/refresh-park-data.yml`, coordination files.
 
 ### 2026-09-07 — Prompt-engineer + builder workflow
 

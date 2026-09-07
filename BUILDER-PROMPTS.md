@@ -12,7 +12,7 @@ plan and stop. The next "complete next step" = implement the approved plan.
 
 | # | Item | Status | Added | Done / commit |
 | --- | --- | --- | --- | --- |
-| 1 | Finish road-status first cut (deploy fix + 6 seasonal roads) | READY | 2026-09-07 | — |
+| 1 | Finish road-status first cut (deploy fix + 6 seasonal roads) | DONE — published GTTS/Trail Ridge/Tioga/Beartooth; Glacier Point + Old Fall River held | 2026-09-07 | 2026-09-07, see `git log` |
 | 2 | Mobile map: scroll-trap + height (leaflet-gesture-handling) | READY | 2026-09-07 | — |
 | 3 | park.css typography reconciliation to half-mast tokens | BACKLOG | 2026-09-07 | — |
 | 4 | Road pages follow-up: remaining ~15–20 roads + BRP ArcGIS feed | BACKLOG | 2026-09-07 | — |

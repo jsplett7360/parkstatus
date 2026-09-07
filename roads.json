@@ -75,10 +75,19 @@
     "accessNote": "Only the alpine section over Logan Pass is seasonal. The lower ends stay open year-round, weather permitting: Apgar to Avalanche Creek on the west side, and St. Mary to Rising Sun on the east.",
     "typicalOpen": "late June to early July",
     "typicalClose": "the third Monday of October (earlier if heavy snow arrives)",
-    "history": [],
+    "history": [
+      { "year": 2018, "opened": "June 23", "source": "NPS Glacier news releases" },
+      { "year": 2019, "opened": "June 23", "source": "NPS Glacier news releases" },
+      { "year": 2020, "opened": "July 13", "source": "NPS Glacier news releases (COVID-delayed)" },
+      { "year": 2021, "opened": "June 25", "source": "NPS Glacier news releases" },
+      { "year": 2022, "opened": "July 13", "source": "NPS Glacier / Flathead Beacon (latest on record)" },
+      { "year": 2023, "opened": "June 13", "source": "NPS Glacier news releases" },
+      { "year": 2024, "opened": "June 22", "source": "NPS Glacier news releases" },
+      { "year": 2025, "opened": "June 16", "source": "NPS Glacier / Flathead Beacon" }
+    ],
     "reservationRef": null,
     "isScenicDrive": true,
-    "datesReviewed": false
+    "datesReviewed": true
   },
 
   "trail-ridge-road": {
@@ -91,10 +100,17 @@
     "accessNote": "The high central section between Many Parks Curve and the Colorado River Trailhead is closed by snow each winter. The lower ends stay open: from the east up to Many Parks Curve, and from the west up to the Colorado River Trailhead.",
     "typicalOpen": "late May, around Memorial Day",
     "typicalClose": "mid-October (often the third week), or with the first major snowstorm",
-    "history": [],
+    "history": [
+      { "year": 2002, "opened": "May 7", "source": "NPS Rocky Mountain (earliest on record)" },
+      { "year": 2021, "opened": "May 29", "source": "NPS Rocky Mountain news releases" },
+      { "year": 2022, "opened": "May 27", "source": "NPS Rocky Mountain news releases" },
+      { "year": 2023, "opened": "May 26", "source": "NPS Rocky Mountain news releases" },
+      { "year": 2024, "opened": "May 31", "source": "Estes Park News / CBS Colorado" },
+      { "year": 2025, "opened": "May 30", "source": "NPS Rocky Mountain / trail-ridge-road.com" }
+    ],
     "reservationRef": null,
     "isScenicDrive": true,
-    "datesReviewed": false
+    "datesReviewed": true
   },
 
   "old-fall-river-road": {
@@ -123,10 +139,19 @@
     "accessNote": "The stretch from Crane Flat to the Tioga Pass entrance closes for winter. The road to Crane Flat and the Big Oak Flat Road stay open year-round with chains.",
     "typicalOpen": "late May to early June (but has ranged from mid-May to late July)",
     "typicalClose": "November, with the first big storm",
-    "history": [],
+    "history": [
+      { "year": 2016, "opened": "May 18", "source": "Mono Basin Research Center" },
+      { "year": 2017, "opened": "June 29", "source": "Mono Basin Research Center" },
+      { "year": 2018, "opened": "May 21", "source": "Mono Basin Research Center / NPS Yosemite" },
+      { "year": 2019, "opened": "July 1", "source": "Mono Basin Research Center (restricted access from June 21)" },
+      { "year": 2020, "opened": "June 15", "source": "Mono Basin Research Center" },
+      { "year": 2021, "opened": "May 27", "source": "Mono Basin Research Center" },
+      { "year": 2022, "opened": "May 27", "source": "Mono Basin Research Center" },
+      { "year": 2023, "opened": "July 22", "source": "NPS Yosemite (latest on record)" }
+    ],
     "reservationRef": null,
     "isScenicDrive": true,
-    "datesReviewed": false
+    "datesReviewed": true
   },
 
   "glacier-point-road": {
@@ -155,9 +180,16 @@
     "accessNote": "A U.S. Forest Service scenic byway, not inside a national park. Montana DOT and Wyoming DOT open and close it; snow can shut sections any month of the year.",
     "typicalOpen": "late May, around Memorial Day weekend",
     "typicalClose": "mid-October (often Columbus Day), earlier with heavy snow",
-    "history": [],
+    "history": [
+      { "year": 2021, "opened": "May 28", "source": "NPS Yellowstone news releases" },
+      { "year": 2022, "opened": "May 27", "source": "NPS Yellowstone news releases" },
+      { "year": 2023, "opened": "May 26", "source": "NPS Yellowstone news releases" },
+      { "year": 2024, "opened": "June 1", "source": "KULR8 / Cowboy State Daily (snow-delayed from May 24)" },
+      { "year": 2025, "opened": "May 23", "source": "Wyoming Public Media / NPS Yellowstone" },
+      { "year": 2026, "opened": "May 22", "source": "NPS Yellowstone / Unofficial Networks" }
+    ],
     "reservationRef": null,
     "isScenicDrive": true,
-    "datesReviewed": false
+    "datesReviewed": true
   }
 }
