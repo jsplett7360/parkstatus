@@ -1,33 +1,39 @@
 {
-  "_note": "Curated timed-entry / vehicle-reservation requirements, keyed by entity id. Dates + booking URLs are best-effort for the 2026 season and SHOULD get a human verification pass each spring. Read by build-parks.js; additive to parks-enriched.json.",
+  "_note": "Parks that require a timed-entry or vehicle/parking reservation to visit, keyed by entity id. Verified against nps.gov + recreation.gov on 2026-09-07 for the 2026 season. Re-verify each spring — seasons, prices and URLs change year to year. Arches, Glacier, Mount Rainier and Yosemite all dropped timed entry for 2026 and are intentionally NOT listed.",
+  "nps:romo": {
+    "name": "Timed-entry reservation",
+    "season": "May 22 through mid-October 2026",
+    "url": "https://www.recreation.gov/timed-entry/10086910",
+    "summary": "Rocky Mountain National Park requires a timed-entry reservation from Friday, May 22 through about October 13, 2026 (the Bear Lake Road corridor runs a few days longer). Two permits are sold on Recreation.gov: “Timed Entry” (all areas except Bear Lake Road, needed 9 a.m.–2 p.m.) and “Timed Entry + Bear Lake Road” (needed 5 a.m.–6 p.m.). Reservations open May 1 for late May/June, then on the 1st of each prior month; 40% of each day’s slots release at 7 p.m. MDT the night before. $2 processing fee. No reservation needed outside those hours or dates."
+  },
   "nps:acad": {
     "name": "Cadillac Summit Road vehicle reservation",
-    "season": "late May through mid-October",
-    "url": "https://www.recreation.gov/timed-entry/10086910",
-    "summary": "A vehicle reservation is required to drive Cadillac Summit Road from late May through mid-October. Reservations open on Recreation.gov up to 90 days ahead, with a batch of next-day reservations released at 10 a.m. the day before. No reservation is needed to enter the rest of Acadia."
-  },
-  "nps:romo": {
-    "name": "Timed-entry permit",
-    "season": "late May through mid-October",
-    "url": "https://www.recreation.gov/timed-entry/10086910",
-    "summary": "Rocky Mountain National Park uses a timed-entry permit system in peak season (roughly late May through mid-October). Two permit types are sold on Recreation.gov: one covering the Bear Lake Road corridor and one for the rest of the park. Permits are released the month prior, with next-day permits at 7 p.m. A permit is not required outside the timed-entry window or before 5 a.m. / after 6 p.m."
+    "season": "May 20 through October 25, 2026",
+    "url": "https://www.recreation.gov/timed-entry/400000",
+    "summary": "A vehicle reservation is required to drive the Cadillac Summit Road from May 20 through October 25, 2026 — either a Sunrise or a Daytime reservation. 30% of slots release on Recreation.gov 90 days ahead (10 a.m. ET) and 70% two days ahead. $6 per vehicle, plus a valid park entrance pass. No reservation is needed to enter the rest of Acadia."
   },
   "nps:hale": {
-    "name": "Haleakalā sunrise reservation",
+    "name": "Summit sunrise reservation",
     "season": "year-round, 3 a.m. to 7 a.m. only",
-    "url": "https://www.recreation.gov/timed-entry/10086745",
-    "summary": "Entering the summit area of Haleakalā between 3 a.m. and 7 a.m. for sunrise requires a reservation, booked on Recreation.gov up to 60 days ahead (a small number release 48 hours prior). No reservation is needed to visit the summit after 7 a.m. or the Kīpahulu (coastal) District."
+    "url": "https://www.recreation.gov/ticket/facility/253731",
+    "summary": "Entering the summit district of Haleakalā between 3 a.m. and 7 a.m. for sunrise requires a per-vehicle reservation, booked on Recreation.gov up to 60 days ahead, with a second batch released 2 days ahead. $1 fee; one ticket per customer every three days; bring the confirmation and a matching photo ID. No reservation is needed after 7 a.m. or in the Kīpahulu (coastal) district."
   },
   "nps:shen": {
     "name": "Old Rag day-use ticket",
-    "season": "March 1 through November 30",
-    "url": "https://www.recreation.gov/timed-entry/10089009",
-    "summary": "Hiking the Old Rag area (including Ridge, Saddle, and Weakley Hollow fire roads) requires a day-use ticket from March 1 through November 30 — 400 per day, sold on Recreation.gov 30 days ahead plus a next-day batch. The rest of Shenandoah and Skyline Drive need no reservation."
+    "season": "March 1 through November 30, 2026",
+    "url": "https://www.recreation.gov/ticket/facility/10088450",
+    "summary": "Hiking the Old Rag area — including the Ridge, Saddle and Weakley Hollow fire roads — requires a $2 day-use ticket from March 1 through November 30, in addition to a park entrance pass. 800 tickets are released per day on a rolling window on Recreation.gov; none are sold at entrance stations. The rest of Shenandoah and Skyline Drive need no reservation. (A parking-lot construction project runs at the Old Rag trailhead through much of 2026.)"
   },
   "nps:cave": {
-    "name": "Timed-entry reservation",
+    "name": "Cavern timed-entry reservation",
     "season": "year-round",
-    "url": "https://www.recreation.gov/timed-entry/10087741",
-    "summary": "Entry to the Carlsbad Cavern (via the Natural Entrance or elevator) requires a timed-entry reservation, booked on Recreation.gov. Reservations are released in a rolling window; some same-day slots are held back. Ranger-guided tours are booked separately."
+    "url": "https://www.recreation.gov/ticket/facility/234637",
+    "summary": "Entering Carlsbad Cavern on the self-guided route (Natural Entrance or elevator) requires a timed-entry reservation on Recreation.gov — released 30 days ahead and up to 7 a.m. MT on the day of. $1 per ticket; the park entrance fee is paid separately at the visitor center. You enter any time between your reserved slot and 2:30 p.m. Ranger-guided tours are booked separately."
+  },
+  "nps:muwo": {
+    "name": "Parking or shuttle reservation",
+    "season": "year-round",
+    "url": "https://gomuirwoods.com/",
+    "summary": "Every vehicle and every shuttle rider needs a reservation to visit Muir Woods — there is no drop-in parking. Book a parking spot or a shuttle seat in advance at GoMuirWoods.com (not Recreation.gov). The park entrance fee is separate."
   }
 }
