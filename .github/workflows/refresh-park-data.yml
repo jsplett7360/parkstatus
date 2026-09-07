@@ -2,7 +2,11 @@ name: Refresh park data
 
 # Re-runs build-parks.js to regenerate the per-park static pages, parks-enriched.json,
 # parks.json and sitemap.xml from the live status API + NPS API + Wikipedia, then commits
-# whatever changed. That commit touches public_html/, which triggers deploy.yml.
+# whatever changed and kicks off deploy.yml.
+#
+# NOTE: a push made with the default GITHUB_TOKEN does NOT trigger other workflows
+# (GitHub's recursion guard), so the "Deploy" step below dispatches deploy.yml
+# explicitly via the API. That needs `actions: write`.
 
 on:
   schedule:
@@ -11,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: refresh-park-data
@@ -32,13 +37,22 @@ jobs:
         run: node build-parks.js
 
       - name: Commit regenerated files
+        id: commit
         run: |
           git config user.name  "parkstatus-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add public_html/park public_html/parks-enriched.json public_html/parks.json public_html/sitemap.xml
           if git diff --cached --quiet; then
             echo "No changes to commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             git commit -m "chore: refresh park data ($(date -u +%Y-%m-%d))"
             git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Deploy to Hostinger
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run deploy.yml --ref main
