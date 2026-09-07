@@ -4,11 +4,22 @@
 
 Park Status Today is an independent informational service, not affiliated with the National Park Service or any state or county agency. Each status is our reading of public data, not an official determination, and is refreshed hourly. Every park page and beach-county page states the current status as plain text with the UTC time it was last checked, and carries schema.org structured data (TouristAttraction / Park, FAQPage with a dated answer, and — where known — openingHoursSpecification).
 
-Coverage as of September 4, 2026: 474 National Park Service units, 814 state parks, and 358 monitored New York beaches across 15 counties. Site-wide that is 1236 open, 284 partially closed, 37 closed, 89 without data.
+Coverage as of September 7, 2026: 474 National Park Service units, 814 state parks, and 358 monitored New York beaches across 15 counties. Site-wide that is 1212 open, 271 partially closed, 74 closed, 89 without data.
 
 ## Parks
 - [All park & waterway statuses, A–Z](https://parkstatus.today/park/): browsable directory of every national and state park tracked, each linking to a status + visitor-info page at https://parkstatus.today/park/<slug>/
 - [Full sitemap](https://parkstatus.today/sitemap.xml): every page on the site
+
+## Roads
+- [Park road status](https://parkstatus.today/road/): seasonal opening/closing dates and live closure status for major national-park roads, each at https://parkstatus.today/road/<slug>/
+- [Is Bear Lake Road open?](https://parkstatus.today/road/bear-lake-road/)
+- [Is Blue Ridge Parkway open?](https://parkstatus.today/road/blue-ridge-parkway/)
+- [Is Skyline Drive open?](https://parkstatus.today/road/skyline-drive/)
+- [Is Hurricane Ridge Road open?](https://parkstatus.today/road/hurricane-ridge-road/)
+- [Is Going-to-the-Sun Road open?](https://parkstatus.today/road/going-to-the-sun-road/)
+- [Is Trail Ridge Road open?](https://parkstatus.today/road/trail-ridge-road/)
+- [Is Tioga Road open?](https://parkstatus.today/road/tioga-road/)
+- [Is Beartooth Highway open?](https://parkstatus.today/road/beartooth-highway/)
 
 ## Beaches
 - [Beach water quality & closures by county](https://parkstatus.today/beach/): New York public beaches grouped by county, with current swimming advisories and closures at https://parkstatus.today/beach/<county>/

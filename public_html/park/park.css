@@ -104,3 +104,19 @@ footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;le
 .hubgrid a:hover{border-color:var(--navy)}
 .hubgrid .t{font-weight:bold;margin-bottom:4px}
 .hubgrid .m{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+
+/* road-status pages (additive) */
+.road-window{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:18px 0;background:var(--card)}
+.road-window h2{margin-top:0}
+.road-window .src{font-size:12px;color:var(--muted);margin:10px 0 0}
+.road-hist{border-collapse:collapse;font-size:14px;margin-top:10px}
+.road-hist th,.road-hist td{text-align:left;padding:3px 20px 3px 0;color:var(--muted)}
+.road-hist th{color:var(--ink);font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.road-parent-status{font-size:13px;color:var(--muted);margin:6px 0 0}
+.roads-in-park{margin:22px 0}
+.roads-in-park ul{margin:8px 0 0;padding-left:18px}
+.roads-in-park li{margin:4px 0}
+.road-group{margin:22px 0}
+.road-group h2{font-size:19px;margin:0 0 8px;letter-spacing:-.5px}
+.road-group h2 a{color:inherit;text-decoration:none}
+.road-group .plist li .st{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:8px}
