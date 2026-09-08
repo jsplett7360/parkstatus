@@ -13,13 +13,13 @@ plan and stop. The next "complete next step" = implement the approved plan.
 | # | Item | Status | Added | Done / commit |
 | --- | --- | --- | --- | --- |
 | 1 | Finish road-status first cut (deploy fix + 6 seasonal roads) | DONE — published GTTS/Trail Ridge/Tioga/Beartooth; Glacier Point + Old Fall River held | 2026-09-07 | 2026-09-07, see `git log` |
-| 2 | Mobile map: scroll-trap + height (leaflet-gesture-handling) | DONE — vendored 1.2.2 (not on cdnjs), `pointer:coarse` gate, `.mapframe` 52vh on phones; committed, not pushed | 2026-09-07 | 2026-09-08, `git log` |
-| 3 | park.css typography reconciliation to half-mast tokens | BACKLOG | 2026-09-07 | — |
-| 4 | Road pages follow-up: remaining ~15–20 roads + BRP ArcGIS feed | BACKLOG | 2026-09-07 | — |
+| 2 | Mobile map: scroll-trap + height (leaflet-gesture-handling) | DONE — vendored 1.2.2 (not on cdnjs), `pointer:coarse` gate, `.mapframe` 52vh on phones | 2026-09-07 | 2026-09-08 `082db6f4` (pushed, deploying) |
+| 3 | park.css typography reconciliation to half-mast tokens | READY | 2026-09-08 | — |
+| 4 | Road pages follow-up: remaining ~15–20 roads + BRP ArcGIS feed | READY | 2026-09-08 | — |
 | 5 | App "watch a road for reopening" + Worker `/roads` endpoint | BACKLOG | 2026-09-07 | — |
 | 6 | `/shutdown/` live hub (Worker auto-detect + generated page + NPS park section) | READY | 2026-09-08 | — |
-| 7 | Timed-entry index page + per-park sections | BACKLOG | 2026-09-07 | — |
-| 8 | Seasonal guides (fee-free days, holiday hours, most-visited, open-in-winter) | BACKLOG | 2026-09-07 | — |
+| 7 | Timed-entry index page + per-park sections | READY | 2026-09-08 | — |
+| 8 | Seasonal guides (fee-free days, holiday hours, most-visited, open-in-winter) | READY | 2026-09-08 | — |
 
 Backlog items are one-liners until the prompt-engineer promotes one to READY with a full
 block below.
@@ -346,4 +346,344 @@ Before reporting done:
 5. No unrelated file changed. refresh-park-data.yml `git add` change is proposed, not
    applied (unless approved).
 6. PROGRESS.md + BUILDER-PROMPTS.md updated and consistent with git.
+</self_check>
+
+---
+
+## Item 3 — park.css typography reconciliation
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Front-end / generator engineer. Rebase on
+origin/main first.
+</role>
+
+<task>
+Bring the `PARK_CSS` template string in build-parks.js onto the same half-mast typography
+token system that `index.html` adopted in commit `f286fcd1`, calibrated so current
+park-page desktop rendering is visually unchanged.
+</task>
+
+<why>
+`index.html` runs on the half-mast token system (fluid `clamp()`, tight display
+tracking, real 580px breakpoint); `park/park.css` still has ad-hoc values. Same "system,
+not scale" goal from the homepage job — this is the pending follow-up noted in that
+commit. park.css also styles `/road/` pages, `/park/` directory, and beach hubs, so all
+of those benefit.
+</why>
+
+<context>
+- `park/park.css` is generated from `PARK_CSS` (build-parks.js ~693). It already uses
+  `font-weight:900` (not the homepage's 950), a `--font-display` stack that adds
+  `"Arial Narrow"`, and a fluid `h1{clamp(30px,5.5vw,50px);letter-spacing:-2px;
+  line-height:.96}` — it is ALREADY closer to half-mast than the old homepage was. This
+  is a reconciliation, not a port.
+- The homepage tokens (from `f286fcd1`, inline in index.html's `<style>`): fluid type
+  scale, `--tracking-*` ~ -2px/-3px, display leading ~.84–.96, `@media(max-width:580px)`
+  overrides; body stays ~14.5/16px on purpose.
+- Item 6 (`/shutdown/`) also ADDS to `PARK_CSS`. Whichever lands first, the other rebases
+  and re-checks the merge.
+</context>
+
+<constraints>
+- Zero new deps. Only ADD/adjust within `PARK_CSS`; do not restructure it.
+- Calibrate token VALUES so park-page + road-page + directory + beach-hub DESKTOP
+  rendering is visually unchanged at ~1280px. The payoff is clean scaling down to 375px,
+  not bigger headings.
+- Body copy on park pages keeps its current sizes (`.reason` 15, `article p` 16, etc.) —
+  deliberate divergence, same as the homepage. Comment it.
+- parks-enriched.json / parks.json byte-identical (this only changes park.css output).
+- NO web fonts. Never fabricate test results.
+- Plan-first.
+</constraints>
+
+<reference_material>
+- build-parks.js `PARK_CSS`; index.html's `<style>` token block + the `@media(max-width:580px)`
+  block (the reference implementation); commit `f286fcd1`.
+</reference_material>
+
+<process>
+1. <thinking>: list the PARK_CSS selectors that get token-ified vs. left alone; note the
+   580 vs. existing-breakpoint decision; note the Item 6 merge risk.
+2. Decide and justify: (a) replicate the homepage token NAMES + calibrated values inside
+   PARK_CSS with a comment pointing at index.html as the reference (no shared file
+   without a build step), or a tiny shared snippet; (b) keep park.css display at
+   `900` + `"Arial Narrow"` (denser park-page look) or unify to `950`; (c) adopt
+   `@media(max-width:580px)` or keep park.css's existing breakpoints and add 580 for
+   type only.
+3. Before/after table: every PARK_CSS selector touched → old value → new token → computed
+   px at 1280 and at 375, showing desktop ~unchanged.
+4. STOP for approval.
+5. Implement. Run build-parks.js if `NPS_API_KEY` is available; otherwise diff `park.css`
+   output via the harness pattern and say so.
+6. Update PROGRESS.md + this file.
+</process>
+
+<output_format>
+Plan + before/after table first. Then edited `PARK_CSS` in build-parks.js + regenerated
+`park/park.css` + a change summary + a note on how `/road/` and beach-hub pages look at
+375px.
+</output_format>
+
+<self_check>
+1. Constraints met (list, check each).
+2. Desktop park/road/directory/beach-hub rendering visually unchanged (state how verified).
+3. parks-enriched.json / parks.json byte-identical.
+4. Only build-parks.js (PARK_CSS) + park/park.css changed.
+5. Coordination files updated, consistent with git.
+</self_check>
+
+---
+
+## Item 4 — Road pages follow-up (remaining roads + BRP feed)
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Build engineer extending a shipped feature.
+Rebase on origin/main first.
+</role>
+
+<task>
+Add the next ~15 seasonal park roads to `roads.json` and the `/road/` generator (same
+schema, same two-phase date verification as Item 1), and resolve whether Blue Ridge
+Parkway gets a live ArcGIS closure feed.
+</task>
+
+<why>
+Item 1 shipped 8 road pages (4 year-round + Going-to-the-Sun, Trail Ridge, Tioga,
+Beartooth). The `/road/` cluster is SEO Priority 1 with weak competition; more sourced
+road pages = more of that intent captured and more non-duplicate content for indexation.
+</why>
+
+<context>
+- Generator is done: `roadPageHtml`/`roadIndexHtml`/`roadStatus()`/`npsAlerts()` Tier B,
+  the `published = roads.filter(r => r.datesReviewed === true)` filter in `main()`, the
+  "Roads in this park" reverse index. `roads.json` schema is settled (name, parentIds[],
+  statusUrl, designation, blurb, seasonal, accessNote, typicalOpen/Close, history[] with
+  per-row source, datesReviewed, isScenicDrive, reservationRef).
+- `.github/workflows/refresh-park-data.yml` already `git add`s `public_html/road` +
+  `public_html/llms.txt`.
+- Candidate roads (finalize ~15 by search volume; confirm entity ids against parks.json):
+  Old Fall River Rd + Glacier Point Rd (held from Item 1 — backfill dates), Clingmans
+  Dome Rd (grsm), Mariposa Grove Rd (yose), Yellowstone road system incl. Dunraven /
+  Sylvan Pass (yell), Paradise Rd + Stevens Canyon Rd + Chinook Pass SR-410 (mora),
+  Moose-Wilson Rd + Teton Park Rd (grte), Kolob Canyons Rd + Zion Canyon Scenic Dr
+  (zion), Generals Hwy + Mineral King Rd + Kings Canyon Scenic Byway CA-180 (seki),
+  AZ-67 / North Rim + Cape Royal Rd (grca), Denali Park Rd (dena), Badwater Rd + Artists
+  Dr (deva), Chisos Basin Rd (bibe), Cadillac Summit Rd + Park Loop Rd (acad — Cadillac
+  also in reservations.json, set reservationRef), Newfound Gap Rd US-441 (grsm,
+  year-round).
+</context>
+
+<constraints>
+- No schema change to `roads.json`. No generator LOGIC change unless a bug surfaces
+  (then stop and flag it separately).
+- Every `history` row needs a source. Do NOT invent a date — a road that can't be
+  sourced to >=3 year-tagged opening dates ships `datesReviewed:false` (staged, not
+  published), same rule as Item 1.
+- BRP feed pass/fail bar: test the ACTUAL ArcGIS endpoint
+  (`.../query?f=json&where=1=1`). If it returns JSON without auth, integrate it for
+  blue-ridge-parkway as a keyless server-side fetch (the `FS_BOUNDARIES` pattern in
+  build-parks.js). If it's only an embedded web map with no clean endpoint, BRP stays
+  Tier C — state that explicitly, defer.
+- parks-enriched.json / parks.json byte-identical.
+- Never fabricate dates, sources, or test results. Plan-first.
+</constraints>
+
+<reference_material>
+- `roads.json`, build-parks.js road functions, PROGRESS.md's Item 1 entry (the sourcing
+  standard + the 4 published rows' format), nps.gov per-park road-status pages, Mono
+  Basin Research Center (Tioga/Glacier Point history).
+</reference_material>
+
+<process>
+1. <thinking>: the ~15 finalized roads + why; the BRP endpoint test plan; risk of a
+   wrong "typically opens" date.
+2. Research each road: `typicalOpen`/`typicalClose` + 3–5 sourced `history` rows.
+   Present as a table per road. DO NOT flip `datesReviewed` yet.
+3. Run the BRP `/query?f=json` test; report the result.
+4. STOP and ask the user to confirm the date tables (per PROJECT-CONTEXT, the user
+   reviews date rows). Flip `datesReviewed:true` only on approved rows.
+5. Add the rows to `roads.json`. If BRP passed, wire its feed into `roadStatus()`.
+6. Run build-parks.js if `NPS_API_KEY` available; else the harness path, and say so.
+   Confirm `/road/` index groups the new roads, JSON-LD valid, parks-enriched/parks.json
+   byte-identical.
+7. Commit. Ships via the daily cron.
+8. Update PROGRESS.md + this file.
+</process>
+
+<output_format>
+Per-road sourced-date tables + the BRP test result first (no code). Then `roads.json`
+rows + any `roadStatus()` BRP wiring + regenerated `/road/**` + a change summary.
+</output_format>
+
+<self_check>
+1. Constraints met (list, check each).
+2. Every `history` row has a source; no unsourced row published; held rows stay
+   `datesReviewed:false`.
+3. BRP: either a working `/query` URL integrated, or an explicit "no endpoint, Tier C".
+4. parks-enriched.json / parks.json byte-identical.
+5. Only roads.json / build-parks.js (if BRP) / generated road pages changed.
+6. Coordination files updated, consistent with git.
+</self_check>
+
+---
+
+## Item 7 — Timed-entry / reservations index page
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Generator engineer. Rebase on origin/main first.
+</role>
+
+<task>
+Add a generated `/reservations/` index page, built by build-parks.js from
+`reservations.json`, covering which national parks require a timed-entry / vehicle
+reservation and which dropped it for 2026.
+</task>
+
+<why>
+SEO: "national park reservations" (3,600, KD 83) and "[park] reservations" are
+commercial-SERP-dominated, but the winnable slice is the fresh, structured
+"which parks require reservations in 2026 / [park] timed entry 2026" intent. Per-park
+reservation blocks + FAQ already shipped (`0b9a65e7`); this is the hub that ties them
+together and targets the list query. Don't over-invest — one clean annually-refreshed
+page.
+</why>
+
+<context>
+- `reservations.json` (repo root): 6 parks, keyed by entity id, verified for 2026
+  (season, what's covered, booking URL, one-line summary), with a `_note` to re-verify
+  each spring. Arches / Glacier / Mount Rainier / Yosemite are deliberately excluded
+  (dropped timed entry for 2026) — the page should NAME them as "no longer required".
+- Pattern to mirror: `roadIndexHtml()` -> `public_html/road/index.html`. `main()` already
+  reads `reservations.json` (via `RESERVATIONS`).
+- `refresh-park-data.yml` `git add` line currently covers park/road/enriched/parks/
+  sitemap/llms.
+</context>
+
+<constraints>
+- Zero new deps. Generated only from `reservations.json` — no new curated file.
+- Do NOT add `/reservations/` to `siteNav()`; footer + contextual links only.
+- parks-enriched.json / parks.json byte-identical.
+- The plan may PROPOSE adding `public_html/reservations` to the `refresh-park-data.yml`
+  `git add` line; don't apply unprompted.
+- Never touch the "Never touch" list. Plan-first.
+</constraints>
+
+<reference_material>
+- `reservations.json`, build-parks.js `roadIndexHtml` / `RESERVATIONS` usage / `sitemap()`
+  / `llmsTxt()`, the existing per-park reservation block in `pageHtml`.
+</reference_material>
+
+<process>
+1. <thinking>: page structure; JSON-LD; where the "dropped for 2026" list comes from
+   (hardcode the 4 names + link their park pages, with a comment to re-check yearly).
+2. New `reservationsIndexHtml(reservations, updatedISO, tally)` -> public_html/reservations/index.html.
+   Content: intro ("some national parks require a timed-entry or vehicle reservation");
+   a table of the 6 (park link, season, what's covered, "book at" link, summary); a
+   "no longer required in 2026" line for Arches/Glacier/Mount Rainier/Yosemite; a short
+   "how timed entry works / what it doesn't cover (entrance fee still applies)"
+   explainer; JSON-LD BreadcrumbList + FAQPage ("Which national parks require
+   reservations in 2026?", "Do I still pay the entrance fee with a timed-entry ticket?").
+   Link each row to its `/park/<slug>/`.
+3. Wire into `main()`. Add to `sitemap()` (priority ~0.7) + `llmsTxt()`.
+4. Cross-link: the per-park reservation block links to `/reservations/`; `/reservations/`
+   links back to each park.
+5. PROPOSE the `git add` line change.
+6. STOP for approval.
+7. Implement; run build (or harness); confirm JSON-LD valid, sitemap has it, byte-identical.
+8. Update PROGRESS.md + this file.
+</process>
+
+<output_format>
+Plan first. Then `reservationsIndexHtml` + `main()` wiring + sitemap/llms + the
+generated page + a change summary + the proposed workflow line.
+</output_format>
+
+<self_check>
+1. Constraints met (list, check each).
+2. Page renders from reservations.json alone; the 4 "dropped" parks are named + linked.
+3. JSON-LD valid; sitemap + llms include /reservations/.
+4. parks-enriched.json / parks.json byte-identical.
+5. Only build-parks.js + the generated page (+ proposed workflow line) changed.
+6. Coordination files updated, consistent with git.
+</self_check>
+
+---
+
+## Item 8 — Seasonal guide articles
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Technical writer + front-end. Rebase on
+origin/main first.
+</role>
+
+<task>
+Write four flat guide articles in `public_html/guides/`, matching the existing guide
+template: (1) National park free days 2026, (2) Are national parks open on holidays?,
+(3) The most visited national parks, (4) National parks open in winter / year-round.
+</task>
+
+<why>
+Low-effort, publish-and-refresh SEO. Demand: "free national park days" 1,600 (KD 44),
+"national park free days 2026" 480, "most visited national parks" 2,900 (KD 41),
+"are national parks open on christmas/thanksgiving" ~140 each (KD 24–30, seasonal),
+"national parks open in winter". Internal links from these to park pages also help
+indexation.
+</why>
+
+<context>
+- Existing guides: `public_html/guides/*.html` (flat files) + `guides/index.html` +
+  `guides.css`. Follow that structure exactly (header/nav/footer, `#shutdown-banner`,
+  dated FAQ JSON-LD, `guides.css` classes). See `why-national-parks-close.html` and
+  `national-parks-government-shutdown.html` as templates.
+- `guides/index.html` lists the guides; `build-parks.js` `sitemap()` + `llmsTxt()`
+  hardcode the guide URLs — new guides must be added to all three.
+- Facts that need verification before publish: the 2026 fee-free dates (10 of them), the
+  2025 NPS visitation ranking numbers.
+</context>
+
+<constraints>
+- Flat hand-authored HTML, same shape as the existing guides. No generator changes for
+  v1 (note in the plan which of these — fee-free days, most-visited — would be worth
+  converting to generated later so they auto-refresh).
+- No web fonts; reuse `guides.css`. Vanilla only.
+- Every factual claim (dates, visitation numbers, fee amounts) must be sourced. Present
+  the fee-free date list and the visitation numbers as a table for the user to confirm
+  BEFORE publishing — do not ship an unverified date.
+- Each guide: cross-links to relevant `/park/<slug>/` pages and the map; dated FAQ
+  JSON-LD; added to `guides/index.html`, `sitemap()`, `llmsTxt()`.
+- Never fabricate a date, number, or citation. Plan-first.
+</constraints>
+
+<reference_material>
+- `public_html/guides/why-national-parks-close.html` (structure), `guides.css`,
+  build-parks.js `sitemap()` + `llmsTxt()` guide lists, nps.gov fee-free-days page,
+  nps.gov visitation stats (irma.nps.gov) for the 2025 ranking.
+</reference_material>
+
+<process>
+1. <thinking>: the four filenames/slugs; the shared template skeleton; which facts need
+   sourcing.
+2. Research + present for approval: the 10 fee-free 2026 dates (with source) and the
+   2025 most-visited ranking (top ~15, with visitation numbers + source). STOP here.
+3. On approval: draft all four articles against the existing template. Each ~500–900
+   words, an FAQ block, internal links, JSON-LD.
+4. Add all four to `guides/index.html`, `sitemap()`, `llmsTxt()`.
+5. STOP and present the drafts for review before they count as done.
+6. On approval: finalize. Ships via push (guides are in `public_html/`) — confirm with
+   the user whether to push or wait for the cron.
+7. Update PROGRESS.md + this file.
+</process>
+
+<output_format>
+Sourced fact tables first (fee-free dates, visitation). Then four `.html` files +
+updated `guides/index.html` + `sitemap()`/`llmsTxt()` edits + a summary.
+</output_format>
+
+<self_check>
+1. Constraints met (list, check each).
+2. Every date / number / fee is sourced and user-confirmed; nothing fabricated.
+3. All four guides use `guides.css` + the existing structure; JSON-LD valid.
+4. Added to guides/index.html + sitemap + llms.
+5. Only `public_html/guides/**` + build-parks.js (guide lists) changed.
+6. Coordination files updated, consistent with git.
 </self_check>

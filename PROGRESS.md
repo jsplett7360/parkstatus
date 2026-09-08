@@ -9,7 +9,7 @@ with git, git wins and the discrepancy gets flagged.
 | Area | State (2026-09-07) |
 | --- | --- |
 | Static site (index.html) | Notifications unified into one Alerts panel; typography on half-mast token system |
-| Mobile map | **DONE** (committed, not pushed) — `leaflet-gesture-handling` 1.2.2 (vendored) on `pointer:coarse`; `.mapframe` `52vh` on phones. |
+| Mobile map | **DONE + deployed** (`082db6f4`) — `leaflet-gesture-handling` 1.2.2 (vendored) on `pointer:coarse`; `.mapframe` `52vh` on phones. |
 | Park pages (build-parks.js) | Entrance fee + reservation block + 4-entry FAQ + `isAccessibleForFree` live |
 | Road pages (`/road/`) | **First cut complete** — 8 published: 4 year-round + Going-to-the-Sun, Trail Ridge, Tioga, Beartooth. Glacier Point + Old Fall River still staged (`datesReviewed:false`). `public_html/road/` generates + deploys on the next daily refresh. |
 | CI / deploy | `refresh-park-data.yml` dispatches `deploy.yml` AND now `git add`s `public_html/road` + `public_html/llms.txt` |
