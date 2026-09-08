@@ -41,7 +41,7 @@ jobs:
         run: |
           git config user.name  "parkstatus-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public_html/park public_html/road public_html/parks-enriched.json public_html/parks.json public_html/sitemap.xml public_html/llms.txt
+          git add public_html/park public_html/road public_html/shutdown public_html/parks-enriched.json public_html/parks.json public_html/sitemap.xml public_html/llms.txt
           if git diff --cached --quiet; then
             echo "No changes to commit."
             echo "changed=false" >> "$GITHUB_OUTPUT"
