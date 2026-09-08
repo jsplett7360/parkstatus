@@ -13,7 +13,7 @@ with git, git wins and the discrepancy gets flagged.
 | Park pages (build-parks.js) | Entrance fee + reservation block + 4-entry FAQ + `isAccessibleForFree` live |
 | Road pages (`/road/`) | **First cut complete** — 8 published: 4 year-round + Going-to-the-Sun, Trail Ridge, Tioga, Beartooth. Glacier Point + Old Fall River still staged (`datesReviewed:false`). `public_html/road/` generates + deploys on the next daily refresh. |
 | CI / deploy | `refresh-park-data.yml` dispatches `deploy.yml` AND now `git add`s `public_html/road` + `public_html/llms.txt` |
-| Worker | `/push/unsubscribe` (notifications); `detectShutdown()` + blob `shutdown` object + `/shutdown-override` route (Item 6, committed, not pushed) |
+| Worker | `/push/unsubscribe` (notifications); `detectShutdown()` + blob `shutdown` object + `/shutdown-override` route (Item 6, shipped `b0388615`) |
 | iOS app | Capacitor wrapper; CI ship on `ios-v*` tag working. No pending app task. |
 | Prompt-engineer / builder workflow | Set up this session (`.claude/` + coordination files) |
 
