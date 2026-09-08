@@ -12,13 +12,48 @@ with git, git wins and the discrepancy gets flagged.
 | Park/road/dir/beach CSS (`PARK_CSS`) | On the same half-mast type token system as `index.html` — `:root` tokens + `@media(max-width:580px)` tracking loosen; desktop unchanged (Item 3) |
 | Mobile map | **DONE + deployed** (`082db6f4`) — `leaflet-gesture-handling` 1.2.2 (vendored) on `pointer:coarse`; `.mapframe` `52vh` on phones. |
 | Park pages (build-parks.js) | Entrance fee + reservation block + 4-entry FAQ + `isAccessibleForFree` live |
-| Road pages (`/road/`) | **First cut complete** — 8 published: 4 year-round + Going-to-the-Sun, Trail Ridge, Tioga, Beartooth. Glacier Point + Old Fall River still staged (`datesReviewed:false`). `public_html/road/` generates + deploys on the next daily refresh. |
+| Road pages (`/road/`) | **21 published** — Item 1's 8 + Old Fall River & Glacier Point (backfilled) + 11 from Item 4 (Newfound Gap, Kuwohi/Clingmans Dome, Road to Paradise, Chinook Pass SR-410, Teton Park Rd, Moose-Wilson Rd, SR-67 North Rim, Generals Hwy, Kings Canyon Scenic Byway, Denali Park Rd, Park Loop Rd). 2 staged (`datesReviewed:false`): stevens-canyon-road, mineral-king-road. Regenerates + deploys on the next daily refresh. |
 | CI / deploy | `refresh-park-data.yml` dispatches `deploy.yml` AND now `git add`s `public_html/road` + `public_html/llms.txt` |
 | Worker | `/push/unsubscribe` (notifications); `detectShutdown()` + blob `shutdown` object + `/shutdown-override` route (Item 6, shipped `b0388615`) |
 | iOS app | Capacitor wrapper; CI ship on `ios-v*` tag working. No pending app task. |
 | Prompt-engineer / builder workflow | Set up this session (`.claude/` + coordination files) |
 
 ## Log
+
+### 2026-09-08 — Item 4 DONE: +13 road rows (11 published, 2 staged); BRP stays Tier C
+
+- **roads.json**: added 13 rows (schema unchanged). Published (`datesReviewed:true`, 11):
+  `newfound-gap-road` (US-441, year-round), `clingmans-dome-road` (filed "Kuwohi Road
+  (Clingmans Dome Road)"; fixed Dec 1–Mar 31 closure), `paradise-road` (Longmire–Paradise,
+  year-round, nightly gate), `chinook-pass-sr-410` (WSDOT history 2019–2026; 2024 washout
+  noted), `teton-park-road` (fixed Nov 1–Apr 30), `moose-wilson-road`, `az-67-north-rim-road`
+  (SR-67; ADOT gate dates + 2025 Dragon Bravo Fire aftermath in accessNote),
+  `generals-highway` (CA-198, year-round), `kings-canyon-scenic-byway` (CA-180; 2023
+  flood/2024-late anomalies in history rows), `denali-park-road` (Pretty Rocks bridge
+  completed Sep 2026 — phased 2026 hiker / 2027 bus in accessNote), `park-loop-road`
+  (fixed Dec 1–Apr 15; 2023–25 all Apr 15). Staged (`datesReviewed:false`, 2):
+  `stevens-canyon-road` (only 1 clean sourced year after a 2-yr rehab),
+  `mineral-king-road` (2025–2027 rehab disrupts the normal Wed-before-Memorial-Day →
+  last-Wed-of-October schedule).
+- **Old Fall River Rd** + **Glacier Point Rd**: were staged from Item 1 — backfilled with
+  sourced opening dates (OFR: NPS RMNP releases 2019/21/23/24/25; GPR: NPS Yosemite's
+  official 1970–2025 road-opening dataset) and flipped to `datesReviewed:true`.
+- Every `history` row carries a source; every stated date is sourced (no per-year date
+  invented — AZ-67 keeps `history:[]` with sourced ADOT gate dates in the accessNote
+  rather than guessing openings).
+- **Blue Ridge Parkway ArcGIS feed**: tested. No NPS-owned keyless Feature Service
+  (`mapservices.nps.gov` has no roads layer; `arcgis.com` only third-party layers;
+  `nps.gov/blri/planyourvisit/roadclosures.htm` has no embed). BRP stays **Tier C**.
+  Deferred as 4b: the `roadclosures.htm` page renders a server-side per-milepost status
+  table with a timestamp — a Worker-side scrape candidate in the `detectShutdown()` mold,
+  which is a generator/Worker change out of scope here.
+- No generator logic change. `parks-enriched.json` / `parks.json` untouched (only
+  `roads.json` in `git diff`). Regeneration of `public_html/road/**` happens in the daily
+  `refresh-park-data.yml` run (real NPS key; its `git add` already covers `public_html/road`).
+- Verified via a local module harness (require build-parks.js with `main()` stubbed):
+  all 21 published road pages render, every `ld+json` block parses, all 21 group under
+  their parent park in `/road/` index (+ "Other scenic roads" for Beartooth), the
+  Yosemite park page's "Roads in this park" block lists Glacier Point + Tioga.
 
 ### 2026-09-08 — Item 3 DONE: `PARK_CSS` typography reconciliation
 
