@@ -1163,7 +1163,43 @@ const PARK_CSS = `/* Park Status — per-park + directory pages. half-mast.com v
 --open:#14785d;--open-tint:#e7f7f1;--partial:#9a6a0f;--partial-bright:#f2bd54;--partial-tint:#fff7e5;
 --closed:#ee263b;--closed-tint:#fdebed;--nodata:#5a6472;--nodata-tint:#eef0f3;
 --font-display:"Arial Black",Impact,"Arial Narrow",Arial,sans-serif;--font-sans:Arial,Helvetica,sans-serif;
---font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+--font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+/* Type system — same token technique as index.html's <style> (commit f286fcd1),
+   calibrated to these pages' OWN current desktop sizes: every token's max/fixed
+   value equals today's ~1280px rendering, so park / road / directory / beach-hub
+   pages look unchanged on desktop. Fluid roles scale DOWN toward 375px; the
+   max-width:580px block below loosens display tracking for phone-size headings
+   (half-mast's tighter numbers are tuned for its much larger mobile headings).
+   Body copy (article p 16, .reason/.vi 15, tables 14, .plist 14) deliberately
+   keeps its px sizes and is NOT tokenised — same call the homepage made. */
+--type-hero:       clamp(30px,5.5vw,50px); /* h1 */
+--type-verdict:    clamp(19px,3.2vw,26px); /* .verdict .line */
+--type-section:    24px;                   /* article h2, .visitor h2 */
+--type-subsection: 22px;                   /* .related h2 */
+--type-road-group: 19px;                   /* .road-group h2 */
+--type-card-title: 17px;                   /* .gcard .t */
+--type-note-title: 16px;                   /* .shutdown-note h2 */
+--type-wordmark:   22px;                   /* .wordmark */
+--tracking-hero:      -2px;
+--tracking-verdict:   -.8px;
+--tracking-section:   -1.2px;
+--tracking-subsection:-1px;
+--tracking-card:      -.6px;
+--tracking-wordmark:  -1.4px;
+--tracking-tight:     -.5px;   /* .road-group h2, #shutdown-banner strong */
+--tracking-note:      -.3px;   /* .shutdown-note h2 */
+--leading-hero:    .96;
+--leading-verdict: 1.15;
+--leading-title:   1.1}
+@media(max-width:580px){:root{
+--tracking-hero:      -1.1px;
+--tracking-verdict:   -.4px;
+--tracking-section:   -.6px;
+--tracking-subsection:-.5px;
+--tracking-card:      -.3px;
+--tracking-wordmark:  -.8px;
+--tracking-tight:     -.3px;
+}}
 *{box-sizing:border-box}html{scroll-behavior:smooth}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-sans);line-height:1.7;-webkit-font-smoothing:antialiased;border-top:4px solid var(--closed)}
 .wrap{max-width:820px;margin:0 auto;padding:0 22px}
@@ -1172,7 +1208,7 @@ header.site{border-bottom:1px solid var(--line);background:var(--paper)}
 header.site .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 22px;max-width:1080px}
 nav.site a{font-size:13px;text-decoration:none;color:var(--muted);margin-left:17px}
 nav.site a:hover{color:var(--ink)}
-.wordmark{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-display);font-weight:900;font-size:22px;letter-spacing:-1.4px;color:var(--ink);text-decoration:none;line-height:1}
+.wordmark{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-display);font-weight:900;font-size:var(--type-wordmark);letter-spacing:var(--tracking-wordmark);color:var(--ink);text-decoration:none;line-height:1}
 .flag-mark{display:inline-flex!important;flex-direction:column;width:25px;height:16px;border-radius:2px;position:relative;overflow:hidden;box-shadow:0 0 0 1px #0b1b3524}
 .flag-mark::before{content:"";position:absolute;inset:0 auto auto 0;width:11px;height:8px;background:#385994;z-index:2}
 .flag-mark i{display:block;width:100%;height:5.3px;background:#ee263b}.flag-mark i:nth-child(2){background:#fff}
@@ -1186,7 +1222,7 @@ nav.site a:hover{color:var(--ink)}
 .strip .upd{margin-left:auto;opacity:.72}.strip a{color:#fff;font-weight:bold}
 .crumbs{font-family:var(--font-mono);font-size:12px;color:var(--muted);padding-top:22px}
 .crumbs a{color:var(--muted)}
-h1{font-family:var(--font-display);font-weight:900;letter-spacing:-2px;line-height:.96;font-size:clamp(30px,5.5vw,50px);margin:18px 0 10px}
+h1{font-family:var(--font-display);font-weight:900;letter-spacing:var(--tracking-hero);line-height:var(--leading-hero);font-size:var(--type-hero);margin:18px 0 10px}
 .sub{font-family:var(--font-mono);font-size:12.5px;color:var(--muted);margin:0 0 22px;text-transform:uppercase;letter-spacing:.08em}
 .verdict{border:1px solid var(--line);border-left:5px solid var(--navy);background:var(--card);border-radius:14px;padding:20px 20px 16px;margin:0 0 20px}
 .verdict.open{border-left-color:var(--open);background:var(--open-tint)}
@@ -1195,7 +1231,7 @@ h1{font-family:var(--font-display);font-weight:900;letter-spacing:-2px;line-heig
 .verdict.nodata{border-left-color:var(--nodata);background:var(--nodata-tint)}
 .pill{display:inline-flex;align-items:center;font-family:var(--font-mono);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:6px 11px;border-radius:20px;color:#fff}
 .pill.open{background:var(--open)}.pill.partial{background:var(--partial)}.pill.closed{background:var(--closed)}.pill.nodata{background:var(--nodata)}
-.verdict .line{font-family:var(--font-display);font-weight:900;letter-spacing:-.8px;font-size:clamp(19px,3.2vw,26px);line-height:1.15;margin:12px 0 12px}
+.verdict .line{font-family:var(--font-display);font-weight:900;letter-spacing:var(--tracking-verdict);font-size:var(--type-verdict);line-height:var(--leading-verdict);margin:12px 0 12px}
 .reason{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 13px;font-size:15px;margin:0 0 12px}
 .reason .rlab{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px}
 .checked{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin:6px 0 0}
@@ -1205,10 +1241,11 @@ h1{font-family:var(--font-display);font-weight:900;letter-spacing:-2px;line-heig
 .btn.ghost{background:#fff;color:var(--navy);border-color:var(--line)}.btn.ghost:hover{border-color:var(--navy)}
 .hero-photo{display:block;width:100%;aspect-ratio:40/17;max-height:340px;object-fit:cover;border-radius:14px;border:1px solid var(--line);margin:0 0 8px}
 article{padding:6px 0 4px}
-article h2{font-family:var(--font-display);font-weight:900;letter-spacing:-1.2px;font-size:24px;margin:26px 0 10px}
+article h2{font-family:var(--font-display);font-weight:900;letter-spacing:var(--tracking-section);font-size:var(--type-section);margin:26px 0 10px}
+/* body copy: literal px on purpose, NOT tokenised (see :root note) */
 article p{font-size:16px;margin:0 0 14px}
 .visitor{border-top:1px solid var(--line);margin-top:22px;padding-top:6px}
-.visitor h2{font-family:var(--font-display);font-weight:900;letter-spacing:-1.2px;font-size:24px;margin:20px 0 12px}
+.visitor h2{font-family:var(--font-display);font-weight:900;letter-spacing:var(--tracking-section);font-size:var(--type-section);margin:20px 0 12px}
 .vi{margin:0 0 14px}
 .vi b{display:block;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
 .vi span,.vi a{font-size:15px}
@@ -1217,12 +1254,12 @@ table.hrs td{padding:2px 14px 2px 0;color:var(--ink)}
 table.hrs td:first-child{color:var(--muted);font-family:var(--font-mono);font-size:12px;width:44px}
 .hn{display:block;font-size:12.5px;color:var(--muted);margin-top:6px}
 .related{border-top:1px solid var(--line);margin-top:26px;padding-top:6px}
-.related h2{font-family:var(--font-display);font-weight:900;letter-spacing:-1px;font-size:22px;margin:18px 0 12px}
+.related h2{font-family:var(--font-display);font-weight:900;letter-spacing:var(--tracking-subsection);font-size:var(--type-subsection);margin:18px 0 12px}
 .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 0 26px}
 @media(max-width:620px){.cards{grid-template-columns:1fr}}
 .gcard{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;text-decoration:none;color:var(--ink);transition:border-color .15s,transform .15s}
 .gcard:hover{border-color:var(--navy);transform:translateY(-2px)}
-.gcard .t{font-family:var(--font-display);font-weight:900;letter-spacing:-.6px;font-size:17px;margin-bottom:5px;line-height:1.1}
+.gcard .t{font-family:var(--font-display);font-weight:900;letter-spacing:var(--tracking-card);font-size:var(--type-card-title);margin-bottom:5px;line-height:var(--leading-title)}
 .gcard .d{font-size:13.5px;color:var(--muted);line-height:1.5}
 .pfilter{width:100%;max-width:420px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:15px;background:#fff;margin:0 0 18px}
 .pfilter:focus{outline:2px solid var(--navy);outline-offset:1px;border-color:var(--navy)}
@@ -1246,7 +1283,7 @@ footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;le
 #shutdown-banner{display:none}
 #shutdown-banner.show{display:block;background:var(--closed);color:#fff}
 #shutdown-banner .sb-in{max-width:1080px;margin:0 auto;padding:11px 22px;font-size:14px}
-#shutdown-banner strong{font-family:var(--font-display);letter-spacing:-.5px;margin-right:6px}
+#shutdown-banner strong{font-family:var(--font-display);letter-spacing:var(--tracking-tight);margin-right:6px}
 #shutdown-banner a{color:#fff;font-weight:bold;text-decoration:underline;white-space:nowrap}
 .blist{list-style:none;margin:0 0 30px;padding:0;display:grid;gap:10px}
 .blist li{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
@@ -1277,13 +1314,13 @@ footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;le
 .roads-in-park ul{margin:8px 0 0;padding-left:18px}
 .roads-in-park li{margin:4px 0}
 .road-group{margin:22px 0}
-.road-group h2{font-size:19px;margin:0 0 8px;letter-spacing:-.5px}
+.road-group h2{font-size:var(--type-road-group);margin:0 0 8px;letter-spacing:var(--tracking-tight)}
 .road-group h2 a{color:inherit;text-decoration:none}
 .road-group .plist li .st{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:8px}
 
 /* government-shutdown note on NPS park pages (additive) */
 .shutdown-note{border:1px solid var(--closed);border-left:5px solid var(--closed);background:var(--closed-tint);border-radius:12px;padding:14px 16px;margin:0 0 22px}
-.shutdown-note h2{margin:0 0 6px;font-size:16px;letter-spacing:-.3px}
+.shutdown-note h2{margin:0 0 6px;font-size:var(--type-note-title);letter-spacing:var(--tracking-note)}
 .shutdown-note p{margin:0;font-size:14px}
 `;
 
