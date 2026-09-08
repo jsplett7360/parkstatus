@@ -19,7 +19,13 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
-### 2026-09-08 — Item 6 DONE: `/shutdown/` live hub — committed, not pushed
+### 2026-09-08 — Item 6 DONE + deployed: `/shutdown/` live hub
+
+- Pushed `b0388615` + `5124a997` (the `git add public_html/shutdown` CI fix). Worker
+  auto-deploys via Cloudflare Git; retitled guide FTP-syncs now; `/shutdown/` page +
+  NPS `#shutdown-note` sections generate on the next daily cron.
+- Post-deploy: verify `shutdown.active` is `false` at the Worker root. `/shutdown-override`
+  route (REBUILD_TOKEN) pins it if the NPS-page scrape ever misfires.
 
 - **worker.js**: `detectShutdown(env, prevRaw)` scrapes the NPS "National Park System
   Operating Status" page hourly in `rebuild()`. Signals: `SD_NO_LAPSE` = "there are no
