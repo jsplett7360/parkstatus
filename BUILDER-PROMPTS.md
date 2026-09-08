@@ -761,7 +761,7 @@ follow + push plumbing that already exists.
   blob-refetch `<script>`), the "Roads in this park" block, `main()` road assembly.
 - index.html: the unified Alerts panel (`ps_follows` / `ps_push_state` handling).
 - app-native.js: `currentScope()` and the `ps_follows` sync.
-</constraints_note_ignore>
+</reference_material>
 
 <process>
 1. <thinking>: enumerate every file touched (worker.js, build-parks.js, index.html,
