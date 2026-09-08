@@ -9,7 +9,7 @@ with git, git wins and the discrepancy gets flagged.
 | Area | State (2026-09-07) |
 | --- | --- |
 | Static site (index.html) | Notifications unified into one Alerts panel; typography on half-mast token system |
-| Mobile map | **Not done** — one-finger scroll trap + `.mapframe` still `74vh`. Planned, not started. |
+| Mobile map | **DONE** (committed, not pushed) — `leaflet-gesture-handling` 1.2.2 (vendored) on `pointer:coarse`; `.mapframe` `52vh` on phones. |
 | Park pages (build-parks.js) | Entrance fee + reservation block + 4-entry FAQ + `isAccessibleForFree` live |
 | Road pages (`/road/`) | **First cut complete** — 8 published: 4 year-round + Going-to-the-Sun, Trail Ridge, Tioga, Beartooth. Glacier Point + Old Fall River still staged (`datesReviewed:false`). `public_html/road/` generates + deploys on the next daily refresh. |
 | CI / deploy | `refresh-park-data.yml` dispatches `deploy.yml` AND now `git add`s `public_html/road` + `public_html/llms.txt` |
@@ -18,6 +18,28 @@ with git, git wins and the discrepancy gets flagged.
 | Prompt-engineer / builder workflow | Set up this session (`.claude/` + coordination files) |
 
 ## Log
+
+### 2026-09-08 — Item 2 DONE: mobile map scroll-trap + height — committed, not pushed
+
+- `.mapframe` gets `height:clamp(300px,52vh,460px)` on `@media(max-width:820px)` —
+  placed AFTER the base rule (a copy inside the earlier `.board` media block lost on
+  source-order specificity; caught in testing).
+- `leaflet-gesture-handling@1.2.2` **vendored** to `public_html/vendor/` (18 KB JS +
+  1 KB CSS) — it is NOT on cdnjs (404 / "Library not found"); jsDelivr was the source.
+  Loaded after `leaflet.min.js`, before markercluster + the inline script.
+- Map init: `gestureHandling: coarse` where `coarse = matchMedia("(pointer:coarse)").matches`.
+  `gestureHandlingOptions.text.touch = "Use two fingers to move the map"`.
+- Desktop (fine pointer) = **unchanged**: `gestureHandling:false` → handler inert;
+  `#zoomhint` + `map.on("click")` scroll-zoom-enable + 6 s auto-kill kept (wrapped in
+  the `else`). On coarse, `#zoomhint` is removed (plugin shows its own overlay) and the
+  click-to-enable is skipped.
+- Tested at 375×812 (Chrome mobile emulation): map height 422 px = 52 % of viewport
+  (was 601 px / 74 %); one-finger drag on the map shows the two-finger warning and does
+  NOT pan (page scroll freed); marker tap opens the detail drawer; markers/clusters
+  render (49). At 1280×860: map back to 74 vh; wheel over the map does not trigger the
+  plugin; click-to-enable-zoom + hint-dismiss still work.
+- Changed: `public_html/index.html`, `public_html/vendor/leaflet-gesture-handling.min.{js,css}` (new),
+  coordination files. **Not pushed** — Item 2 process step: commit only unless told to deploy.
 
 ### 2026-09-07 — Item 1 DONE: road-status first cut finished
 
