@@ -980,9 +980,13 @@ async function rebuild(env, { notify = false } = {}) {
     }
   } catch (_) {}
 
+  const shutdown = await detectShutdown(env, prevRaw).catch(() => ({
+    active: false, since: null, source: "nps-operating-status", summary: "", checkedAt: new Date().toISOString(), stale: true,
+  }));
+
   await env.PARKS_KV.put("status:latest", JSON.stringify({
     updated: new Date().toISOString(),
-    tally, parks: parksOut,
+    tally, parks: parksOut, shutdown,
     beachTally, beaches: beachesOut, beachStale,
     nyParkTally, nyParks: nyParksOut, nyParkStale,
     caParkTally, caParks: caParksOut, caParkStale,
@@ -1364,6 +1368,69 @@ function sanitizeScope(raw) {
   return s;
 }
 
+// ===================== government-shutdown detector =======================
+// Reads the NPS "National Park System Operating Status" page each rebuild and
+// derives the blob's `shutdown` object. Hysteresis: flips ON on a confident
+// lapse phrase; only flips OFF on the explicit "no systemwide alerts or
+// closures" sentence (so a mid-shutdown page rewrite can't silently clear it).
+// A manual override in KV (`shutdown:override`, with an ISO `until`) wins.
+const SHUTDOWN_URL = "https://www.nps.gov/planyourvisit/national-park-system-operating-status.htm";
+const SD_NO_LAPSE = /there are no systemwide alerts or closures/i;
+const SD_LAPSE = /(lapse in appropriations|government shutdown|during (?:a|the) (?:funding )?lapse|federal government is closed|contingency plan for a lapse)/i;
+const SD_MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December";
+
+async function detectShutdown(env, prevRaw) {
+  const now = new Date().toISOString();
+  let prev = null;
+  try { prev = prevRaw ? (JSON.parse(prevRaw).shutdown || null) : null; } catch (_) {}
+
+  // manual override wins until it expires
+  try {
+    const ovRaw = await env.PARKS_KV.get("shutdown:override");
+    if (ovRaw) {
+      const ov = JSON.parse(ovRaw);
+      if (!ov.until || ov.until >= now.slice(0, 10)) {
+        return { active: !!ov.active, since: ov.since || null, source: "manual",
+          summary: ov.note || (ov.active ? "Manually set: a federal shutdown is in effect." : "Manually set: no federal shutdown."),
+          checkedAt: now, stale: false };
+      }
+    }
+  } catch (_) {}
+
+  let text = "";
+  try {
+    const r = await fetch(SHUTDOWN_URL, { headers: { "User-Agent": CRAWL_UA }, cf: { cacheTtl: 900 } });
+    if (r.ok) text = await r.text();
+  } catch (_) {}
+  if (!text || text.length < 500) {
+    return prev
+      ? { ...prev, checkedAt: now, stale: true }
+      : { active: false, since: null, source: "nps-operating-status", summary: "", checkedAt: now, stale: true };
+  }
+
+  const main = (text.match(/<main[\s\S]*?<\/main>/i) || [text])[0]
+    .replace(/<(script|style|nav|header|footer)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&")
+    .replace(/\s+/g, " ").trim();
+
+  const noLapse = SD_NO_LAPSE.test(main);
+  const lapse = SD_LAPSE.test(main) && !noLapse;
+  const active = lapse ? true : noLapse ? false : (prev ? prev.active : false);
+
+  let since = active ? (prev && prev.since) || null : null;
+  if (active) {
+    const dm = main.match(new RegExp("\\b(?:since|beginning|began|effective|as of)\\b[^.]{0,50}?((?:" + SD_MONTHS + ")\\s+\\d{1,2},?\\s+\\d{4})", "i"));
+    if (dm) since = dm[1];
+  }
+  let summary;
+  if (noLapse) summary = "There are no systemwide alerts or closures.";
+  else {
+    const m = main.match(new RegExp("[^.!?]{0,120}(?:" + SD_LAPSE.source + ")[^.!?]{0,180}[.!?]", "i"));
+    summary = ((m && m[0]) || (main.match(/[^.!?]{15,240}[.!?]/) || [main.slice(0, 200)])[0]).trim();
+  }
+  return { active, since, source: "nps-operating-status", summary: summary.slice(0, 220), checkedAt: now, stale: false };
+}
+
 export default {
   async scheduled(event, env, ctx) { ctx.waitUntil(rebuild(env, { notify: true })); },
 
@@ -1373,6 +1440,26 @@ export default {
     const token = url.searchParams.get("token");
 
     if (url.pathname === "/rebuild" && token === env.REBUILD_TOKEN) return json(await rebuild(env, { notify: false }));
+
+    // Manual government-shutdown override. Wins over the NPS-page scrape until `until`.
+    //   /shutdown-override?token=..&active=true|false&note=..&until=YYYY-MM-DD&since=YYYY-MM-DD
+    //   /shutdown-override?token=..&clear=1
+    if (url.pathname === "/shutdown-override" && token === env.REBUILD_TOKEN) {
+      if (url.searchParams.get("clear")) {
+        await env.PARKS_KV.delete("shutdown:override");
+      } else {
+        const until = url.searchParams.get("until") || "";
+        await env.PARKS_KV.put("shutdown:override", JSON.stringify({
+          active: url.searchParams.get("active") === "true",
+          note: (url.searchParams.get("note") || "").slice(0, 240),
+          since: /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("since") || "") ? url.searchParams.get("since") : null,
+          until: /^\d{4}-\d{2}-\d{2}$/.test(until) ? until : null,
+        }));
+      }
+      const r = await rebuild(env, { notify: false });
+      const blob = await env.PARKS_KV.get("status:latest");
+      return json({ ok: true, shutdown: blob ? JSON.parse(blob).shutdown : null, rebuild: r.count });
+    }
 
     // Manual IndexNow ping — submits the hub pages (used for first-time
     // verification and after a bulk site change). /indexnow?token=..

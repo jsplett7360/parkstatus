@@ -13,11 +13,55 @@ with git, git wins and the discrepancy gets flagged.
 | Park pages (build-parks.js) | Entrance fee + reservation block + 4-entry FAQ + `isAccessibleForFree` live |
 | Road pages (`/road/`) | **First cut complete** — 8 published: 4 year-round + Going-to-the-Sun, Trail Ridge, Tioga, Beartooth. Glacier Point + Old Fall River still staged (`datesReviewed:false`). `public_html/road/` generates + deploys on the next daily refresh. |
 | CI / deploy | `refresh-park-data.yml` dispatches `deploy.yml` AND now `git add`s `public_html/road` + `public_html/llms.txt` |
-| Worker | `/push/unsubscribe` added during the notifications work; no other pending change |
+| Worker | `/push/unsubscribe` (notifications); `detectShutdown()` + blob `shutdown` object + `/shutdown-override` route (Item 6, committed, not pushed) |
 | iOS app | Capacitor wrapper; CI ship on `ios-v*` tag working. No pending app task. |
 | Prompt-engineer / builder workflow | Set up this session (`.claude/` + coordination files) |
 
 ## Log
+
+### 2026-09-08 — Item 6 DONE: `/shutdown/` live hub — committed, not pushed
+
+- **worker.js**: `detectShutdown(env, prevRaw)` scrapes the NPS "National Park System
+  Operating Status" page hourly in `rebuild()`. Signals: `SD_NO_LAPSE` = "there are no
+  systemwide alerts or closures" (confident clear), `SD_LAPSE` = lapse-in-appropriations
+  / government-shutdown / contingency-plan phrases (confident active). Hysteresis: flips
+  ON immediately; only flips OFF on the explicit NO_LAPSE sentence; ambiguous page holds
+  the previous state. Fetch fail / `<500` bytes → carry previous `shutdown`, `stale:true`,
+  no flip. Manual override wins: KV `shutdown:override` with an ISO `until`.
+  New blob key `shutdown: { active, since, source, summary, checkedAt, stale }` — additive,
+  no existing field touched.
+- **worker.js**: `GET /shutdown-override?token=REBUILD_TOKEN&active=…&note=…&until=…&since=…`
+  (and `&clear=1`), modeled on `/rebuild`; writes/deletes the KV key then rebuilds.
+- **build-parks.js**: `shutdownPageHtml(sd, updatedISO, tally)` → `public_html/shutdown/index.html`,
+  wired in `main()` from `data.shutdown`. Two baked states (`#sd-inactive` / `#sd-active`
+  toggled by `hidden`); verdict block reuses `.verdict`/`.pill`; JSON-LD BreadcrumbList +
+  FAQPage (3 Qs, state-dependent answers); refetch `<script>` swaps state + timestamp from
+  the blob; no-JS fallback = baked. `/shutdown/` deliberately NOT in `siteNav()`.
+- **build-parks.js**: `pageHtml` gains `sd` param + an NPS-only `#shutdown-note` `<section>`
+  (hidden unless `sd.active`); the existing blob-refetch script toggles it. State parks /
+  forests / beaches get nothing.
+- **build-parks.js**: `sitemap()` adds `/shutdown/` (daily, pri 0.9); `llmsTxt()` gets a
+  `## Government shutdown` section (live page + explainer).
+- **build-parks.js**: `PARK_CSS` += `.shutdown-note` rules (additive).
+- **guide** `national-parks-government-shutdown.html`: retitled to the *explainer* angle
+  ("What a government shutdown means for the national parks"), H1 + og:title + description
+  updated, top banner links to `/shutdown/`. Anti-cannibalization: `/shutdown/` owns "is
+  it open right now", the guide owns "what happens / why / history".
+- **Tested** (worker: extracted `detectShutdown` against padded no-lapse / lapse / fetch-fail
+  / ambiguous / explicit-clear / override / override-expired fixtures — all pass, `since`
+  parsed, summary is the meaningful sentence). Generator: `shutdownPageHtml` renders both
+  states, JSON-LD valid, `/shutdown/` not in nav, guide linked; NPS park has `#shutdown-note`
+  (hidden when inactive), TX state park does not; sitemap + llms carry `/shutdown/`.
+  Visual check of both states in a browser (park.css styling, correct pill/verdict/copy).
+- **NOT run**: full `node build-parks.js` (no `NPS_API_KEY`; keyless build would wipe NPS
+  enrichment). `parks-enriched.json` / `parks.json` untouched by the diff.
+- **PROPOSED, not applied**: `refresh-park-data.yml` `git add` needs `public_html/shutdown`
+  (same gap as roads had) or `/shutdown/` won't deploy. The guide retitle deploys on its
+  own (FTP on `public_html/**`), so its `/shutdown/` link will 404 until that lands + a
+  refresh runs.
+- Worker deploys on push (Cloudflare Git). Not pushed — Item 6 ships on your say.
+- Changed: `worker.js`, `build-parks.js`, `public_html/guides/national-parks-government-shutdown.html`,
+  coordination files.
 
 ### 2026-09-08 — Item 2 DONE: mobile map scroll-trap + height — committed, not pushed
 

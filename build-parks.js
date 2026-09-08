@@ -497,7 +497,7 @@ function siteNav() {
   return `<nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/road/">Roads</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>`;
 }
 
-function pageHtml(e, en, updatedISO, tally, roadsHere = []) {
+function pageHtml(e, en, updatedISO, tally, roadsHere = [], sd = { active: false }) {
   const name = esc(e.name);
   const cls = STATUS_CLASS[e.status] || "nodata";
   const label = STATUS_LABEL[e.status] || "Status unknown";
@@ -634,6 +634,11 @@ ${stripHtml(tally, updatedISO)}
     <a class="btn ghost" href="/#map">← Back to the map</a>
   </div>
 
+  ${e.source === "nps" ? `<section class="shutdown-note" id="shutdown-note"${sd.active ? "" : " hidden"}>
+    <h2>Government shutdown</h2>
+    <p>A federal government shutdown is in effect. Access and staffing at National Park Service sites vary — some close and barricade entrances, some stay open but unstaffed. <a href="/shutdown/">Live shutdown status →</a></p>
+  </section>` : ""}
+
   ${photo ? `<img class="hero-photo" src="${esc(photo)}" alt="${name}" loading="lazy" width="820" height="349" style="display:block;width:100%;aspect-ratio:40/17;max-height:340px;object-fit:cover;border-radius:14px">` : ""}
 
   ${overview ? `<article><h2>About ${name}</h2><p id="p-about">${esc(overview)}</p>${en && en.wiki ? `<p><a href="${esc(en.wiki)}" target="_blank" rel="noopener">Read more on Wikipedia ↗</a> <span class="disc" style="opacity:.7">Text from Wikipedia, CC BY-SA.</span></p>` : ""}</article>` : ""}
@@ -706,6 +711,7 @@ ${stripHtml(tally, updatedISO)}
     set("p-line",NAME+" "+(SENT[p.status]||"status is unavailable")+".");
     set("p-reason",p.reason||"No reason provided.");
     if(d.updated)set("p-checked","Last checked "+new Date(d.updated).toUTCString());
+    var sn=document.getElementById("shutdown-note"); if(sn) sn.hidden=!(d.shutdown&&d.shutdown.active);
   }).catch(function(){});
   fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){
     if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
@@ -1020,6 +1026,138 @@ fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).t
 `;
 }
 
+// ===================== /shutdown/ live hub ================================
+// sd = blob.shutdown = { active, since, source, summary, checkedAt, stale }
+function shutdownPageHtml(sd, updatedISO, tally) {
+  sd = sd || { active: false };
+  const checked = sd.checkedAt ? new Date(sd.checkedAt).toUTCString() : new Date(updatedISO).toUTCString();
+  const sinceTxt = sd.since ? ` (since ${esc(sd.since)})` : "";
+  const url = `${SITE}/shutdown/`;
+  const answerNow = sd.active
+    ? `A federal government shutdown is in effect${sinceTxt}. National Park Service sites are affected — access and staffing vary by park. ${esc(sd.summary || "")}`.trim()
+    : `There is no federal government shutdown right now. National parks are operating normally under the National Park Service.`;
+  const faq = [
+    { "@type": "Question", name: "Are the national parks open during a government shutdown?",
+      acceptedAnswer: { "@type": "Answer", text: `${answerNow} Last checked ${checked}.` } },
+    { "@type": "Question", name: "Which national parks close during a government shutdown?",
+      acceptedAnswer: { "@type": "Answer", text: "It varies by park and by shutdown. Some parks fully close and barricade their entrances; many stay physically accessible but unstaffed — no visitor centers, no rangers, no plowing, restrooms locked, trash uncollected. A few keep operating through state or gateway-community agreements. Check the individual park's page or the NPS operating-status page." } },
+    { "@type": "Question", name: "Are state parks affected by a federal government shutdown?",
+      acceptedAnswer: { "@type": "Answer", text: "No. State park systems are funded and staffed by their states, not the federal government, so a lapse in federal appropriations does not close them. National Forests are federal, but their roads and trails generally remain physically accessible during a shutdown." } },
+  ];
+  const jsonld = { "@context": "https://schema.org", "@graph": [
+    { "@type": "BreadcrumbList", itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
+      { "@type": "ListItem", position: 2, name: "Government shutdown", item: url } ] },
+    { "@type": "FAQPage", mainEntity: faq },
+  ] };
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PFZYJ3L871"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PFZYJ3L871');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${INDEXERNOW}
+<title>Are the national parks open during a government shutdown? — Park Status Today</title>
+<meta name="description" content="Live status: whether a federal government shutdown is in effect and what it means for national park access. Checked hourly against the National Park Service's operating-status page.">
+<meta name="theme-color" content="#0b1b35">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="${url}">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Are the national parks open during a government shutdown?">
+<meta property="og:url" content="${url}">
+<script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, "\\u003c")}</script>
+<link rel="stylesheet" href="/park/park.css">
+</head>
+<body data-shutdown="${sd.active ? "true" : "false"}">
+<div id="shutdown-banner"></div>
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  ${siteNav()}
+</div></header>
+${stripHtml(tally, updatedISO)}
+<main class="wrap">
+  <div class="crumbs"><a href="/">Home</a> / Government shutdown</div>
+  <h1>Are the national parks open during a government shutdown?</h1>
+
+  <div class="verdict ${sd.active ? "closed" : "open"}" id="sd-verdict">
+    <span class="pill ${sd.active ? "closed" : "open"}" id="sd-pill">${sd.active ? "Shutdown in effect" : "No shutdown"}</span>
+    <p class="line" id="sd-line">${esc(answerNow)}</p>
+    <p class="checked" id="sd-checked">Last checked ${esc(checked)} · source: ${sd.source === "manual" ? "manual override" : "NPS operating-status page"}${sd.stale ? " · last automated check failed, showing previous state" : ""}</p>
+  </div>
+
+  <div class="acts">
+    <a class="btn primary" href="https://www.nps.gov/planyourvisit/national-park-system-operating-status.htm" target="_blank" rel="noopener">NPS operating status ↗</a>
+    <a class="btn ghost" href="/park/">Check a specific park →</a>
+  </div>
+
+  <div id="sd-inactive"${sd.active ? " hidden" : ""}>
+    <article>
+      <h2>What happens to national parks during a shutdown</h2>
+      <p>When federal appropriations lapse, the National Park Service furloughs most of its staff. There is no single rule for what happens to the parks: some close entirely and barricade their entrances and roads; many stay physically accessible but completely unstaffed — no visitor centers, no rangers, no road plowing or maintenance, restrooms locked, trash left to pile up; a handful keep running because a state or a gateway community steps in to fund operations. New permits, reservations, and special-use approvals stop being processed.</p>
+      <p>This page checks the NPS operating-status page every hour, so if a lapse begins it will say so here first.</p>
+    </article>
+  </div>
+
+  <div id="sd-active"${sd.active ? "" : " hidden"}>
+    <article>
+      <h2>What this means for your visit</h2>
+      <p>Expect parks to be either closed and barricaded or open but unstaffed. If a park is accessible: bring your own water, pack out everything you bring in, expect locked restrooms and unplowed or ungated roads, and know that emergency and search-and-rescue coverage is reduced. Visitor centers, campground reservations, shuttle services, and ranger programs are generally suspended. Entrance stations are typically unmanned — where a park stays open, entry is often free but services are not.</p>
+      <p>Check your park's page here for its current status note, and the official NPS link above for the park-by-park picture.</p>
+    </article>
+  </div>
+
+  <article>
+    <h2>State parks, national forests, and beaches are not affected</h2>
+    <p>A federal government shutdown does not close state park systems — New York, California, Texas, Minnesota, Florida, and Washington run and fund their own parks. National Forests are federal and also furlough staff, but their roads and trails generally stay physically open. New York's public beaches are monitored by state and county health departments, not the NPS. <a href="/#map">See what's open near you on the live map →</a></p>
+  </article>
+
+  <article>
+    <h2>Full explainer</h2>
+    <p>For the history, the contingency-plan mechanics, and how to prepare for a trip during a funding fight, see <a href="/guides/national-parks-government-shutdown.html">what a government shutdown means for the national parks</a>.</p>
+  </article>
+</main>
+<footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span class="disc">Shutdown status checked hourly against the National Park Service's operating-status page · this is our reading of public information, not an official determination.</span>
+  <span class="disc"><a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
+  <span class="corp">${CORP_LINE}</span>
+</div></footer>
+<script>
+(function(){
+  function set(id,v){var e=document.getElementById(id);if(e&&v!=null)e.textContent=v;}
+  fetch("${API}",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+    var s=d.shutdown; if(!s) return;
+    var was=document.body.dataset.shutdown==="true";
+    if(!!s.active!==was){
+      document.body.dataset.shutdown=s.active?"true":"false";
+      var v=document.getElementById("sd-verdict"); if(v)v.className="verdict "+(s.active?"closed":"open");
+      var p=document.getElementById("sd-pill"); if(p){p.className="pill "+(s.active?"closed":"open");p.textContent=s.active?"Shutdown in effect":"No shutdown";}
+      var a=document.getElementById("sd-active"), i=document.getElementById("sd-inactive");
+      if(a)a.hidden=!s.active; if(i)i.hidden=!!s.active;
+    }
+    if(s.line||s.summary){
+      var since=s.since?" (since "+s.since+")":"";
+      set("sd-line", s.active
+        ? "A federal government shutdown is in effect"+since+". National Park Service sites are affected — access and staffing vary by park. "+(s.summary||"")
+        : "There is no federal government shutdown right now. National parks are operating normally under the National Park Service.");
+    }
+    if(s.checkedAt) set("sd-checked","Last checked "+new Date(s.checkedAt).toUTCString()+" · source: "+(s.source==="manual"?"manual override":"NPS operating-status page")+(s.stale?" · last automated check failed, showing previous state":""));
+  }).catch(function(){});
+  fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){
+    if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
+    b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';b.className="show";
+  }).catch(function(){});
+})();
+</script>
+<script src="/app-native.js" defer></script>
+</body>
+</html>
+`;
+}
+
 const PARK_CSS = `/* Park Status — per-park + directory pages. half-mast.com visual language. */
 :root{--ink:#0e1726;--navy:#0b1b35;--navy-2:#142746;--paper:#f4f6f9;--line:#dfe4ec;--muted:#667185;--card:#fff;
 --open:#14785d;--open-tint:#e7f7f1;--partial:#9a6a0f;--partial-bright:#f2bd54;--partial-tint:#fff7e5;
@@ -1142,6 +1280,11 @@ footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;le
 .road-group h2{font-size:19px;margin:0 0 8px;letter-spacing:-.5px}
 .road-group h2 a{color:inherit;text-decoration:none}
 .road-group .plist li .st{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:8px}
+
+/* government-shutdown note on NPS park pages (additive) */
+.shutdown-note{border:1px solid var(--closed);border-left:5px solid var(--closed);background:var(--closed-tint);border-radius:12px;padding:14px 16px;margin:0 0 22px}
+.shutdown-note h2{margin:0 0 6px;font-size:16px;letter-spacing:-.3px}
+.shutdown-note p{margin:0;font-size:14px}
 `;
 
 function sitemap(list, updatedISO, beachHubs, roads) {
@@ -1149,6 +1292,7 @@ function sitemap(list, updatedISO, beachHubs, roads) {
   const staticUrls = [
     { loc: `${SITE}/`, freq: "hourly", pri: "1.0" },
     { loc: `${SITE}/park/`, freq: "hourly", pri: "0.9" },
+    { loc: `${SITE}/shutdown/`, freq: "daily", pri: "0.9" },
     { loc: `${SITE}/road/`, freq: "weekly", pri: "0.8" },
     { loc: `${SITE}/beach/`, freq: "daily", pri: "0.8" },
     { loc: `${SITE}/guides/`, freq: "weekly", pri: "0.8" },
@@ -1195,11 +1339,14 @@ ${(roads || []).map((r) => `- [Is ${r.name} open?](${SITE}/road/${r.slug}/)`).jo
 ## Beaches
 - [Beach water quality & closures by county](${SITE}/beach/): New York public beaches grouped by county, with current swimming advisories and closures at ${SITE}/beach/<county>/
 
+## Government shutdown
+- [Are the national parks open during a government shutdown? (live status)](${SITE}/shutdown/): checked hourly against the NPS operating-status page; evergreen when there is no shutdown
+- [What a government shutdown means for the national parks (explainer)](${SITE}/guides/national-parks-government-shutdown.html)
+
 ## Guides
 - [How we check park status](${SITE}/guides/how-we-check-park-status.html): the method and sources behind every status
 - [Why national parks close](${SITE}/guides/why-national-parks-close.html)
 - [NPS alerts explained](${SITE}/guides/nps-alerts-explained.html): Danger, Closure, Caution, Information
-- [National parks during a government shutdown](${SITE}/guides/national-parks-government-shutdown.html)
 
 ## Structured data
 - [Status API (JSON)](${API}): current open/partial/closed status, coordinates, and reason for every park and beach, updated hourly
@@ -1568,6 +1715,9 @@ async function main() {
   for (const r of published) for (const pid of (r.parentIds || [])) (roadsByPark[pid] ||= []).push(r);
   process.stdout.write(`  ${published.length}/${roadsAll.length} road pages (rest staged, datesReviewed:false)\n`);
 
+  const shutdown = data.shutdown || { active: false };
+  process.stdout.write(`  shutdown: ${shutdown.active ? "ACTIVE" : "none"}${shutdown.stale ? " (stale)" : ""}\n`);
+
   fs.mkdirSync(PARK_DIR, { recursive: true });
   fs.writeFileSync(path.join(PARK_DIR, "park.css"), PARK_CSS);
 
@@ -1575,7 +1725,7 @@ async function main() {
   for (const e of entities) {
     const dir = path.join(PARK_DIR, e.slug);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, "index.html"), pageHtml(e, e._en, updatedISO, tally, roadsByPark[e.id] || []));
+    fs.writeFileSync(path.join(dir, "index.html"), pageHtml(e, e._en, updatedISO, tally, roadsByPark[e.id] || [], shutdown));
     n++;
   }
   fs.writeFileSync(path.join(PARK_DIR, "index.html"), directoryHtml(entities, updatedISO, tally));
@@ -1588,6 +1738,10 @@ async function main() {
     fs.writeFileSync(path.join(dir, "index.html"), beachHubHtml(g, updatedISO, tally));
   }
   fs.writeFileSync(path.join(BEACH_DIR, "index.html"), beachIndexHtml(beachHubs, updatedISO, tally));
+
+  const SHUTDOWN_DIR = path.join(OUT, "shutdown");
+  fs.mkdirSync(SHUTDOWN_DIR, { recursive: true });
+  fs.writeFileSync(path.join(SHUTDOWN_DIR, "index.html"), shutdownPageHtml(shutdown, updatedISO, tally));
 
   const ROAD_DIR = path.join(OUT, "road");
   fs.mkdirSync(ROAD_DIR, { recursive: true });
@@ -1614,7 +1768,7 @@ async function main() {
     `  ${beachHubs.length} beach county hubs + index\n` +
     `  parks-enriched.json: ${withWiki} with Wikipedia about/history, ${withNps} with NPS visitor info\n` +
     `  baked tally: ${tally.open} open / ${tally.partially_closed} partial / ${tally.closed} closed / ${tally.no_data} no-data\n` +
-    `  sitemap.xml: ${entities.length + beachHubs.length + published.length + 10} urls\n  data timestamp: ${updatedISO}\n`
+    `  sitemap.xml: ${entities.length + beachHubs.length + published.length + 11} urls\n  data timestamp: ${updatedISO}\n`
   );
 }
 

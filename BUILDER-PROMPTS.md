@@ -17,7 +17,7 @@ plan and stop. The next "complete next step" = implement the approved plan.
 | 3 | park.css typography reconciliation to half-mast tokens | READY | 2026-09-08 | — |
 | 4 | Road pages follow-up: remaining ~15–20 roads + BRP ArcGIS feed | READY | 2026-09-08 | — |
 | 5 | App "watch a road for reopening" + Worker `/roads` endpoint | READY | 2026-09-08 | — |
-| 6 | `/shutdown/` live hub (Worker auto-detect + generated page + NPS park section) | READY | 2026-09-08 | — |
+| 6 | `/shutdown/` live hub (Worker auto-detect + generated page + NPS park section) | DONE — `detectShutdown()` + blob `shutdown` + `/shutdown-override`; `shutdownPageHtml` (both states); NPS park `#shutdown-note`; guide retitled. Committed, not pushed. Needs the `refresh-park-data.yml` `git add public_html/shutdown` line (proposed). | 2026-09-08 | 2026-09-08, `git log` |
 | 7 | Timed-entry index page + per-park sections | READY | 2026-09-08 | — |
 | 8 | Seasonal guides (fee-free days, holiday hours, most-visited, open-in-winter) | READY | 2026-09-08 | — |
 
