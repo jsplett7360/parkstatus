@@ -16,7 +16,7 @@ plan and stop. The next "complete next step" = implement the approved plan.
 | 2 | Mobile map: scroll-trap + height (leaflet-gesture-handling) | DONE — vendored 1.2.2 (not on cdnjs), `pointer:coarse` gate, `.mapframe` 52vh on phones | 2026-09-07 | 2026-09-08 `082db6f4` (pushed, deploying) |
 | 3 | park.css typography reconciliation to half-mast tokens | READY | 2026-09-08 | — |
 | 4 | Road pages follow-up: remaining ~15–20 roads + BRP ArcGIS feed | READY | 2026-09-08 | — |
-| 5 | App "watch a road for reopening" + Worker `/roads` endpoint | BACKLOG | 2026-09-07 | — |
+| 5 | App "watch a road for reopening" + Worker `/roads` endpoint | READY | 2026-09-08 | — |
 | 6 | `/shutdown/` live hub (Worker auto-detect + generated page + NPS park section) | READY | 2026-09-08 | — |
 | 7 | Timed-entry index page + per-park sections | READY | 2026-09-08 | — |
 | 8 | Seasonal guides (fee-free days, holiday hours, most-visited, open-in-winter) | READY | 2026-09-08 | — |
@@ -686,4 +686,133 @@ updated `guides/index.html` + `sitemap()`/`llmsTxt()` edits + a summary.
 4. Added to guides/index.html + sitemap + llms.
 5. Only `public_html/guides/**` + build-parks.js (guide lists) changed.
 6. Coordination files updated, consistent with git.
+</self_check>
+
+---
+
+## Item 5 — "Watch a road for reopening" (Worker road status + web & native push)
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Full-stack: Cloudflare Worker (worker.js),
+page generator (build-parks.js), the unified Alerts panel (index.html), and the
+Capacitor shim (app-native.js). Rebase on origin/main first. This is the largest item so
+far — the plan phase will be substantial.
+</role>
+
+<task>
+Let users follow a road and get a push notification (web AND native iOS) when it changes
+status — the headline case being a seasonal road reopening for the season. Move road
+status computation into the Worker's hourly job so it's fresh, expose it on the blob,
+and have `notifyChanges()` fire on road transitions.
+</task>
+
+<why>
+Validated demand: "is trail ridge road open" 1,600, "when does going to the sun road
+open" 720, strong spring seasonality — people actively wait for these. It's the app's
+most differentiated notification type (NPS app / AllTrails don't do it) and it reuses the
+follow + push plumbing that already exists.
+</why>
+
+<context>
+- TODAY: `roadStatus()` + `npsAlerts()` (Tier B NPS-alert matching, Tier C seasonal/
+  year-round statement) live in build-parks.js and run ONLY at the daily build. The blob
+  has NO road data. `/road/` pages bake a static verdict + show the parent park's live
+  status via the existing blob refetch.
+- Worker `scheduled()` rebuilds the KV blob hourly; `notifyChanges()` diffs old vs new
+  park status and sends web push (`sub:push:*`) + native APNs (`push:native:*`).
+  `changeMatchesSub(ch, sub)` gates a change against a subscriber's scope. Scope:
+  `{kind:"all"|"parks"|"geo", parks?, ... , disasters?}`. `sanitizeScope` (web) /
+  `sanitizeNativeScope` (native, keeps `disasters`).
+- Follow plumbing: `localStorage.ps_follows` = `[{id,name}]`; the unified Alerts panel
+  (commit `a9a49f80`) manages it; `app-native.js` syncs it to `/push/native/subscribe`;
+  web push subscribes via `/push/subscribe`. `ps_push_state` tracks web sub state.
+- `roads.json` rows are keyed by slug; `parentIds` may be empty (Beartooth).
+- Item 4 (more roads) and Item 6 (`/shutdown/` adds `shutdown` to the blob + edits
+  `scheduled()`) also touch this surface — coordinate merge order; note it in the plan.
+</context>
+
+<constraints>
+- Worker: adding a `roads` array to the `GET /` blob is additive/non-breaking — THIS
+  ITEM AUTHORIZES that addition. Do not change existing blob fields.
+- build-parks.js stays zero-dependency. It must STOP computing road status and instead
+  read `blob.roads`. `roadStatus()`/`npsAlerts()` logic moves to worker.js — accept the
+  duplication risk (no shared module without a build step); the plan states how the two
+  copies stay in sync (e.g. one canonical copy in worker.js, build-parks.js only reads).
+- parks-enriched.json / parks.json byte-identical.
+- Road ids use a `road:` prefix (e.g. `road:going-to-the-sun-road`) so they coexist with
+  park ids in `ps_follows` and in scope `parks[]`. `changeMatchesSub` must match them;
+  road change objects carry `id: "road:<slug>"`.
+- Notification policy (plan decides + justifies): fire on Tier B transitions (an NPS
+  alert confirms open/closed). For Tier C seasonal roads, do NOT notify purely because
+  the calendar `inSeason()` flipped — that's a guess, not an event. Debounce/flap
+  guard like the park path.
+- Web push AND native APNs both get road notifications this pass.
+- Never touch: Worker/GitHub secrets, deploy.yml, ios-testflight.yml, KV namespace ids,
+  existing blob fields. Never fabricate test results — test the transition path with a
+  simulated alert fixture.
+- Plan-first.
+</constraints>
+
+<reference_material>
+- worker.js: `scheduled()`, `notifyChanges()`, `changeMatchesSub()`, `sanitizeScope` /
+  `sanitizeNativeScope`, the KV blob assembly + the old-vs-new diff, `/push/subscribe`
+  and `/push/native/subscribe`.
+- build-parks.js: `roadStatus()`, `npsAlerts()`, `roadPageHtml` (verdict block + the
+  blob-refetch `<script>`), the "Roads in this park" block, `main()` road assembly.
+- index.html: the unified Alerts panel (`ps_follows` / `ps_push_state` handling).
+- app-native.js: `currentScope()` and the `ps_follows` sync.
+</constraints_note_ignore>
+
+<process>
+1. <thinking>: enumerate every file touched (worker.js, build-parks.js, index.html,
+   app-native.js) and the data-flow change (road status: build-time → hourly Worker →
+   blob → generator + clients). Risks: a bad Tier B match spamming every follower; the
+   two copies of road-status logic drifting; scope changes breaking existing park subs.
+2. WORKER:
+   - Port `roadStatus()` + `npsAlerts()` into worker.js. In `scheduled()`, compute a
+     `roads` array (slug, name, cls, status, tier, reason, since/date, parentIds) and
+     put it on the blob + persist it in the diffed KV state.
+   - Extend the old-vs-new diff to emit road change objects; `notifyChanges()` sends
+     them per the notification policy above, to web + native subs whose scope includes
+     `road:<slug>`.
+   - Extend `sanitizeScope` / `sanitizeNativeScope` / `changeMatchesSub` to accept
+     `road:` ids in `parks[]`. Message copy for a road reopening ("Going-to-the-Sun Road
+     is open for the season") + APNs/web payload shape.
+   - Optional `/roads` GET route if useful beyond the blob (plan decides; blob may be
+     enough).
+3. GENERATOR: build-parks.js reads `blob.roads` for each `/road/` page's baked verdict
+   and for the "Roads in this park" block; delete the local road-status computation (or
+   keep `roadStatus()` as a pure fallback used only if `blob.roads` is missing — plan
+   decides). `roadPageHtml` gains a "Notify me when this reopens" control that adds
+   `{id:"road:<slug>", name}` to `ps_follows` and opens the Alerts panel / triggers the
+   push subscribe, same pattern as a park follow.
+4. WEB PANEL: the unified Alerts panel lists followed roads alongside followed parks;
+   web `/push/subscribe` scope carries the `road:` ids.
+5. NATIVE: confirm `app-native.js` `currentScope()` forwards `road:` ids through
+   `/push/native/subscribe` unchanged, or make the change.
+6. STOP and present the plan for approval — especially the notification policy, the
+   logic-duplication strategy, and the scope/`changeMatchesSub` changes.
+7. On approval: implement. Worker deploys on push; generator + panel ship via daily cron
+   / a push (confirm which).
+8. Update PROGRESS.md + this file.
+</process>
+
+<output_format>
+Plan first: the blob `roads` schema, the notification policy with rationale, the
+worker.js changes (scheduled/notifyChanges/changeMatchesSub/sanitize*), the build-parks.js
+read-from-blob change + the "notify me" control, the panel + app-native changes, and a
+QA checklist. Then, after approval: edited files + a change summary + test results
+(simulated Tier B open/closed transition → correct web + native payloads; a Tier C
+calendar flip → NO notification; existing park subs unaffected; parks-enriched/parks.json
+byte-identical; `/road/` page verdict now sourced from the blob).
+
+<self_check>
+1. Every constraint met (list, check each).
+2. `roads` is additive on the blob; no existing field changed; park subs still work.
+3. Tier B transition notifies (web + native); Tier C calendar flip does NOT; flap guard
+   present.
+4. Road-status logic has ONE canonical home; build-parks.js only reads it.
+5. parks-enriched.json / parks.json byte-identical.
+6. No file outside worker.js / build-parks.js / index.html / app-native.js changed.
+7. Coordination files updated, consistent with git.
 </self_check>
