@@ -14,11 +14,67 @@ with git, git wins and the discrepancy gets flagged.
 | Park pages (build-parks.js) | Entrance fee + reservation block + 4-entry FAQ + `isAccessibleForFree` live |
 | Road pages (`/road/`) | **21 published** — Item 1's 8 + Old Fall River & Glacier Point (backfilled) + 11 from Item 4 (Newfound Gap, Kuwohi/Clingmans Dome, Road to Paradise, Chinook Pass SR-410, Teton Park Rd, Moose-Wilson Rd, SR-67 North Rim, Generals Hwy, Kings Canyon Scenic Byway, Denali Park Rd, Park Loop Rd). 2 staged (`datesReviewed:false`): stevens-canyon-road, mineral-king-road. Regenerates + deploys on the next daily refresh. |
 | CI / deploy | `refresh-park-data.yml` dispatches `deploy.yml` AND now `git add`s `public_html/road` + `public_html/llms.txt` |
-| Worker | `/push/unsubscribe` (notifications); `detectShutdown()` + blob `shutdown` object + `/shutdown-override` route (Item 6, shipped `b0388615`) |
+| Worker | `/push/unsubscribe`; `detectShutdown()` + blob `shutdown` + `/shutdown-override` (Item 6, `b0388615`); **Item 5**: `roadStatus()` canonical here, hourly → blob `roads` array + Tier-B road-change push (web + native), KV `road:notifylog` 24h cooldown |
 | iOS app | Capacitor wrapper; CI ship on `ios-v*` tag working. No pending app task. |
 | Prompt-engineer / builder workflow | Set up this session (`.claude/` + coordination files) |
 
 ## Log
+
+### 2026-09-08 — Item 5 DONE: "watch a road for reopening" (Worker road status + web & native push)
+
+Data-flow change: road status moves from the daily build to the Worker's hourly job.
+
+- **worker.js**
+  - Ported `roadStatus()` from build-parks.js — now the CANONICAL copy (inline `_roadClip`
+    replaces `clip`; drops the `NPS_KEY` gate since the Worker always has alerts in hand).
+  - `rebuild()`: fetches `SITE/roads.json` (same delivery as `forests.json`), computes a
+    `roads` array `[{slug,name,status,cls,tier,reason,date,since,parentIds}]`, adds it to
+    the KV blob next to `shutdown` (additive — no existing field touched).
+  - Road-change diff → appends `{id:"road:<slug>", isRoad:true, roadStatus, to, url, …}` to
+    the existing `changes` array **only when the NEW state is Tier B** (a real NPS alert).
+    A Tier-C `inSeason()` calendar flip never notifies. 24h per-slug cooldown via KV
+    `road:notifylog` (at most one road notification/slug/day even if `roadStatus()`
+    oscillates on a borderline alert).
+  - `notifyChanges()`: `appUrl()` returns `/road/<slug>/` for `isRoad`; title copy
+    "<name> is open for the season." / "is now closed." / ": partial closure in effect.".
+    Web-push, APNs and email loops already gate on `changeMatchesSub` / `sc.parks.includes`
+    — unchanged, they match `road:` ids as-is.
+  - `pingIndexNow()`: pings `/road/<slug>/` + `/road/` on a road change.
+  - `changeMatchesSub` / `sanitizeScope` / `sanitizeNativeScope`: **comments only** —
+    `road:<slug>` (≤26 chars) already passes the `parks[]` cap and the exact-id match.
+- **build-parks.js**
+  - `main()` reads `data.roads` (blob) for each `/road/` verdict; `roadStatus()` +
+    `npsAlerts()` now run ONLY as a fallback for slugs the blob doesn't carry (first
+    deploy race / Worker error). Alerts fetched only when there's something to fall back for.
+  - Writes `public_html/roads.json` (verbatim `JSON.stringify(ROADS)`) so the Worker can
+    read it hourly.
+  - `roadPageHtml`: new `#road-follow` button in `.acts` ("Notify me when it reopens" /
+    "if it closes") + a standalone `<script>` that toggles `road:<slug>` in
+    `localStorage.ps_follows` and bounces to `/#alerts` on web; in-app, `app-native.js`'s
+    existing `ps_follows` hook re-subscribes.
+- **public_html/index.html**: Alerts-panel chips prefix road follows with 🛣; empty-state
+  copy mentions the road-page "Notify me" button. `alScope()` already sends `follows.map(f=>f.id)`
+  (road ids included) to `/push/subscribe` — no logic change.
+- **app-native.js**: unchanged — `currentScope()` already forwards `road:` ids; the tap
+  handler already routes `data.url`'s pathname to `/road/<slug>/`.
+- **Not done:** no `/roads` GET route (blob is enough); "Roads in this park" block on park
+  pages not wired to live cls (deferred, low value).
+- **Tests** (`node` harness, 26/26): Tier-B open/closed fixtures → correct `roadStatus`;
+  Tier-C→Tier-B fires; Tier-C→Tier-C calendar flip does NOT; 24h cooldown (1st fires, 2
+  more within 24h suppressed, next-day fires); `changeMatchesSub` matches a road follower,
+  ignores a non-follower, still matches existing park subs and doesn't spam them with road
+  changes; title/`appUrl` copy; `roadPageHtml` renders the button, honors the blob verdict,
+  ld+json still valid. True APNs/web-push sends need live secrets+endpoints — not run
+  locally (payload objects asserted instead).
+- **Byte-identical:** `parks-enriched.json` / `parks.json` untouched. `git diff` scope:
+  worker.js, build-parks.js, public_html/index.html, + new public_html/roads.json.
+- **PROPOSED (not applied)** `refresh-park-data.yml` `git add` line — add
+  `public_html/roads.json`:
+  `git add public_html/park public_html/road public_html/roads.json public_html/shutdown public_html/parks-enriched.json public_html/parks.json public_html/sitemap.xml public_html/llms.txt`
+- **Deploy:** worker.js ships on push (Cloudflare Git). Until `public_html/roads.json`
+  deploys, the Worker's fetch 404s → `blob.roads` `[]` → generator uses local fallback →
+  self-heals next cron. build-parks.js + index.html + roads.json ship via the daily cron
+  (needs the proposed git-add line) or a `deploy.yml` push.
 
 ### 2026-09-08 — Item 4 DONE: +13 road rows (11 published, 2 staged); BRP stays Tier C
 

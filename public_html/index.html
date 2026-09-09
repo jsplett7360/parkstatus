@@ -1210,8 +1210,8 @@ function renderAlerts(){
   $("al-nfollow").textContent = "("+follows.length+")";
   const chips=$("al-chips");
   chips.innerHTML = follows.length
-    ? follows.map((f,i)=>'<span class="su-chip">'+rmTags(f.name).slice(0,32)+' <button data-i="'+i+'" aria-label="Remove">✕</button></span>').join("")
-    : '<span class="su-hint" style="margin:0">No parks followed yet — tap a dot on the map, then "Follow this park".</span>';
+    ? follows.map((f,i)=>'<span class="su-chip">'+(String(f.id).indexOf("road:")===0?"🛣 ":"")+rmTags(f.name).slice(0,32)+' <button data-i="'+i+'" aria-label="Remove">✕</button></span>').join("")
+    : '<span class="su-hint" style="margin:0">Nothing followed yet — tap a dot on the map and "Follow this park", or use "Notify me" on a road page.</span>';
   chips.querySelectorAll("button").forEach(bt=>bt.onclick=()=>{ follows.splice(+bt.dataset.i,1); saveFollows(); syncFollowUI(); renderAlerts(); });
 
   $("al-disasters").checked = IN_APP ? (prefs.disasters!==false) : !!(st && st.scope && st.scope.disasters);

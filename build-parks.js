@@ -893,6 +893,7 @@ ${stripHtml(tally, updatedISO)}
 
   <div class="acts">
     <a class="btn primary" href="${esc(road.statusUrl)}" target="_blank" rel="noopener">Official road status ↗</a>
+    <button type="button" class="btn ghost" id="road-follow" data-rid="road:${esc(road.slug)}" data-rname="${esc(road.name)}">${road.seasonal ? "🔔 Notify me when it reopens" : "🔔 Notify me if it closes"}</button>
     <a class="btn ghost" href="/road/">← All roads</a>
   </div>
 
@@ -948,6 +949,27 @@ ${stripHtml(tally, updatedISO)}
     if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
     b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';b.className="show";
   }).catch(function(){});
+})();
+</script>
+<script>
+/* "Notify me" — adds road:<slug> to ps_follows (shared with the Alerts panel
+   and app-native.js). Web: bounce to the homepage panel to finish the push
+   opt-in. In-app: app-native.js picks up the ps_follows write and re-subscribes. */
+(function(){
+  var rf=document.getElementById("road-follow"); if(!rf) return;
+  var RID=rf.dataset.rid, RNAME=rf.dataset.rname, SEASONAL=${road.seasonal ? "true" : "false"};
+  var LABEL_OFF=SEASONAL?"🔔 Notify me when it reopens":"🔔 Notify me if it closes";
+  function readF(){ try{ var a=JSON.parse(localStorage.getItem("ps_follows")||"[]"); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+  function paint(){ var on=readF().some(function(f){return f&&f.id===RID;}); rf.classList.toggle("on",on); rf.textContent=on?"✓ You'll be notified — manage alerts":LABEL_OFF; }
+  paint();
+  rf.addEventListener("click",function(){
+    var f=readF().filter(function(x){return x&&x.id;});
+    var i=f.findIndex(function(x){return x.id===RID;});
+    if(i>=0) f.splice(i,1); else f.push({id:RID,name:RNAME});
+    try{ localStorage.setItem("ps_follows", JSON.stringify(f.slice(0,60))); }catch(_){}
+    paint();
+    if(i<0) location.href="/#alerts";
+  });
 })();
 </script>
 <script src="/app-native.js" defer></script>
@@ -1733,7 +1755,10 @@ async function main() {
     e._en = en;
   });
 
-  // --- road-status pages: resolve parents, run Tier B, build reverse index ---
+  // --- road-status pages: verdict comes from the Worker blob (blob.roads),
+  //     computed hourly there. roadStatus()/npsAlerts() below are a FALLBACK,
+  //     run only for slugs the blob doesn't carry (first deploy race / Worker
+  //     error). The canonical copy of roadStatus() lives in worker.js. ---
   const entById = new Map(entities.map((e) => [e.id, e]));
   const roadsAll = Object.entries(ROADS).filter(([k]) => k !== "_note").map(([slug, r]) => ({ slug, ...r }));
   const published = roadsAll.filter((r) => r.datesReviewed === true).map((r) => {
@@ -1741,16 +1766,24 @@ async function main() {
       .map((e) => ({ id: e.id, source: e.source, name: e.name, slug: e.slug }));
     return { ...r, parents, parentNames: parents.map((p) => p.name).join(" and ") };
   });
-  const npsRoadCodes = [...new Set(published.flatMap((r) => r.parentIds || [])
+  const roadBlob = new Map((data.roads || []).map((r) => [r.slug, r]));
+  const roadMissing = published.filter((r) => !roadBlob.has(r.slug));
+  const npsRoadCodes = [...new Set(roadMissing.flatMap((r) => r.parentIds || [])
     .filter((p) => p.startsWith("nps:")).map((p) => p.slice(4)))];
   const roadAlerts = npsRoadCodes.length
     ? await npsAlerts(npsRoadCodes).catch((e) => { console.warn("  NPS alerts fetch failed:", e.message); return {}; })
     : {};
   const parkStatusById = Object.fromEntries(entities.map((e) => [e.id, e.status]));
-  const roadStatuses = new Map(published.map((r) => [r.slug, roadStatus(r, roadAlerts, parkStatusById)]));
+  const roadStatuses = new Map(published.map((r) => {
+    const b = roadBlob.get(r.slug);
+    const st = b
+      ? { tier: b.tier, status: b.status, cls: b.cls, reason: b.reason, date: b.date || "" }
+      : roadStatus(r, roadAlerts, parkStatusById);
+    return [r.slug, st];
+  }));
   const roadsByPark = {};
   for (const r of published) for (const pid of (r.parentIds || [])) (roadsByPark[pid] ||= []).push(r);
-  process.stdout.write(`  ${published.length}/${roadsAll.length} road pages (rest staged, datesReviewed:false)\n`);
+  process.stdout.write(`  ${published.length}/${roadsAll.length} road pages (${roadBlob.size ? `${published.length - roadMissing.length} from blob, ${roadMissing.length} fallback` : "blob has no roads — all computed locally"})\n`);
 
   const shutdown = data.shutdown || { active: false };
   process.stdout.write(`  shutdown: ${shutdown.active ? "ACTIVE" : "none"}${shutdown.stale ? " (stale)" : ""}\n`);
@@ -1788,6 +1821,10 @@ async function main() {
     fs.writeFileSync(path.join(dir, "index.html"), roadPageHtml(r, roadStatuses.get(r.slug), updatedISO, tally));
   }
   fs.writeFileSync(path.join(ROAD_DIR, "index.html"), roadIndexHtml(published, updatedISO, tally, roadStatuses));
+
+  // Publish roads.json to the site so the Worker can read road metadata hourly
+  // (same delivery pattern as forests.json). Verbatim copy of the repo-root file.
+  fs.writeFileSync(path.join(OUT, "roads.json"), JSON.stringify(ROADS));
 
   fs.writeFileSync(path.join(OUT, "parks-enriched.json"), JSON.stringify(enriched));
   fs.writeFileSync(path.join(OUT, "parks.json"), JSON.stringify({

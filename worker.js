@@ -883,6 +883,60 @@ async function get(endpoint, key, params = {}) {
   return out;
 }
 
+// ===================== road status (Tier B alert-match / Tier C season) =====
+// CANONICAL copy. build-parks.js keeps a byte-identical fallback that runs only
+// when the blob carries no `roads` array yet — keep the two in sync on any edit.
+// `alertsByPark[code]` = [{ title, description, category, date }]; `parkStatusById`
+// is the per-park status map, used only for the full-park-closure cascade.
+const _roadClip = (s, n) => { s = String(s || "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s; };
+function roadStatus(road, alertsByPark, parkStatusById) {
+  const CLS = { open: "open", "partially open": "partial", closed: "closed", seasonal: "nodata" };
+  const inSeason = () => { const m = new Date().getUTCMonth(); return m >= 5 && m <= 8; };
+  const npsParents = (road.parentIds || []).filter((p) => p.startsWith("nps:")).map((p) => p.slice(4));
+  if (npsParents.length) {
+    for (const code of npsParents) {
+      if ((parkStatusById["nps:" + code] || "") === "closed") {
+        return { tier: "B", status: "closed", cls: "closed",
+          reason: `${road.parentNames || "The park"} is closed.`, date: "" };
+      }
+    }
+    const nameNeedle = road.name.toLowerCase().replace(/\s+(road|highway|drive|parkway)$/i, "").trim();
+    const routeRe = road.designation
+      ? new RegExp("\\b" + road.designation.replace(/[^0-9A-Za-z]/g, "-?") + "\\b", "i") : null;
+    const cutoff = Date.now() - 180 * 864e5;
+    let hit = null;
+    for (const code of npsParents) {
+      for (const a of alertsByPark[code] || []) {
+        if (a.date && Date.parse(a.date) < cutoff) continue;
+        const hay = (a.title + " " + a.description).toLowerCase();
+        const nameMatch = nameNeedle.length > 4 && hay.includes(nameNeedle);
+        const routeMatch = routeRe && routeRe.test(a.title + " " + a.description);
+        if (!nameMatch && !routeMatch) continue;
+        const t = hay;
+        let st;
+        if (/(re-?open|now open|has opened|is open)/.test(t) && !/clos/.test(t.split(/re-?open|now open/)[0] || "")) st = "open";
+        else if (a.category === "Park Closure" || (/clos(e|ed|ure)/.test(t) && !/(partial|one lane|single lane|nightly|overnight|lane closure|delay)/.test(t))) st = "closed";
+        else if (/(partial|one lane|single lane|nightly|overnight|delay|construction|reduced)/.test(t)) st = "partially open";
+        else if (/open/.test(t)) st = "open";
+        else st = "partially open";
+        const rank = { open: 0, "partially open": 1, closed: 2 };
+        if (!hit || rank[st] > rank[hit.status]) hit = { status: st, reason: a.title || _roadClip(a.description, 160), date: a.date };
+      }
+    }
+    if (hit) return { tier: "B", status: hit.status, cls: CLS[hit.status], reason: hit.reason, date: hit.date };
+  }
+  if (road.seasonal) {
+    if (inSeason()) {
+      return { tier: "C", status: "open", cls: "open",
+        reason: `${road.name} is normally open at this time of year. We don't have a live feed for it — confirm with the official status page.`, date: "" };
+    }
+    return { tier: "C", status: "seasonal", cls: "nodata",
+      reason: `${road.name} is closed for the winter. It typically reopens ${road.typicalOpen || "in late spring"}.`, date: "" };
+  }
+  return { tier: "C", status: "open", cls: "open",
+    reason: (road.accessNote || `${road.name} is normally open year-round; sections can close in winter weather.`).split(". ")[0] + ".", date: "" };
+}
+
 async function rebuild(env, { notify = false } = {}) {
   const key = env.NPS_API_KEY;
   const [alerts, parks, beaches, nyParks, caParks, txParks, mnParks, flParks, waParks, usfs] = await Promise.all([
@@ -984,9 +1038,69 @@ async function rebuild(env, { notify = false } = {}) {
     active: false, since: null, source: "nps-operating-status", summary: "", checkedAt: new Date().toISOString(), stale: true,
   }));
 
+  // ---- road status (hourly) + road-change notifications -------------------
+  // roads.json is published to the site by build-parks.js (same as forests.json).
+  // Until it deploys, the fetch 404s, roadsOut stays [] and the generator uses
+  // its local roadStatus() fallback. Additive `roads` key — no existing field
+  // is touched.
+  let roadsOut = [];
+  try {
+    const rr = await fetch(SITE + "/roads.json", { cf: { cacheTtl: 3600, cacheEverything: true } });
+    const rawRoads = rr.ok ? await rr.json() : {};
+    const parkNameByCode = {};
+    for (const p of parksOut) parkNameByCode[p.parkCode] = p.fullName;
+    const roadAlertsByPark = {};
+    for (const a of alerts) {
+      const c = a.parkCode || "";
+      (roadAlertsByPark[c] ||= []).push({ title: a.title || "", description: a.description || "", category: a.category || "", date: a.lastIndexedDate || "" });
+    }
+    const roadParkStatus = Object.fromEntries(parksOut.map((p) => ["nps:" + p.parkCode, p.status]));
+    let prevRoads = [];
+    try { prevRoads = (JSON.parse(prevRaw).roads) || []; } catch (_) {}
+    const prevRoadById = new Map(prevRoads.map((r) => [r.slug, r]));
+    const nowISO = new Date().toISOString();
+
+    const roadChanges = [];
+    for (const [slug, v] of Object.entries(rawRoads)) {
+      if (slug === "_note" || !v || v.datesReviewed !== true) continue;
+      const road = { slug, ...v, parentNames:
+        (v.parentIds || []).filter((p) => p.startsWith("nps:")).map((p) => parkNameByCode[p.slice(4)]).filter(Boolean).join(" and ") };
+      const st = roadStatus(road, roadAlertsByPark, roadParkStatus);
+      const prev = prevRoadById.get(slug);
+      const since = (prev && prev.status === st.status) ? prev.since : nowISO;
+      roadsOut.push({ slug, name: v.name, status: st.status, cls: st.cls, tier: st.tier,
+        reason: st.reason, date: st.date || "", since, parentIds: v.parentIds || [] });
+      // Notify ONLY when the NEW state is Tier B (a real NPS alert). A Tier C
+      // inSeason() calendar flip is a guess, not an event — never notify on it.
+      const changed = !prev || prev.status !== st.status || prev.tier !== st.tier;
+      if (changed && st.tier === "B") {
+        roadChanges.push({ slug, name: v.name, from: prev ? prev.status : "seasonal", roadStatus: st.status, reason: st.reason });
+      }
+    }
+
+    if (roadChanges.length) {
+      let log = {};
+      try { log = JSON.parse(await env.PARKS_KV.get("road:notifylog")) || {}; } catch (_) {}
+      const now = Date.now();
+      for (const rc of roadChanges) {
+        const lg = log[rc.slug];
+        // 24h per-road cooldown: at most one road notification per slug per day,
+        // even if roadStatus() oscillates open<->partial on a borderline alert.
+        if (lg && now - lg.at < 864e5) continue;
+        changes.push({
+          id: "road:" + rc.slug, name: rc.name, from: rc.from,
+          to: rc.roadStatus === "open" ? "open" : rc.roadStatus === "closed" ? "closed" : "partially_closed",
+          reason: rc.reason, url: SITE + "/road/" + rc.slug + "/", isRoad: true, roadStatus: rc.roadStatus,
+        });
+        log[rc.slug] = { status: rc.roadStatus, at: now };
+      }
+      await env.PARKS_KV.put("road:notifylog", JSON.stringify(log));
+    }
+  } catch (e) { console.error("roads compute failed:", e); }
+
   await env.PARKS_KV.put("status:latest", JSON.stringify({
     updated: new Date().toISOString(),
-    tally, parks: parksOut, shutdown,
+    tally, parks: parksOut, shutdown, roads: roadsOut,
     beachTally, beaches: beachesOut, beachStale,
     nyParkTally, nyParks: nyParksOut, nyParkStale,
     caParkTally, caParks: caParksOut, caParkStale,
@@ -999,7 +1113,7 @@ async function rebuild(env, { notify = false } = {}) {
 
   if (notify && changes.length) await notifyChanges(env, changes);
   if (changes.length) await pingIndexNow(changes);
-  return { tally, count: parksOut.length, changes: changes.length,
+  return { tally, count: parksOut.length, roadCount: roadsOut.length, changes: changes.length,
     beachTally, beachCount: beachesOut.length, beachStale,
     nyParkTally, nyParkCount: nyParksOut.length, nyParkStale,
     caParkTally, caParkCount: caParksOut.length, caParkStale,
@@ -1040,9 +1154,12 @@ async function pingIndexNow(changes) {
     } catch (_) {}
 
     const urls = new Set([SITE + "/", SITE + "/park/"]);
-    let beachTouched = false;
+    let beachTouched = false, roadTouched = false;
     for (const ch of changes) {
-      if (String(ch.id).startsWith("ny-")) {
+      if (String(ch.id).startsWith("road:")) {
+        roadTouched = true;
+        urls.add(SITE + "/road/" + String(ch.id).slice(5) + "/");
+      } else if (String(ch.id).startsWith("ny-")) {
         beachTouched = true;
         const s = beachCountySlug(ch.county);
         if (s) urls.add(SITE + "/beach/" + s + "/");
@@ -1052,6 +1169,7 @@ async function pingIndexNow(changes) {
       }
     }
     if (beachTouched) urls.add(SITE + "/beach/");
+    if (roadTouched) urls.add(SITE + "/road/");
 
     const urlList = [...urls].slice(0, 9000);
     const res = await fetch("https://api.indexnow.org/indexnow", {
@@ -1120,6 +1238,8 @@ function changeMatchesSub(ch, sub) {
   // regardless of the park scope (still bounded by the date window above).
   if (sc.disasters === true && ch.disaster) return true;
   if (sc.kind === "all") return true;
+  // parks[] entries may be "nps:<code>", a bare state-park id, or "road:<slug>"
+  // (road follows) — an exact-id match covers all three, no special-casing.
   if (sc.kind === "parks") return Array.isArray(sc.parks) && sc.parks.includes(ch.id);
   if (sc.kind === "geo") return haversineMi(sc.lat, sc.lon, ch.lat, ch.lon) <= (sc.radiusMi || 50);
   return false;
@@ -1153,11 +1273,16 @@ async function notifyChanges(env, changes) {
       if (r.ok) { const d = await r.json(); for (const p of d.parks || []) slugById[p.id] = p.slug; }
     } catch (_) {}
   }
-  const appUrl = ch => slugById[ch.id] ? `${SITE}/park/${slugById[ch.id]}/` : SITE;
+  const appUrl = ch => ch.isRoad ? `${SITE}/road/${String(ch.id).slice(5)}/`
+    : (slugById[ch.id] ? `${SITE}/park/${slugById[ch.id]}/` : SITE);
 
   for (const ch of real) {
     const c = { ...ch, fullName: ch.name, parkCode: ch.id };
-    const title = `${ch.name} is now ${STATUS_TEXT_X[ch.to]}`;
+    const title = ch.isRoad
+      ? (ch.roadStatus === "open" ? `${ch.name} is open for the season.`
+        : ch.roadStatus === "closed" ? `${ch.name} is now closed.`
+        : `${ch.name}: partial closure in effect.`)
+      : `${ch.name} is now ${STATUS_TEXT_X[ch.to]}`;
     for (const s of emailSubs.filter(sub => changeMatchesSub(ch, sub))) {
       const unsubUrl = await unsubscribeUrl(env, s.email);
       await sendEmail(env, s.email, title, emailHtml(c, unsubUrl)).catch(() => {});
@@ -1330,6 +1455,7 @@ async function sendAPNs(env, token, { title, body, url, tag }) {
 function sanitizeNativeScope(raw) {
   const s = { label: "app" };
   if (raw && raw.label) s.label = String(raw.label).slice(0, 40);
+  // parks[] holds "nps:<code>" / state-park ids / "road:<slug>" — all pass through as-is.
   s.parks = (raw && Array.isArray(raw.parks) ? raw.parks : []).slice(0, 100).map(x => String(x).slice(0, 60));
   s.disasters = !raw || raw.disasters !== false;
   return s;
@@ -1359,6 +1485,7 @@ function sanitizeScope(raw) {
   if (raw.disasters === true) s.disasters = true;
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw.from || "")) s.from = raw.from;
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw.to || "")) s.to = raw.to;
+  // parks[] entries: "nps:<code>", a state-park id, or "road:<slug>" — kept verbatim.
   if (s.kind === "parks") s.parks = (Array.isArray(raw.parks) ? raw.parks : []).slice(0, 50).map(x => String(x).slice(0, 60));
   if (s.kind === "geo") {
     s.lat = Number(raw.lat); s.lon = Number(raw.lon);
