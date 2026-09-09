@@ -162,3 +162,11 @@ footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;le
 .shutdown-note{border:1px solid var(--closed);border-left:5px solid var(--closed);background:var(--closed-tint);border-radius:12px;padding:14px 16px;margin:0 0 22px}
 .shutdown-note h2{margin:0 0 6px;font-size:var(--type-note-title);letter-spacing:var(--tracking-note)}
 .shutdown-note p{margin:0;font-size:14px}
+
+/* /reservations/ index (additive) */
+.resv-wrap{overflow-x:auto}
+.resv{width:100%;border-collapse:collapse;font-size:14px;margin:18px 0 24px}
+.resv th,.resv td{text-align:left;padding:9px 12px 9px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.resv th{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.resv td:first-child{font-weight:bold}
+.resv-dropped{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 22px;font-size:14px}

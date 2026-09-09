@@ -11,7 +11,8 @@ with git, git wins and the discrepancy gets flagged.
 | Static site (index.html) | Notifications unified into one Alerts panel; typography on half-mast token system |
 | Park/road/dir/beach CSS (`PARK_CSS`) | On the same half-mast type token system as `index.html` — `:root` tokens + `@media(max-width:580px)` tracking loosen; desktop unchanged (Item 3) |
 | Mobile map | **DONE + deployed** (`082db6f4`) — `leaflet-gesture-handling` 1.2.2 (vendored) on `pointer:coarse`; `.mapframe` `52vh` on phones. |
-| Park pages (build-parks.js) | Entrance fee + reservation block + 4-entry FAQ + `isAccessibleForFree` live |
+| Park pages (build-parks.js) | Entrance fee + reservation block + 4-entry FAQ + `isAccessibleForFree` live; reservation block links to `/reservations/` |
+| Reservations (`/reservations/`) | Generated hub from `reservations.json` — 6-park table + "dropped for 2026" block + timed-entry explainer + FAQ JSON-LD (Item 7). Not in `siteNav()`. |
 | Road pages (`/road/`) | **21 published** — Item 1's 8 + Old Fall River & Glacier Point (backfilled) + 11 from Item 4 (Newfound Gap, Kuwohi/Clingmans Dome, Road to Paradise, Chinook Pass SR-410, Teton Park Rd, Moose-Wilson Rd, SR-67 North Rim, Generals Hwy, Kings Canyon Scenic Byway, Denali Park Rd, Park Loop Rd). 2 staged (`datesReviewed:false`): stevens-canyon-road, mineral-king-road. Regenerates + deploys on the next daily refresh. |
 | CI / deploy | `refresh-park-data.yml` dispatches `deploy.yml` AND now `git add`s `public_html/road` + `public_html/llms.txt` |
 | Worker | `/push/unsubscribe`; `detectShutdown()` + blob `shutdown` + `/shutdown-override` (Item 6, `b0388615`); **Item 5**: `roadStatus()` canonical here, hourly → blob `roads` array + Tier-B road-change push (web + native), KV `road:notifylog` 24h cooldown |
@@ -19,6 +20,43 @@ with git, git wins and the discrepancy gets flagged.
 | Prompt-engineer / builder workflow | Set up this session (`.claude/` + coordination files) |
 
 ## Log
+
+### 2026-09-09 — Item 7 DONE: `/reservations/` timed-entry index page
+
+- **build-parks.js `reservationsIndexHtml(reservations, entities, updatedISO, tally)`** →
+  `public_html/reservations/index.html`. Generated wholly from `reservations.json` (the
+  `RESERVATIONS` map) — no new curated file. Structure mirrors `roadIndexHtml` /
+  `beachIndexHtml` (GA + INDEXERNOW head, `siteNav()` header, baked `stripHtml` strip,
+  `.related` cards, shutdown-banner refetch).
+  - `<table class="resv">` — Park (→ `/park/<slug>/`, slug resolved from `entities`) ·
+    What's covered (`.name`) · When (`.season`) · Book (`.url`), 6 rows sorted by park name.
+  - `.resv-dropped` block: Arches / Glacier / Mount Rainier / Yosemite named + linked to
+    their park pages. **Hardcoded `DROPPED_IDS` array with a "RE-CHECK EVERY SPRING" comment.**
+  - "How timed entry works" (3 paras) + "Do I still pay the entrance fee?" — drawn from the
+    common patterns in the `reservations.json` summaries; no new facts.
+  - JSON-LD `@graph`: `BreadcrumbList` + `FAQPage` (2 Qs — "Which national parks require a
+    reservation in 2026?" lists all 6 + names the 4 dropped; "Do I still pay the entrance
+    fee…" → yes) + `ItemList` of the 6.
+- **Wiring**: `main()` writes `public_html/reservations/index.html`; `sitemap()` gains
+  `{loc:/reservations/, monthly, 0.7}` (+ console count `+11`→`+12`); `llmsTxt()` gains a
+  `## Reservations & timed entry` section.
+- **Cross-link**: the per-park `en.reservation` `<article>` in `pageHtml` now ends with
+  `<a href="/reservations/">All national park reservations & timed entry →</a>` (6 parks).
+- **PARK_CSS**: +8 lines — `.resv-wrap` (overflow-x scroll), `.resv` table, `.resv-dropped`
+  card. `park.css` output regenerated; additive only.
+- **NOT** added to `siteNav()` (constraint) — reached from park pages + the sitemap/llms.
+- **Verified** (`node` harness, 26/26): 6 table rows each linking `/park/<slug>/` + a Book
+  link to the `reservations.json` url; all 4 dropped parks named + linked; single `ld+json`
+  block parses, graph = Breadcrumb/FAQPage/ItemList, FAQ names the dropped parks,
+  ItemList count == 6; canonical + og:url = `/reservations/`; no `/reservations/` in
+  `siteNav()`; `sitemap()` + `llmsTxt()` include it. Browser render checked at 1280px.
+  `public_html/reservations/index.html` regenerated against the LIVE blob tally + `updated`.
+- **Byte-identical**: `parks-enriched.json` / `parks.json` untouched. `git diff` = build-parks.js
+  + public_html/park/park.css + new public_html/reservations/index.html.
+- **PROPOSED (not applied)** `refresh-park-data.yml` `git add` line — add `public_html/reservations`:
+  `git add public_html/park public_html/road public_html/roads.json public_html/reservations public_html/shutdown public_html/parks-enriched.json public_html/parks.json public_html/sitemap.xml public_html/llms.txt`
+- **Deploy**: ships via `deploy.yml` on push (`public_html/**`); daily cron keeps it fresh
+  once the `git add` line lands.
 
 ### 2026-09-08 — Item 5 DONE: "watch a road for reopening" (Worker road status + web & native push)
 

@@ -649,6 +649,7 @@ ${stripHtml(tally, updatedISO)}
     <p id="p-resv">${esc(en.reservation.summary)}</p>
     <p><a class="btn primary" href="${esc(en.reservation.url)}" target="_blank" rel="noopener">Book on Recreation.gov ↗</a></p>
     <p class="checked">Reservation window: ${esc(en.reservation.season)}. Confirm on the official site before you travel — programs change year to year.</p>
+    <p><a href="/reservations/">All national park reservations &amp; timed entry →</a></p>
   </article>` : ""}
 
   ${roadsHere.length ? `<div class="roads-in-park">
@@ -1048,6 +1049,146 @@ fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).t
 `;
 }
 
+// ===================== /reservations/ index =============================
+// Generated wholly from reservations.json (the RESERVATIONS map). One clean,
+// annually-refreshed hub for "which national parks need a timed-entry /
+// vehicle reservation in <year>". NOT in siteNav() — reached from park pages
+// and the footer only.
+function reservationsIndexHtml(reservations, entities, updatedISO, tally) {
+  const url = `${SITE}/reservations/`;
+  const byId = new Map(entities.map((e) => [e.id, e]));
+  const rows = Object.entries(reservations)
+    .filter(([k]) => k !== "_note")
+    .map(([id, r]) => {
+      const ent = byId.get(id);
+      return { id, name: ent ? ent.name : id, slug: ent ? ent.slug : null, r };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Parks that ran timed entry recently but do NOT require it this year.
+  // Hardcoded — RE-CHECK EVERY SPRING against nps.gov.
+  const DROPPED_IDS = ["nps:arch", "nps:glac", "nps:mora", "nps:yose"];
+  const dropped = DROPPED_IDS.map((id) => {
+    const ent = byId.get(id);
+    return { name: ent ? ent.name : id.replace(/^nps:/, ""), slug: ent ? ent.slug : null };
+  });
+  const droppedHtml = dropped
+    .map((d) => (d.slug ? `<a href="/park/${d.slug}/">${esc(d.name)}</a>` : esc(d.name)))
+    .join(", ").replace(/, ([^,]*)$/, " and $1");
+
+  const asOf = fmtLong(updatedISO);
+  const tableRows = rows.map(({ name, slug, r }) => `<tr>
+      <td>${slug ? `<a href="/park/${slug}/">${esc(name)}</a>` : esc(name)}</td>
+      <td>${esc(r.name)}</td>
+      <td>${esc(r.season)}</td>
+      <td><a href="${esc(r.url)}" target="_blank" rel="noopener">Book ↗</a></td>
+    </tr>`).join("\n");
+
+  const faqWhich = `As of ${asOf}, ${rows.length} national parks require a timed-entry or vehicle reservation for at least part of the year: `
+    + rows.map((x) => `${x.name} (${x.r.name.toLowerCase()}, ${x.r.season})`).join("; ")
+    + `. ${dropped.map((d) => d.name).join(", ").replace(/, ([^,]*)$/, " and $1")} ran timed-entry systems in recent years but do not require one this year.`;
+  const faqFee = `Yes. A timed-entry or vehicle reservation only reserves your entry slot or parking — it is not a park pass. You still need a valid entrance pass or to pay the entrance fee, and the reservation carries its own small processing fee (about $1–$6).`;
+
+  const jsonld = {
+    "@context": "https://schema.org",
+    "@graph": [
+      { "@type": "BreadcrumbList", itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
+        { "@type": "ListItem", position: 2, name: "Reservations", item: url } ] },
+      { "@type": "FAQPage", mainEntity: [
+        { "@type": "Question", name: `Which national parks require a reservation in ${new Date(updatedISO).getUTCFullYear()}?`,
+          acceptedAnswer: { "@type": "Answer", text: faqWhich } },
+        { "@type": "Question", name: "Do I still pay the entrance fee with a timed-entry ticket?",
+          acceptedAnswer: { "@type": "Answer", text: faqFee } } ] },
+      { "@type": "ItemList", name: "National parks requiring a reservation", numberOfItems: rows.length,
+        itemListElement: rows.map((x, i) => ({ "@type": "ListItem", position: i + 1, name: x.name,
+          url: x.slug ? `${SITE}/park/${x.slug}/` : url })) },
+    ],
+  };
+
+  const desc = `Which U.S. national parks require a timed-entry or vehicle reservation, and when — ${rows.length} parks with their 2026 seasons and booking links, plus the parks that dropped timed entry. Verified ${asOf}.`;
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PFZYJ3L871"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PFZYJ3L871');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${INDEXERNOW}
+<title>Which national parks require a reservation? — Park Status Today</title>
+<meta name="description" content="${esc(desc)}">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="${url}">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Which national parks require a reservation?">
+<meta property="og:description" content="${esc(desc)}">
+<meta property="og:url" content="${url}">
+<script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, "\\u003c")}</script>
+<link rel="stylesheet" href="/park/park.css">
+</head>
+<body>
+<div id="shutdown-banner"></div>
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  ${siteNav()}
+</div></header>
+${stripHtml(tally, updatedISO)}
+<main class="wrap">
+  <div class="crumbs"><a href="/">Home</a> / Reservations</div>
+  <h1>National park reservations &amp; timed entry</h1>
+  <p class="sub">Which parks need a timed-entry or vehicle reservation to visit, and when. Verified for the 2026 season as of ${esc(asOf)} — always confirm on the official booking site before you go.</p>
+
+  <p>A handful of national parks cap how many vehicles enter during their busiest hours with a timed-entry or vehicle reservation, booked ahead on <a href="https://www.recreation.gov" target="_blank" rel="noopener">Recreation.gov</a> (Muir Woods uses GoMuirWoods.com). A reservation is <strong>not</strong> a park pass — you still pay the normal entrance fee, and the reservation carries its own small processing fee. Outside the dates and hours below, no reservation is needed.</p>
+
+  <div class="resv-wrap"><table class="resv">
+    <tr><th>Park</th><th>What's covered</th><th>When</th><th>Book</th></tr>
+${tableRows}
+  </table></div>
+
+  <div class="resv-dropped"><strong>No longer required in 2026:</strong> ${droppedHtml} ran timed-entry systems in recent years but do not require one for the 2026 season. Check the park page before you travel in case that changes.</div>
+
+  <article>
+    <h2>How timed entry works</h2>
+    <p>Reservations are released in batches: a block opens weeks or months ahead, then a second batch — often the slots people actually get — drops the night before or two days out, at a fixed time in the park's local zone. Set a reminder; popular days sell out in minutes.</p>
+    <p>Each reservation costs a small processing fee (about $1 at the cavern and sunrise parks, up to $6 per vehicle at Acadia) <em>on top of</em> the park entrance fee, which you pay separately.</p>
+    <p>A reservation only covers the specific road, area, or time window it names — the Cadillac Summit Road, the Old Rag trailhead, the sunrise hours at Haleakalā. The rest of each park stays walk-in, and so does every park not on this list.</p>
+  </article>
+
+  <article>
+    <h2>Do I still pay the entrance fee?</h2>
+    <p>Yes. A timed-entry or vehicle reservation reserves your entry slot or parking space only. You still need a valid park entrance pass (or to pay the fee at the gate), and the reservation's processing fee is charged on top of that.</p>
+  </article>
+
+  <div class="related">
+    <h2>More</h2>
+    <div class="cards">
+      <a class="gcard" href="/park/"><div class="t">All park statuses</div><div class="d">National and state parks, A–Z, open / partially closed / closed.</div></a>
+      <a class="gcard" href="/road/"><div class="t">Road status</div><div class="d">Seasonal opening dates and live closures for major park roads.</div></a>
+      <a class="gcard" href="/#map"><div class="t">Live map</div><div class="d">See what's open near you right now.</div></a>
+      <a class="gcard" href="/#signup"><div class="t">Get alerts</div><div class="d">Email or push when something near you closes.</div></a>
+    </div>
+  </div>
+</main>
+<footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span class="disc">Reservation details are our reading of nps.gov and recreation.gov, verified ${esc(asOf)} · programs change year to year — always confirm on the official site.</span>
+  <span class="disc"><a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
+  <span class="corp">${CORP_LINE}</span>
+</div></footer>
+<script>
+fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){
+  if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
+  b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';b.className="show";
+}).catch(function(){});
+</script>
+<script src="/app-native.js" defer></script>
+</body>
+</html>
+`;
+}
+
 // ===================== /shutdown/ live hub ================================
 // sd = blob.shutdown = { active, since, source, summary, checkedAt, stale }
 function shutdownPageHtml(sd, updatedISO, tally) {
@@ -1344,6 +1485,14 @@ footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;le
 .shutdown-note{border:1px solid var(--closed);border-left:5px solid var(--closed);background:var(--closed-tint);border-radius:12px;padding:14px 16px;margin:0 0 22px}
 .shutdown-note h2{margin:0 0 6px;font-size:var(--type-note-title);letter-spacing:var(--tracking-note)}
 .shutdown-note p{margin:0;font-size:14px}
+
+/* /reservations/ index (additive) */
+.resv-wrap{overflow-x:auto}
+.resv{width:100%;border-collapse:collapse;font-size:14px;margin:18px 0 24px}
+.resv th,.resv td{text-align:left;padding:9px 12px 9px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.resv th{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.resv td:first-child{font-weight:bold}
+.resv-dropped{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 22px;font-size:14px}
 `;
 
 function sitemap(list, updatedISO, beachHubs, roads) {
@@ -1352,6 +1501,7 @@ function sitemap(list, updatedISO, beachHubs, roads) {
     { loc: `${SITE}/`, freq: "hourly", pri: "1.0" },
     { loc: `${SITE}/park/`, freq: "hourly", pri: "0.9" },
     { loc: `${SITE}/shutdown/`, freq: "daily", pri: "0.9" },
+    { loc: `${SITE}/reservations/`, freq: "monthly", pri: "0.7" },
     { loc: `${SITE}/road/`, freq: "weekly", pri: "0.8" },
     { loc: `${SITE}/beach/`, freq: "daily", pri: "0.8" },
     { loc: `${SITE}/guides/`, freq: "weekly", pri: "0.8" },
@@ -1394,6 +1544,9 @@ Coverage as of ${asOf}: ${nps} National Park Service units, ${state} state parks
 ## Roads
 - [Park road status](${SITE}/road/): seasonal opening/closing dates and live closure status for major national-park roads, each at ${SITE}/road/<slug>/
 ${(roads || []).map((r) => `- [Is ${r.name} open?](${SITE}/road/${r.slug}/)`).join("\n")}
+
+## Reservations & timed entry
+- [Which national parks require a reservation in 2026?](${SITE}/reservations/): the national parks with a timed-entry or vehicle reservation requirement, their 2026 seasons and booking links; also names the parks (Arches, Glacier, Mount Rainier, Yosemite) that dropped timed entry for 2026
 
 ## Beaches
 - [Beach water quality & closures by county](${SITE}/beach/): New York public beaches grouped by county, with current swimming advisories and closures at ${SITE}/beach/<county>/
@@ -1813,6 +1966,10 @@ async function main() {
   fs.mkdirSync(SHUTDOWN_DIR, { recursive: true });
   fs.writeFileSync(path.join(SHUTDOWN_DIR, "index.html"), shutdownPageHtml(shutdown, updatedISO, tally));
 
+  const RESV_DIR = path.join(OUT, "reservations");
+  fs.mkdirSync(RESV_DIR, { recursive: true });
+  fs.writeFileSync(path.join(RESV_DIR, "index.html"), reservationsIndexHtml(RESERVATIONS, entities, updatedISO, tally));
+
   const ROAD_DIR = path.join(OUT, "road");
   fs.mkdirSync(ROAD_DIR, { recursive: true });
   for (const r of published) {
@@ -1842,7 +1999,7 @@ async function main() {
     `  ${beachHubs.length} beach county hubs + index\n` +
     `  parks-enriched.json: ${withWiki} with Wikipedia about/history, ${withNps} with NPS visitor info\n` +
     `  baked tally: ${tally.open} open / ${tally.partially_closed} partial / ${tally.closed} closed / ${tally.no_data} no-data\n` +
-    `  sitemap.xml: ${entities.length + beachHubs.length + published.length + 11} urls\n  data timestamp: ${updatedISO}\n`
+    `  sitemap.xml: ${entities.length + beachHubs.length + published.length + 12} urls\n  data timestamp: ${updatedISO}\n`
   );
 }
 
