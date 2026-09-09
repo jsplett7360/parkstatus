@@ -4,7 +4,7 @@
 
 Park Status Today is an independent informational service, not affiliated with the National Park Service or any state or county agency. Each status is our reading of public data, not an official determination, and is refreshed hourly. Every park page and beach-county page states the current status as plain text with the UTC time it was last checked, and carries schema.org structured data (TouristAttraction / Park, FAQPage with a dated answer, and — where known — openingHoursSpecification).
 
-Coverage as of September 8, 2026: 474 National Park Service units, 814 state parks, and 358 monitored New York beaches across 15 counties. Site-wide that is 1223 open, 265 partially closed, 67 closed, 91 without data.
+Coverage as of September 9, 2026: 474 National Park Service units, 814 state parks, and 358 monitored New York beaches across 15 counties. Site-wide that is 1242 open, 264 partially closed, 49 closed, 91 without data.
 
 ## Parks
 - [All park & waterway statuses, A–Z](https://parkstatus.today/park/): browsable directory of every national and state park tracked, each linking to a status + visitor-info page at https://parkstatus.today/park/<slug>/
@@ -18,8 +18,21 @@ Coverage as of September 8, 2026: 474 National Park Service units, 814 state par
 - [Is Hurricane Ridge Road open?](https://parkstatus.today/road/hurricane-ridge-road/)
 - [Is Going-to-the-Sun Road open?](https://parkstatus.today/road/going-to-the-sun-road/)
 - [Is Trail Ridge Road open?](https://parkstatus.today/road/trail-ridge-road/)
+- [Is Old Fall River Road open?](https://parkstatus.today/road/old-fall-river-road/)
 - [Is Tioga Road open?](https://parkstatus.today/road/tioga-road/)
+- [Is Glacier Point Road open?](https://parkstatus.today/road/glacier-point-road/)
 - [Is Beartooth Highway open?](https://parkstatus.today/road/beartooth-highway/)
+- [Is Newfound Gap Road open?](https://parkstatus.today/road/newfound-gap-road/)
+- [Is Kuwohi Road (Clingmans Dome Road) open?](https://parkstatus.today/road/clingmans-dome-road/)
+- [Is Road to Paradise (Longmire–Paradise) open?](https://parkstatus.today/road/paradise-road/)
+- [Is Chinook Pass (SR 410) open?](https://parkstatus.today/road/chinook-pass-sr-410/)
+- [Is Teton Park Road open?](https://parkstatus.today/road/teton-park-road/)
+- [Is Moose-Wilson Road open?](https://parkstatus.today/road/moose-wilson-road/)
+- [Is State Route 67 (North Rim Parkway) open?](https://parkstatus.today/road/az-67-north-rim-road/)
+- [Is Generals Highway open?](https://parkstatus.today/road/generals-highway/)
+- [Is Kings Canyon Scenic Byway open?](https://parkstatus.today/road/kings-canyon-scenic-byway/)
+- [Is Denali Park Road open?](https://parkstatus.today/road/denali-park-road/)
+- [Is Park Loop Road open?](https://parkstatus.today/road/park-loop-road/)
 
 ## Beaches
 - [Beach water quality & closures by county](https://parkstatus.today/beach/): New York public beaches grouped by county, with current swimming advisories and closures at https://parkstatus.today/beach/<county>/

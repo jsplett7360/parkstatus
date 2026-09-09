@@ -17,7 +17,7 @@
 <meta property="og:title" content="Is Hurricane Ridge Road open right now?">
 <meta property="og:description" content="Hurricane Ridge Road: Open daily in summer. The 17-mile road climbing from Port Angeles to the Hurricane Ridge subalpine area in Olympic National Park.">
 <meta property="og:url" content="https://parkstatus.today/road/hurricane-ridge-road/">
-<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://parkstatus.today/"},{"@type":"ListItem","position":2,"name":"Roads","item":"https://parkstatus.today/road/"},{"@type":"ListItem","position":3,"name":"Hurricane Ridge Road","item":"https://parkstatus.today/road/hurricane-ridge-road/"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is Hurricane Ridge Road open right now?","acceptedAnswer":{"@type":"Answer","text":"Open daily in summer. Last checked September 8, 2026 UTC. Always confirm with the official road-status page before you travel."}},{"@type":"Question","name":"Is Hurricane Ridge Road open in winter?","acceptedAnswer":{"@type":"Answer","text":"Open daily in summer. From roughly late November through March the road is open Friday, Saturday and Sunday only (plus some holidays), and only when it has been plowed and avalanche conditions allow — check the park's gate status before driving up. Visitor services at the top have been limited since the Hurricane Ridge Day Lodge burned down in May 2023."}}]}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://parkstatus.today/"},{"@type":"ListItem","position":2,"name":"Roads","item":"https://parkstatus.today/road/"},{"@type":"ListItem","position":3,"name":"Hurricane Ridge Road","item":"https://parkstatus.today/road/hurricane-ridge-road/"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is Hurricane Ridge Road open right now?","acceptedAnswer":{"@type":"Answer","text":"Open daily in summer. Last checked September 9, 2026 UTC. Always confirm with the official road-status page before you travel."}},{"@type":"Question","name":"Is Hurricane Ridge Road open in winter?","acceptedAnswer":{"@type":"Answer","text":"Open daily in summer. From roughly late November through March the road is open Friday, Saturday and Sunday only (plus some holidays), and only when it has been plowed and avalanche conditions allow — check the park's gate status before driving up. Visitor services at the top have been limited since the Hurricane Ridge Day Lodge burned down in May 2023."}}]}]}</script>
 <link rel="stylesheet" href="/park/park.css">
 </head>
 <body data-parent-id="nps:olym" data-parent-source="nps">
@@ -29,11 +29,11 @@
 </div></header>
 
 <div class="strip"><div class="wrap">
-  <span class="k"><span class="dot open"></span><b id="s-open">1223</b>&nbsp;open</span>
-  <span class="k"><span class="dot partial"></span><b id="s-partial">265</b>&nbsp;partially closed</span>
-  <span class="k"><span class="dot closed"></span><b id="s-closed">67</b>&nbsp;closed</span>
+  <span class="k"><span class="dot open"></span><b id="s-open">1242</b>&nbsp;open</span>
+  <span class="k"><span class="dot partial"></span><b id="s-partial">264</b>&nbsp;partially closed</span>
+  <span class="k"><span class="dot closed"></span><b id="s-closed">49</b>&nbsp;closed</span>
   <span class="k"><span class="dot nodata"></span><b id="s-nodata">91</b>&nbsp;no data</span>
-  <span class="upd"><span id="s-upd">updated Sep 8</span> · <a href="/#map">view map →</a></span>
+  <span class="upd"><span id="s-upd">updated Sep 9</span> · <a href="/#map">view map →</a></span>
 </div></div>
 
 <main class="wrap">
@@ -44,11 +44,12 @@
   <div class="verdict open" id="verdict">
     <span class="pill open" id="p-pill">Open</span>
     <p class="line">Open daily in summer.</p>
-    <p class="checked">Last checked Tue, 08 Sep 2026 21:42:08 GMT</p>
+    <p class="checked">Last checked Wed, 09 Sep 2026 12:01:32 GMT</p>
   </div>
 
   <div class="acts">
     <a class="btn primary" href="https://www.nps.gov/olym/planyourvisit/road-and-area-closures.htm" target="_blank" rel="noopener">Official road status ↗</a>
+    <button type="button" class="btn ghost" id="road-follow" data-rid="road:hurricane-ridge-road" data-rname="Hurricane Ridge Road">🔔 Notify me if it closes</button>
     <a class="btn ghost" href="/road/">← All roads</a>
   </div>
 
@@ -92,6 +93,27 @@
     if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
     b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';b.className="show";
   }).catch(function(){});
+})();
+</script>
+<script>
+/* "Notify me" — adds road:<slug> to ps_follows (shared with the Alerts panel
+   and app-native.js). Web: bounce to the homepage panel to finish the push
+   opt-in. In-app: app-native.js picks up the ps_follows write and re-subscribes. */
+(function(){
+  var rf=document.getElementById("road-follow"); if(!rf) return;
+  var RID=rf.dataset.rid, RNAME=rf.dataset.rname, SEASONAL=false;
+  var LABEL_OFF=SEASONAL?"🔔 Notify me when it reopens":"🔔 Notify me if it closes";
+  function readF(){ try{ var a=JSON.parse(localStorage.getItem("ps_follows")||"[]"); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+  function paint(){ var on=readF().some(function(f){return f&&f.id===RID;}); rf.classList.toggle("on",on); rf.textContent=on?"✓ You'll be notified — manage alerts":LABEL_OFF; }
+  paint();
+  rf.addEventListener("click",function(){
+    var f=readF().filter(function(x){return x&&x.id;});
+    var i=f.findIndex(function(x){return x.id===RID;});
+    if(i>=0) f.splice(i,1); else f.push({id:RID,name:RNAME});
+    try{ localStorage.setItem("ps_follows", JSON.stringify(f.slice(0,60))); }catch(_){}
+    paint();
+    if(i<0) location.href="/#alerts";
+  });
 })();
 </script>
 <script src="/app-native.js" defer></script>
