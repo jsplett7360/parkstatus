@@ -82,6 +82,32 @@ function slugify(s) {
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+// USPS code -> full name (50 + DC + inhabited territories). Used for /state/ hubs.
+const US_STATES = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
+  CO: "Colorado", CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia",
+  HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas",
+  KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland", MA: "Massachusetts",
+  MI: "Michigan", MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana",
+  NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico",
+  NY: "New York", NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma",
+  OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina",
+  SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont",
+  VA: "Virginia", WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming",
+  DC: "District of Columbia", AS: "American Samoa", GU: "Guam",
+  PR: "Puerto Rico", VI: "U.S. Virgin Islands", MP: "Northern Mariana Islands",
+};
+// Great-circle miles (same formula as worker.js haversineMi).
+function haversineMi(la1, lo1, la2, lo2) {
+  if ([la1, lo1, la2, lo2].some((v) => typeof v !== "number" || isNaN(v))) return Infinity;
+  const R = 3958.8, toR = Math.PI / 180;
+  const dLa = (la2 - la1) * toR, dLo = (lo2 - lo1) * toR;
+  const a = Math.sin(dLa / 2) ** 2 + Math.cos(la1 * toR) * Math.cos(la2 * toR) * Math.sin(dLo / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+// "TN, NC" / "ID,MT,WY" -> ["TN","NC"] (valid USPS codes only)
+const stateCodes = (s) => String(s || "").toUpperCase().split(/[,;/]+/).map((x) => x.trim()).filter((x) => US_STATES[x]);
+
 async function mapPool(items, size, fn) {
   const out = new Array(items.length);
   let i = 0;
@@ -513,10 +539,10 @@ function visitorBlock(en) {
 // Single source of truth for the generated-page site nav (the homepage header in
 // public_html/index.html is maintained separately).
 function siteNav() {
-  return `<nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/road/">Roads</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>`;
+  return `<nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/state/">States</a><a href="/road/">Roads</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>`;
 }
 
-function pageHtml(e, en, updatedISO, tally, roadsHere = [], sd = { active: false }) {
+function pageHtml(e, en, updatedISO, tally, roadsHere = [], sd = { active: false }, geo = {}) {
   const name = esc(e.name);
   const cls = STATUS_CLASS[e.status] || "nodata";
   const label = STATUS_LABEL[e.status] || "Status unknown";
@@ -713,6 +739,11 @@ ${stripHtml(tally, updatedISO)}
   ${roadsHere.length ? `<div class="roads-in-park">
     <h2>Roads in this park</h2>
     <ul>${roadsHere.map((r) => `<li><a href="/road/${r.slug}/">${esc(r.name)}</a> — ${r.seasonal ? `seasonal, typically opens ${esc(r.typicalOpen || "in late spring")}` : "open year-round"}</li>`).join("")}</ul>
+  </div>` : ""}
+
+  ${(geo.nearby && geo.nearby.length) || (geo.sameState && geo.sameState.length) || geo.stateSlug ? `<div class="nearby">
+    ${geo.nearby && geo.nearby.length ? `<div><h2>Parks near here</h2><ul>${geo.nearby.map((n) => `<li><a href="/park/${n.slug}/">${esc(n.name)}</a> <span class="mi">${n.mi} mi</span></li>`).join("")}</ul></div>` : ""}
+    ${(geo.sameState && geo.sameState.length) || geo.stateSlug ? `<div><h2>More in ${esc(geo.stateName || "this state")}</h2>${geo.sameState && geo.sameState.length ? `<ul>${geo.sameState.map((n) => `<li><a href="/park/${n.slug}/">${esc(n.name)}</a></li>`).join("")}</ul>` : ""}${geo.stateSlug ? `<p><a href="/state/${geo.stateSlug}/">All ${esc(geo.stateName)} parks &amp; beaches →</a></p>` : ""}</div>` : ""}
   </div>` : ""}
 
   <article>
@@ -937,7 +968,7 @@ ${stripHtml(tally, updatedISO)}
 <main class="wrap">
   <div class="crumbs"><a href="/">Home</a> / <a href="/road/">Roads</a> / ${name}</div>
   <h1>Is ${name} open?</h1>
-  <p class="sub">${road.designation ? esc(road.designation) + " · " : ""}${parentLinks}</p>
+  <p class="sub">${road.designation ? esc(road.designation) + " · " : ""}${parentLinks}${(road.stateHubs || []).length ? " · " + road.stateHubs.map((h) => `<a href="/state/${h.slug}/">${esc(h.name)}</a>`).join(" · ") : ""}</p>
 
   <div class="verdict ${st.cls}" id="verdict">
     <span class="pill ${st.cls}" id="p-pill">${esc(label)}</span>
@@ -1087,6 +1118,174 @@ ${stripHtml(tally, updatedISO)}
 <footer class="site"><div class="wrap">
   <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
   <span class="disc">Road status refreshed daily · always confirm with the official road-status page before you travel.</span>
+  <span class="disc"><a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
+  <span class="corp">${CORP_LINE}</span>
+</div></footer>
+<script>
+fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){
+  if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
+  b.innerHTML='<div class="sb-in"><strong>'+s.headline+'</strong> '+(s.message||"")+' <a href="'+(s.url||"#")+'">'+(s.cta||"Learn more →")+'</a></div>';b.className="show";
+}).catch(function(){});
+</script>
+<script src="/app-native.js" defer></script>
+</body>
+</html>
+`;
+}
+
+// ===================== /state/<slug>/ hubs + /state/ index ================
+// One hub per state/territory with >=1 covered entity. Groups every park, road
+// and beach in the state; pills are baked and refreshed by a blob fetch. Targets
+// "[state] national parks" / "[state] state parks" and — with the per-park
+// "Parks near here" / "More in [state]" blocks — gives Google real crawl paths
+// into the ~1,290 park pages (was: one internal link each).
+const STATE_GROUPS = [
+  ["nps", "National Park Service sites"],
+  ["statepark", "State parks"],
+  ["forest", "National forests"],
+  ["beach", "Beaches"],
+  ["road", "Seasonal roads"],
+];
+
+function stateHubHtml(code, name, slug, members, updatedISO, tally) {
+  const url = `${SITE}/state/${slug}/`;
+  const dot = (cls) => `<span class="d ${cls || "nodata"}"></span>`;
+  const row = (m) => m.type === "beach"
+    ? `<li><a href="${m.link}"><span class="nm">${esc(m.name)}</span></a></li>`
+    : `<li data-eid="${esc(m.eid)}"><a href="${m.link}">${dot(m.cls)}<span class="nm">${esc(m.name)}</span></a>${m.kind ? ` <span class="st">${esc(m.kind)}</span>` : ""}</li>`;
+  const groupsHtml = STATE_GROUPS.map(([t, label]) => {
+    const list = members.filter((m) => m.type === t);
+    if (!list.length) return "";
+    list.sort((a, b) => a.name.localeCompare(b.name));
+    return `<div class="state-group"><h2>${esc(label)} <span class="cnt">${list.length}</span></h2><ul class="plist">${list.map(row).join("")}</ul></div>`;
+  }).join("\n");
+  const total = members.length;
+  const npsN = members.filter((m) => m.type === "nps").length;
+  const spN = members.filter((m) => m.type === "statepark").length;
+  const lede = `We track ${total} ${total === 1 ? "place" : "places"} in ${name}`
+    + (npsN ? ` — ${npsN} National Park Service ${npsN === 1 ? "site" : "sites"}` : "")
+    + (spN ? `${npsN ? "," : " —"} ${spN} state ${spN === 1 ? "park" : "parks"}` : "")
+    + ". Each shows whether it's open, partially closed, or closed right now.";
+  const jsonld = { "@context": "https://schema.org", "@graph": [
+    { "@type": "BreadcrumbList", itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
+      { "@type": "ListItem", position: 2, name: "Parks by state", item: SITE + "/state/" },
+      { "@type": "ListItem", position: 3, name: name, item: url } ] },
+    { "@type": "ItemList", name: `Parks and public lands in ${name}`, numberOfItems: total,
+      itemListElement: members.slice(0, 200).map((m, i) => ({ "@type": "ListItem", position: i + 1, url: SITE + m.link, name: m.name })) },
+  ] };
+  return `<!doctype html>
+<html lang="en">
+<head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PFZYJ3L871"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PFZYJ3L871');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${INDEXERNOW}
+<title>${esc(name)} national &amp; state parks — open now? &middot; Park Status</title>
+<meta name="description" content="Live open / partially closed / closed status for ${total} national and state parks, forests and beaches in ${esc(name)}. Refreshed hourly.">
+<meta name="theme-color" content="#0b1b35">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="${url}">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="${esc(name)} park status — open or closed right now?">
+<meta property="og:url" content="${url}">
+<script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, "\\u003c")}</script>
+<link rel="stylesheet" href="/park/park.css">
+</head>
+<body data-state="${esc(code)}">
+<div id="shutdown-banner"></div>
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  ${siteNav()}
+</div></header>
+${stripHtml(tally, updatedISO)}
+<main class="wrap">
+  <div class="crumbs"><a href="/">Home</a> / <a href="/state/">Parks by state</a> / ${esc(name)}</div>
+  <h1>${esc(name)} parks — open right now?</h1>
+  <p class="sub">${esc(lede)}</p>
+  ${groupsHtml || "<p>Nothing tracked here yet.</p>"}
+  <p class="sub" style="margin-top:24px"><a href="/state/">← All states</a> · <a href="/park/">Every park, A–Z →</a></p>
+</main>
+<footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span class="disc">Live status refreshed hourly · always confirm with the official park page before you travel.</span>
+  <span class="disc"><a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
+  <span class="corp">${CORP_LINE}</span>
+</div></footer>
+<script>
+(function(){
+  var CLS={open:"open",partially_closed:"partial",closed:"closed",no_data:"nodata"};
+  var bmap=function(s){return s==="advisory"?"partially_closed":(s==="open"||s==="closed")?s:"no_data";};
+  fetch("${API}",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+    var by={};
+    (d.parks||[]).forEach(function(x){by["nps:"+(x.parkCode||x.id)]=x.status;});
+    ["nyParks","caParks","txParks","mnParks","flParks","waParks","usfs"].forEach(function(k){(d[k]||[]).forEach(function(x){by[x.id]=x.status;});});
+    (d.roads||[]).forEach(function(x){by["road:"+x.slug]=x.status;});
+    document.querySelectorAll("li[data-eid]").forEach(function(li){
+      var s=by[li.getAttribute("data-eid")];if(s==null)return;
+      var dotEl=li.querySelector(".d");if(dotEl)dotEl.className="d "+(CLS[s]||"nodata");
+    });
+    fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(sd){
+      if(!sd||!sd.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
+      b.innerHTML='<div class="sb-in"><strong>'+sd.headline+'</strong> '+(sd.message||"")+' <a href="'+(sd.url||"#")+'">'+(sd.cta||"Learn more →")+'</a></div>';b.className="show";
+    }).catch(function(){});
+  }).catch(function(){});
+})();
+</script>
+<script src="/app-native.js" defer></script>
+</body>
+</html>
+`;
+}
+
+function stateIndexHtml(states, updatedISO, tally) {
+  const card = (s) => `<a class="gcard" href="/state/${s.slug}/"><div class="t">${esc(s.name)}</div><div class="d">${
+    [s.counts.nps && `${s.counts.nps} NPS`, s.counts.statepark && `${s.counts.statepark} state`,
+     s.counts.forest && `${s.counts.forest} forest`, s.counts.beach && `${s.counts.beach} beach`,
+     s.counts.road && `${s.counts.road} road`].filter(Boolean).join(" · ") || "—"}</div></a>`;
+  const jsonld = { "@context": "https://schema.org", "@graph": [
+    { "@type": "BreadcrumbList", itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
+      { "@type": "ListItem", position: 2, name: "Parks by state", item: SITE + "/state/" } ] },
+    { "@type": "ItemList", name: "U.S. parks by state", numberOfItems: states.length,
+      itemListElement: states.map((s, i) => ({ "@type": "ListItem", position: i + 1, url: `${SITE}/state/${s.slug}/`, name: s.name })) },
+  ] };
+  return `<!doctype html>
+<html lang="en">
+<head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PFZYJ3L871"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PFZYJ3L871');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+${INDEXERNOW}
+<title>Parks by state — is your park open? &middot; Park Status Today</title>
+<meta name="description" content="National and state parks, forests, beaches and seasonal roads in every U.S. state — with live open / closed status, refreshed hourly.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="${SITE}/state/">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="Parks by state — is your park open?">
+<meta property="og:url" content="${SITE}/state/">
+<script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, "\\u003c")}</script>
+<link rel="stylesheet" href="/park/park.css">
+</head>
+<body>
+<div id="shutdown-banner"></div>
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  ${siteNav()}
+</div></header>
+${stripHtml(tally, updatedISO)}
+<main class="wrap">
+  <div class="crumbs"><a href="/">Home</a> / Parks by state</div>
+  <h1>Parks by state</h1>
+  <p class="sub">Every U.S. state and territory we cover, with its national and state parks, forests, beaches and seasonal roads in one place.</p>
+  <div class="cards state-cards">${states.map(card).join("")}</div>
+</main>
+<footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span class="disc">Live status refreshed hourly · always confirm with the official park page before you travel.</span>
   <span class="disc"><a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
   <span class="corp">${CORP_LINE}</span>
 </div></footer>
@@ -1553,13 +1752,28 @@ footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;le
 .pfacts>div{display:flex;gap:6px}
 .pfacts dt{color:var(--muted);margin:0}
 .pfacts dd{margin:0;font-weight:bold;color:var(--ink)}
+
+/* "Parks near here" / "More in [state]" + /state/ hubs (additive) */
+.nearby{display:flex;flex-wrap:wrap;gap:18px 40px;border-top:1px solid var(--line);margin-top:22px;padding-top:8px}
+.nearby>div{flex:1;min-width:220px}
+.nearby h2{font-size:var(--type-subsection);margin:14px 0 8px;letter-spacing:var(--tracking-tight)}
+.nearby ul{list-style:none;margin:0;padding:0}
+.nearby li{margin:4px 0;font-size:14px}
+.nearby .mi{color:var(--muted);font-family:var(--font-mono);font-size:12px;margin-left:4px}
+.nearby p{margin:10px 0 0;font-size:13px}
+.state-group{margin:22px 0}
+.state-group h2{font-size:var(--type-road-group);margin:0 0 8px;letter-spacing:var(--tracking-tight)}
+.state-group .cnt{font-family:var(--font-mono);font-size:12px;color:var(--muted);font-weight:normal}
+.state-group .plist li .st{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:8px}
+.state-cards .gcard .d{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
 `;
 
-function sitemap(list, updatedISO, beachHubs, roads) {
+function sitemap(list, updatedISO, beachHubs, roads, states) {
   const today = updatedISO.slice(0, 10);
   const staticUrls = [
     { loc: `${SITE}/`, freq: "hourly", pri: "1.0" },
     { loc: `${SITE}/park/`, freq: "hourly", pri: "0.9" },
+    { loc: `${SITE}/state/`, freq: "weekly", pri: "0.7" },
     { loc: `${SITE}/shutdown/`, freq: "daily", pri: "0.9" },
     { loc: `${SITE}/reservations/`, freq: "monthly", pri: "0.7" },
     { loc: `${SITE}/road/`, freq: "weekly", pri: "0.8" },
@@ -1582,14 +1796,15 @@ function sitemap(list, updatedISO, beachHubs, roads) {
     .map((h) => ({ loc: `${SITE}/beach/${h.slug}/`, freq: "daily", pri: "0.6" }));
   const roadUrls = (roads || []).slice().sort((a, b) => a.slug.localeCompare(b.slug))
     .map((r) => ({ loc: `${SITE}/road/${r.slug}/`, freq: "weekly", pri: "0.7" }));
-  const body = [...staticUrls, ...parkUrls, ...roadUrls, ...beachUrls]
+  const stateUrls = (states || []).map((s) => ({ loc: `${SITE}/state/${s.slug}/`, freq: "weekly", pri: "0.6" }));
+  const body = [...staticUrls, ...parkUrls, ...stateUrls, ...roadUrls, ...beachUrls]
     .map((u) => `  <url><loc>${u.loc}</loc><lastmod>${today}</lastmod><changefreq>${u.freq}</changefreq><priority>${u.pri}</priority></url>`).join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
 }
 
 // ===================== llms.txt ==========================================
 // https://llmstxt.org — a curated map of the site for language models.
-function llmsTxt(updatedISO, entities, beachHubs, tally, roads) {
+function llmsTxt(updatedISO, entities, beachHubs, tally, roads, states) {
   const nps = entities.filter((e) => e.source === "nps").length;
   const state = entities.length - nps;
   const asOf = fmtLong(updatedISO);
@@ -1604,6 +1819,10 @@ Coverage as of ${asOf}: ${nps} National Park Service units, ${state} state parks
 ## Parks
 - [All park & waterway statuses, A–Z](${SITE}/park/): browsable directory of every national and state park tracked, each linking to a status + visitor-info page at ${SITE}/park/<slug>/
 - [Full sitemap](${SITE}/sitemap.xml): every page on the site
+
+## Parks by state
+- [Parks by state](${SITE}/state/): every U.S. state/territory we cover, each hub at ${SITE}/state/<state-name>/ listing its national and state parks, forests, beaches and seasonal roads with live status
+${(states || []).map((s) => `- [${s.name} parks](${SITE}/state/${s.slug}/): ${s.total} tracked`).join("\n")}
 
 ## Roads
 - [Park road status](${SITE}/road/): seasonal opening/closing dates and live closure status for major national-park roads, each at ${SITE}/road/<slug>/
@@ -2009,6 +2228,58 @@ async function main() {
   const shutdown = data.shutdown || { active: false };
   process.stdout.write(`  shutdown: ${shutdown.active ? "ACTIVE" : "none"}${shutdown.stale ? " (stale)" : ""}\n`);
 
+  // ---- /state/ hubs + per-park "Parks near here" / "More in [state]" (Item 11)
+  const entType = (x) => x.source === "nps" ? "nps" : x.source === "usfs" ? "forest" : "statepark";
+  const byState = {};
+  const addMember = (code, m) => { (byState[code] ||= []).push(m); };
+  for (const e of entities) for (const code of stateCodes(statesText(e))) {
+    addMember(code, { type: entType(e), name: e.name, slug: e.slug, kind: e.kind,
+      eid: e.id, cls: STATUS_CLASS[e.status] || "nodata", link: `/park/${e.slug}/` });
+  }
+  for (const g of beachHubs) for (const code of stateCodes(g.state)) {
+    addMember(code, { type: "beach", name: g.label, slug: g.slug, link: `/beach/${g.slug}/` });
+  }
+  for (const r of published) {
+    const codes = new Set();
+    for (const pid of (r.parentIds || [])) { const pe = entById.get(pid); if (pe) stateCodes(statesText(pe)).forEach((c) => codes.add(c)); }
+    const st = roadStatuses.get(r.slug) || {};
+    for (const code of codes) addMember(code, { type: "road", name: r.name, slug: r.slug,
+      eid: "road:" + r.slug, cls: st.cls || "nodata", link: `/road/${r.slug}/` });
+  }
+  const stateList = Object.keys(byState).filter((c) => US_STATES[c]).map((code) => {
+    const counts = { nps: 0, statepark: 0, forest: 0, beach: 0, road: 0 };
+    for (const x of byState[code]) counts[x.type]++;
+    return { code, name: US_STATES[code], slug: slugify(US_STATES[code]), counts, total: byState[code].length };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+  const slugByCode = Object.fromEntries(stateList.map((s) => [s.code, s.slug]));
+  for (const r of published) {
+    const codes = new Set();
+    for (const p of r.parents) { const pe = entById.get(p.id); if (pe) stateCodes(statesText(pe)).forEach((c) => codes.add(c)); }
+    r.stateHubs = [...codes].filter((c) => slugByCode[c]).map((c) => ({ name: US_STATES[c], slug: slugByCode[c] }));
+  }
+
+  const nearPool = entities.filter((x) => typeof x.lat === "number" && x.lat)
+    .map((x) => ({ name: x.name, slug: x.slug, lat: x.lat, lon: x.lon, id: x.id }));
+  const geoByEntity = {};
+  for (const e of entities) {
+    const code0 = stateCodes(statesText(e))[0];
+    const g = { nearby: [], sameState: [],
+      stateSlug: code0 ? slugByCode[code0] : "", stateName: code0 ? US_STATES[code0] : "" };
+    if (typeof e.lat === "number" && e.lat) {
+      g.nearby = nearPool.filter((p) => p.id !== e.id)
+        .map((p) => ({ name: p.name, slug: p.slug, mi: Math.round(haversineMi(e.lat, e.lon, p.lat, p.lon)) }))
+        .filter((p) => p.mi > 0 && p.mi < 250).sort((a, b) => a.mi - b.mi).slice(0, 6);
+    }
+    if (code0) {
+      const seen = new Set([e.slug, ...g.nearby.map((n) => n.slug)]);
+      g.sameState = entities.filter((x) => x.id !== e.id && !seen.has(x.slug) && stateCodes(statesText(x)).includes(code0))
+        .sort((a, b) => a.name.localeCompare(b.name)).slice(0, 8)
+        .map((x) => ({ name: x.name, slug: x.slug }));
+    }
+    geoByEntity[e.id] = g;
+  }
+  process.stdout.write(`  ${stateList.length} state hubs\n`);
+
   fs.mkdirSync(PARK_DIR, { recursive: true });
   fs.writeFileSync(path.join(PARK_DIR, "park.css"), PARK_CSS);
 
@@ -2016,7 +2287,7 @@ async function main() {
   for (const e of entities) {
     const dir = path.join(PARK_DIR, e.slug);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, "index.html"), pageHtml(e, e._en, updatedISO, tally, roadsByPark[e.id] || [], shutdown));
+    fs.writeFileSync(path.join(dir, "index.html"), pageHtml(e, e._en, updatedISO, tally, roadsByPark[e.id] || [], shutdown, geoByEntity[e.id] || {}));
     n++;
   }
   fs.writeFileSync(path.join(PARK_DIR, "index.html"), directoryHtml(entities, updatedISO, tally));
@@ -2029,6 +2300,15 @@ async function main() {
     fs.writeFileSync(path.join(dir, "index.html"), beachHubHtml(g, updatedISO, tally));
   }
   fs.writeFileSync(path.join(BEACH_DIR, "index.html"), beachIndexHtml(beachHubs, updatedISO, tally));
+
+  const STATE_DIR = path.join(OUT, "state");
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  for (const s of stateList) {
+    const dir = path.join(STATE_DIR, s.slug);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "index.html"), stateHubHtml(s.code, s.name, s.slug, byState[s.code], updatedISO, tally));
+  }
+  fs.writeFileSync(path.join(STATE_DIR, "index.html"), stateIndexHtml(stateList, updatedISO, tally));
 
   const SHUTDOWN_DIR = path.join(OUT, "shutdown");
   fs.mkdirSync(SHUTDOWN_DIR, { recursive: true });
@@ -2057,8 +2337,8 @@ async function main() {
     parks: entities.map((e) => ({ id: e.id, slug: e.slug, name: e.name, kind: e.kind,
       states: statesText(e), status: e.status, source: e.source, url: `${SITE}/park/${e.slug}/` })),
   }));
-  fs.writeFileSync(path.join(OUT, "sitemap.xml"), sitemap(entities, updatedISO, beachHubs, published));
-  fs.writeFileSync(path.join(OUT, "llms.txt"), llmsTxt(updatedISO, entities, beachHubs, tally, published));
+  fs.writeFileSync(path.join(OUT, "sitemap.xml"), sitemap(entities, updatedISO, beachHubs, published, stateList));
+  fs.writeFileSync(path.join(OUT, "llms.txt"), llmsTxt(updatedISO, entities, beachHubs, tally, published, stateList));
 
   const withWiki = Object.values(enriched).filter((x) => x.history).length;
   const withNps = Object.values(enriched).filter((x) => x.hours || x.address).length;

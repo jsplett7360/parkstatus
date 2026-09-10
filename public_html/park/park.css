@@ -177,3 +177,17 @@ footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;le
 .pfacts>div{display:flex;gap:6px}
 .pfacts dt{color:var(--muted);margin:0}
 .pfacts dd{margin:0;font-weight:bold;color:var(--ink)}
+
+/* "Parks near here" / "More in [state]" + /state/ hubs (additive) */
+.nearby{display:flex;flex-wrap:wrap;gap:18px 40px;border-top:1px solid var(--line);margin-top:22px;padding-top:8px}
+.nearby>div{flex:1;min-width:220px}
+.nearby h2{font-size:var(--type-subsection);margin:14px 0 8px;letter-spacing:var(--tracking-tight)}
+.nearby ul{list-style:none;margin:0;padding:0}
+.nearby li{margin:4px 0;font-size:14px}
+.nearby .mi{color:var(--muted);font-family:var(--font-mono);font-size:12px;margin-left:4px}
+.nearby p{margin:10px 0 0;font-size:13px}
+.state-group{margin:22px 0}
+.state-group h2{font-size:var(--type-road-group);margin:0 0 8px;letter-spacing:var(--tracking-tight)}
+.state-group .cnt{font-family:var(--font-mono);font-size:12px;color:var(--muted);font-weight:normal}
+.state-group .plist li .st{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:8px}
+.state-cards .gcard .d{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
