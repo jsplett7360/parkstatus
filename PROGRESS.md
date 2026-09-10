@@ -21,19 +21,35 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
-### 2026-09-10 — Item 11 phase 1: plan drafted (PENDING APPROVAL)
+### 2026-09-10 — Item 11 DONE: internal linking + /state/ hubs (`8ca76182`)
 
-- Plan: `byState` map in `main()` (split multi-state `states` strings); "Parks near here"
-  (nearest ~6 by a new local haversine) + "More in [state]" (~8 + state-hub link) blocks
-  in `pageHtml`, computed once and passed in like `roadsHere`; new `stateHubHtml()` /
-  `stateIndexHtml()` → `public_html/state/<slug>/` + `/state/`; grouped by type, baked
-  pills + a blob-refetch script keyed by `data-eid`; JSON-LD BreadcrumbList + ItemList.
-- Cross-links: park/road → state hub; `siteNav()` + index.html header get a "States"
-  link; `sitemap()` gains a `states` param (hub pri 0.6); `llmsTxt()` "## Parks by state".
-- Decisions pending user: nav link (rec yes), hub threshold ≥1 entity (rec yes), nearby
-  = park entities + beach hubs only, NY beaches all on /state/new-york/.
-- No code yet. `parks*.json` to stay byte-identical.
-
+- **Helpers**: `US_STATES` (50 + DC + 5 territories), local `haversineMi` (= worker.js
+  formula), `stateCodes("TN, NC")` → `["TN","NC"]`.
+- **main()**: `byState` grouping — multi-state parks land on every relevant hub; roads
+  attach to their parent park's state(s), beaches by `g.state`. Per-entity `nearby`
+  (nearest 6 park-type entities within 250 mi) + `sameState` (≤8, alpha) + state-hub
+  link, computed once and passed to `pageHtml` like `roadsHere` (no per-page recompute).
+- **pageHtml**: "Parks near here" / "More in <State>" block after "Roads in this park".
+  State-hub link ("All <State> parks & beaches →") renders even when `sameState` is
+  empty (single-park states). Graceful for island parks (empty `nearby` → state part
+  only).
+- **New page type**: `stateHubHtml()` → `public_html/state/<slug>/index.html` — grouped
+  NPS / state parks / forests / beaches / seasonal roads, baked status pills + one blob
+  fetch updates every pill by `data-eid`; JSON-LD BreadcrumbList + ItemList. `stateIndexHtml()`
+  → `/state/index.html` (cards with per-type counts). ~50 hubs.
+- **Wiring**: "States" link in `siteNav()`, `index.html` header nav, and both footers;
+  `sitemap()` gains a `states` param (`/state/` pri 0.7, hubs 0.6/weekly); `llms.txt`
+  "## Parks by state" section; `roadPageHtml` sub-line links to parent parks' state hubs.
+- **CSS**: additive `.nearby` / `.state-group` / `.state-cards` in `PARK_CSS` +
+  `public_html/park/park.css`.
+- `parks.json` / `parks-enriched.json` **byte-identical**.
+- QA: module harness — dense-state (Yosemite: near + CA block + hub link), island
+  (Isle Royale: state part only), single-park (Delaware: hub link present); `/state/
+  california/` (3 groups, 4 `data-eid` rows, JSON-LD valid), thin `/state/delaware/`,
+  `/state/` index; `haversineMi(SF, LA)` = 347 mi. No full `node build-parks.js` (no key).
+- **BLOCKER for deploy**: `refresh-park-data.yml` `git add` line must gain
+  `public_html/state` or the ~50 hubs never deploy on the daily refresh. Proposed, not
+  applied (per the item's constraint).
 
 ### 2026-09-10 — Item 10 DONE: per-park distinctiveness pass (`080ce3c8`)
 
