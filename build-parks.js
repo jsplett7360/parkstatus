@@ -49,12 +49,31 @@ const RESERVATIONS = (() => { try { return require("./reservations.json"); } cat
 // pages only when datesReviewed === true.
 const ROADS = (() => { try { return require("./roads.json"); } catch (_) { return {}; } })();
 
+// Curated distinctiveness + key facts for the highest-traffic parks (see
+// park-facts.json), keyed by entity id. Parks not listed fall back to a cleaned
+// first-sentence extract of the NPS/Wikipedia text (see firstSentence()).
+const PARK_FACTS = (() => { try { return require("./park-facts.json"); } catch (_) { return {}; } })();
+
 const esc = (s) =>
   String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const fmtPhone = (s) => { const d = String(s || "").replace(/\D/g, "");
   return d.length === 10 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`
     : (d.length === 11 && d[0] === "1") ? `(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}` : s; };
 const clip = (s, n) => { s = String(s || "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n - 1).replace(/\s\S*$/, "") + "…" : s; };
+
+// First sentence of a blurb, lightly cleaned — the "what makes it different"
+// fallback for parks not in park-facts.json. Returns "" when the result would be
+// too thin or just restates "<Name> is a national park in <State>".
+function firstSentence(t, name) {
+  t = String(t || "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  const m = t.match(/^.*?[.!?](?=\s|$)/);
+  let s = (m ? m[0] : t).trim();
+  if (s.length > 220) s = clip(s, 220);
+  const lead = new RegExp("^" + String(name || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+(is|was)\\s+(a|an|the)\\b", "i");
+  if (lead.test(s) && s.length < 95) return "";
+  return s.length >= 40 ? s : "";
+}
 
 function slugify(s) {
   return String(s)
@@ -517,6 +536,41 @@ function pageHtml(e, en, updatedISO, tally, roadsHere = [], sd = { active: false
   const desc = clip(`${e.name} ${STATUS_SENTENCE[e.status] || "status"}. ${e.reason || ""} ${overview}`, 300);
   const photo = en && en.photo;
 
+  // ---- distinctiveness: a lead line + a compact facts row -------------------
+  const facts = PARK_FACTS[e.id] || null;
+  const distinct = (facts && facts.different) || firstSentence(en && (en.description || en.history), e.name);
+  const nearestTown = en && en.address
+    ? (String(en.address).split(",").map((s) => s.trim())
+        .find((s) => s && !/^\d/.test(s) && !/^[A-Z]{2}(\s+\d{5})?$/.test(s) && s.length > 2 && s.length < 30) || "")
+    : "";
+  const pf = [["Type", e.kind || "Park"]];
+  if (stateTxt) pf.push(["State", stateTxt]);
+  if (facts && facts.established) pf.push(["Established", String(facts.established)]);
+  if (facts && facts.sizeSqMi >= 1) pf.push(["Size", Math.round(facts.sizeSqMi).toLocaleString() + " sq mi"]);
+  else if (facts && facts.sizeAcres) pf.push(["Size", facts.sizeAcres.toLocaleString() + " acres"]);
+  if (facts && facts.visits2025) pf.push(["2025 visits", (facts.visits2025 / 1e6).toFixed(facts.visits2025 < 1e6 ? 2 : 1) + "M"
+    + (facts.rank2025 ? ` (#${facts.rank2025} most-visited)` : "")]);
+  if (!facts && nearestTown && !/^\d/.test(nearestTown)) pf.push(["Nearest town", nearestTown]);
+  const factsRow = pf.length > 1
+    ? `<dl class="pfacts">${pf.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>` : "";
+
+  // "Before you go" cards — the set depends on the park, so no two are identical
+  const cards = [];
+  cards.push(e.source === "nps"
+    ? ["/guides/national-parks-government-shutdown.html", "Parks &amp; government shutdowns", "What closes, what stays open, and how a funding lapse changes park status."]
+    : ["/guides/why-national-parks-close.html", "Why parks close", "Wildfire, weather, wildlife, construction — the real reasons a park or road shuts."]);
+  if (en && en.reservation) cards.push(["/reservations/", "Reservations &amp; timed entry", "Which national parks cap entry, when, and how to book."]);
+  if (roadsHere.length) cards.push(["/road/", "Seasonal road status", "When the high park roads open and close for the year."]);
+  if (en && en.fee && en.fee.free !== true) cards.push(["/guides/national-park-free-days-2026.html", "2026 fee-free days", "The eight dates the entrance fee is waived."]);
+  cards.push(["/guides/nps-alerts-explained.html", "NPS alerts explained", "Danger, Closure, Caution, Information — what each type means."]);
+  cards.push(["/park/", `All ${stateTxt ? esc(stateTxt.split(",")[0].trim()) + " &amp; other " : ""}park statuses`, "Every park and waterway we track, A–Z."]);
+  cards.push(["/#map", "Live map", "See what's open near you right now."]);
+  const cardsHtml = cards.slice(0, 4).map(([href, t, d]) => `<a class="gcard" href="${href}"><div class="t">${t}</div><div class="d">${d}</div></a>`).join("");
+
+  // per-park tail on "How we read this status" so it isn't byte-identical
+  const readTail = e.reason && e.reason.replace(/\s+/g, " ").trim().length > 12
+    ? ` As of the last check: ${esc(clip(e.reason, 140))}` : "";
+
   const asOf = fmtLong(updatedISO);
   const statusSentence = STATUS_SENTENCE[e.status] || "status is unavailable";
   const faq = [{
@@ -580,6 +634,7 @@ function pageHtml(e, en, updatedISO, tally, roadsHere = [], sd = { active: false
     const specs = hoursSpec(en && en.hours);
     if (specs.length) place.openingHoursSpecification = specs;
     if (en && en.fee) place.isAccessibleForFree = en.fee.free === true;
+    { const yr = facts && String(facts.established || "").match(/\d{4}/); if (yr) place.foundingDate = yr[0]; }
     graph.push(place);
   }
   const jsonld = { "@context": "https://schema.org", "@graph": graph };
@@ -592,7 +647,7 @@ function pageHtml(e, en, updatedISO, tally, roadsHere = [], sd = { active: false
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${INDEXERNOW}
-<title>Is ${name} open? Current status &amp; visitor info — Park Status Today</title>
+<title>Is ${name} open? &middot; Park Status Today</title>
 <meta name="description" content="${esc(desc)}">
 <meta name="theme-color" content="#0b1b35">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -634,6 +689,9 @@ ${stripHtml(tally, updatedISO)}
     <a class="btn ghost" href="/#map">← Back to the map</a>
   </div>
 
+  ${distinct ? `<p class="distinct">${esc(distinct)}</p>` : ""}
+  ${factsRow}
+
   ${e.source === "nps" ? `<section class="shutdown-note" id="shutdown-note"${sd.active ? "" : " hidden"}>
     <h2>Government shutdown</h2>
     <p>A federal government shutdown is in effect. Access and staffing at National Park Service sites vary — some close and barricade entrances, some stay open but unstaffed. <a href="/shutdown/">Live shutdown status →</a></p>
@@ -659,21 +717,16 @@ ${stripHtml(tally, updatedISO)}
 
   <article>
     <h2>How we read this status</h2>
-    <p>This is <strong>our reading</strong> of ${
-      e.source === "nps" ? "the National Park Service's own alerts and hours"
+    <p>We derive ${name}'s status from ${
+      e.source === "nps" ? "the National Park Service's own alerts and operating hours"
       : e.source === "usfs" ? "NIFC wildfire perimeters over this forest's boundary — active fires only, not road, trail, or seasonal closures"
-      : "the park system's public alerts"}, refreshed hourly — not an official determination. Full method: <a href="/guides/how-we-check-park-status.html">how we check park status</a>.</p>
+      : "the park system's public alerts"}, refreshed hourly — this is our reading, not an official determination.${readTail} Full method: <a href="/guides/how-we-check-park-status.html">how we check park status</a>.</p>
   </article>
 
   <div class="related">
     <h2>Before you go</h2>
     <div class="cards">
-      ${e.source === "nps"
-        ? `<a class="gcard" href="/guides/national-parks-government-shutdown.html"><div class="t">Parks &amp; government shutdowns</div><div class="d">What closes, what stays open, and how a funding lapse changes park status.</div></a>`
-        : `<a class="gcard" href="/guides/why-national-parks-close.html"><div class="t">Why parks close</div><div class="d">Wildfire, weather, wildlife, construction — the real reasons a park or road shuts.</div></a>`}
-      <a class="gcard" href="/guides/nps-alerts-explained.html"><div class="t">NPS alerts explained</div><div class="d">Danger, Closure, Caution, Information — what each type means.</div></a>
-      <a class="gcard" href="/park/"><div class="t">All park statuses</div><div class="d">Every park and waterway we track, A–Z.</div></a>
-      <a class="gcard" href="/#map"><div class="t">Live map</div><div class="d">See what's open near you right now.</div></a>
+      ${cardsHtml}
     </div>
   </div>
 </main>
@@ -858,7 +911,7 @@ function roadPageHtml(road, st, updatedISO, tally) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${INDEXERNOW}
-<title>Is ${name} open? Road status &amp; season — Park Status Today</title>
+<title>Is ${name} open? Road status &middot; Park Status Today</title>
 <meta name="description" content="${esc(desc)}">
 <meta name="theme-color" content="#0b1b35">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -1493,6 +1546,13 @@ footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;le
 .resv th{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
 .resv td:first-child{font-weight:bold}
 .resv-dropped{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 22px;font-size:14px}
+
+/* distinctiveness line + facts row on park pages (additive) */
+.distinct{font-size:16px;line-height:1.55;color:var(--ink);margin:6px 0 12px;max-width:64ch}
+.pfacts{display:flex;flex-wrap:wrap;gap:5px 22px;margin:0 0 20px;padding:0;font-size:13px}
+.pfacts>div{display:flex;gap:6px}
+.pfacts dt{color:var(--muted);margin:0}
+.pfacts dd{margin:0;font-weight:bold;color:var(--ink)}
 `;
 
 function sitemap(list, updatedISO, beachHubs, roads) {
@@ -1640,7 +1700,7 @@ function beachHubHtml(g, updatedISO, tally) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${INDEXERNOW}
-<title>${esc(g.label)} beach water quality &amp; closures — Park Status Today</title>
+<title>${esc(g.label)} beach closures &middot; Park Status Today</title>
 <meta name="description" content="${esc(desc)}">
 <meta name="theme-color" content="#0b1b35">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">

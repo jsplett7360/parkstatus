@@ -1,0 +1,499 @@
+{
+  "_note": "Curated distinctiveness + key facts for the highest-traffic parks (the 63 designated National Parks; Sequoia & Kings Canyon share one entity). `different` is an original 1-2 sentence line, not copied from any source. `established` = year designated a national park (earlier monument/reserve status noted). `sizeAcres` from Wikipedia's List of national parks (2023 area figures). `visits2025` / `rank2025` are 2025 recreation visits, National Park Service (ranks 1-10 + total from the NPS release, the rest via publiclandsdata.com). Re-verify visitation each spring. Parks not listed here fall back to a cleaned extract of the NPS/Wikipedia text.",
+  "nps:grsm": {
+    "different": "The most-visited national park by a factor of two, and the busiest one with no entrance fee and no gates — a through-highway (US-441) crosses it and every car is counted. It also holds more documented species than any other U.S. park.",
+    "established": "1934",
+    "sizeAcres": 522427,
+    "sizeSqMi": 816,
+    "visits2025": 11527939,
+    "rank2025": 1
+  },
+  "nps:zion": {
+    "different": "A single deep sandstone canyon explored from the bottom up. Private cars are barred from the scenic drive most of the year (shuttle only), and the cliff-edge Angels Landing route now requires a permit won by lottery.",
+    "established": "1919",
+    "sizeAcres": 147243,
+    "sizeSqMi": 230,
+    "visits2025": 4984525,
+    "rank2025": 2
+  },
+  "nps:yell": {
+    "different": "The world's first national park, set aside in 1872, sitting on an active supervolcano that drives roughly half of Earth's geysers and hot springs — Old Faithful among them.",
+    "established": "1872",
+    "sizeAcres": 2219791,
+    "sizeSqMi": 3468,
+    "visits2025": 4762988,
+    "rank2025": 3
+  },
+  "nps:grca": {
+    "different": "A mile deep and up to 18 miles rim to rim, but only about 10 by air — the North and South Rims are a 4–5 hour drive apart and keep separate seasons, with the North Rim snowbound into May.",
+    "established": "1919",
+    "sizeAcres": 1201647,
+    "sizeSqMi": 1878,
+    "visits2025": 4430653,
+    "rank2025": 4
+  },
+  "nps:yose": {
+    "different": "Glacier-cut granite at a scale found almost nowhere else: El Capitan and Half Dome rise straight out of Yosemite Valley, and Yosemite Falls drops 2,425 feet. The high country on Tioga Road is a summer-only world above the Valley.",
+    "established": "1890",
+    "sizeAcres": 761748,
+    "sizeSqMi": 1190,
+    "visits2025": 4278413,
+    "rank2025": 5
+  },
+  "nps:romo": {
+    "different": "Trail Ridge Road climbs past 12,000 feet — the highest continuous paved road in any U.S. national park — through tundra with a growing season measured in weeks. It closes with the first heavy snow and reopens near Memorial Day.",
+    "established": "1915",
+    "sizeAcres": 265848,
+    "sizeSqMi": 415,
+    "visits2025": 4171431,
+    "rank2025": 6
+  },
+  "nps:acad": {
+    "different": "The only national park in the Northeast, assembled largely from donated land on Mount Desert Island. For part of the year Cadillac Mountain catches the first U.S. sunrise — and now needs a timed vehicle reservation.",
+    "established": "1919 (as Lafayette NP)",
+    "sizeAcres": 49071,
+    "sizeSqMi": 77,
+    "visits2025": 4079318,
+    "rank2025": 7
+  },
+  "nps:grte": {
+    "different": "The Teton Range rises straight off the valley floor with no foothills — about 7,000 vertical feet in one wall — above Jackson Hole and a chain of glacier-fed lakes.",
+    "established": "1929",
+    "sizeAcres": 310044,
+    "sizeSqMi": 484,
+    "visits2025": 3800648,
+    "rank2025": 8
+  },
+  "nps:olym": {
+    "different": "Three parks in one: 70 miles of wild Pacific coast, temperate rainforest that catches 12-plus feet of rain a year, and glaciated peaks — with no road through the middle connecting them.",
+    "established": "1938",
+    "sizeAcres": 922649,
+    "sizeSqMi": 1442,
+    "visits2025": 3584187,
+    "rank2025": 9
+  },
+  "nps:glac": {
+    "different": "Named for the ice that carved it, not the ice that's left: of about 150 glaciers in 1850, roughly two dozen remain. The Going-to-the-Sun Road over Logan Pass is the only way across, and it's snowbound until late June or July.",
+    "established": "1910",
+    "sizeAcres": 1013126,
+    "sizeSqMi": 1583,
+    "visits2025": 3136557,
+    "rank2025": 10
+  },
+  "nps:cuva": {
+    "different": "A free, gateless national park reclaimed from industrial land between Cleveland and Akron, following the Cuyahoga River and the old Ohio & Erie Canal towpath, with a scenic railroad running through it.",
+    "established": "2000",
+    "sizeAcres": 32572,
+    "sizeSqMi": 51,
+    "visits2025": 3025325,
+    "rank2025": 11
+  },
+  "nps:jotr": {
+    "different": "Where the high Mojave and low Colorado deserts meet, named for a tree that grows only on the Mojave side. A national monument from 1936, redesignated a park in 1994.",
+    "established": "1994 (NM 1936)",
+    "sizeAcres": 795156,
+    "sizeSqMi": 1242,
+    "visits2025": 2932644,
+    "rank2025": 12
+  },
+  "nps:indu": {
+    "different": "A 20-mile stretch of Lake Michigan shoreline — sand beaches and dunes wedged against Gary's steel mills — only redesignated from national lakeshore to national park in 2019.",
+    "established": "2019",
+    "sizeAcres": 15349,
+    "sizeSqMi": 24,
+    "visits2025": 2629497,
+    "rank2025": 13
+  },
+  "nps:hosp": {
+    "different": "The smallest national park and, as a federal reservation from 1832, the oldest protected area in the system — forty years older than Yellowstone. Its centerpiece is a row of historic bathhouses in a working city.",
+    "established": "1921 (reserve 1832)",
+    "sizeAcres": 5554,
+    "sizeSqMi": 9,
+    "visits2025": 2494611,
+    "rank2025": 14
+  },
+  "nps:jeff": {
+    "different": "The system's smallest unit by far — about 91 acres around Eero Saarinen's 630-foot stainless-steel arch on the St. Louis riverfront, a national memorial redesignated a national park in 2018.",
+    "established": "2018",
+    "sizeAcres": 193,
+    "sizeSqMi": 0.3,
+    "visits2025": 2209028,
+    "rank2025": 15
+  },
+  "nps:brca": {
+    "different": "Not a canyon but the eroding rim of a plateau, filled with thousands of orange rock spires called hoodoos. At 8,000–9,000 feet it stays cold and snowy well into spring.",
+    "established": "1928",
+    "sizeAcres": 35835,
+    "sizeSqMi": 56,
+    "visits2025": 1967367,
+    "rank2025": 16
+  },
+  "nps:neri": {
+    "different": "The deepest river gorge east of the Mississippi and the newest national park (2020), built around a 1,000-foot-high bridge and some of the best whitewater in the country.",
+    "established": "2020",
+    "sizeAcres": 7021,
+    "sizeSqMi": 11,
+    "visits2025": 1958440,
+    "rank2025": 17
+  },
+  "nps:havo": {
+    "different": "Two of the world's most active volcanoes, Kilauea and Mauna Loa. Eruptions routinely change which roads, trails and overlooks are open, sometimes within hours.",
+    "established": "1916",
+    "sizeAcres": 344812,
+    "sizeSqMi": 539,
+    "visits2025": 1877854,
+    "rank2025": 18
+  },
+  "nps:shen": {
+    "different": "A long, narrow park that is essentially one road: Skyline Drive runs its full 105-mile length along the Blue Ridge, with 500-plus miles of trail hanging off it. Snow and ice close the Drive on short notice.",
+    "established": "1935",
+    "sizeAcres": 200446,
+    "sizeSqMi": 313,
+    "visits2025": 1682152,
+    "rank2025": 19
+  },
+  "nps:mora": {
+    "different": "An active, glacier-clad volcano standing alone above everything around it — 26 named glaciers, the most of any peak in the Lower 48 — with some of the deepest measured snowfall on Earth at Paradise.",
+    "established": "1899",
+    "sizeAcres": 236382,
+    "sizeSqMi": 369,
+    "visits2025": 1635342,
+    "rank2025": 20
+  },
+  "nps:arch": {
+    "different": "The densest concentration of natural stone arches anywhere — more than 2,000 in a compact area, Delicate Arch among them. It dropped its timed-entry reservation for 2025.",
+    "established": "1971",
+    "sizeAcres": 76679,
+    "sizeSqMi": 120,
+    "visits2025": 1511740,
+    "rank2025": 21
+  },
+  "nps:care": {
+    "different": "Built around the Waterpocket Fold, a 100-mile wrinkle in the Earth's crust, plus historic Mormon orchards you can still pick fruit from in season.",
+    "established": "1971",
+    "sizeAcres": 241905,
+    "sizeSqMi": 378,
+    "visits2025": 1388476,
+    "rank2025": 22
+  },
+  "nps:seki": {
+    "different": "Two adjacent parks run as one unit, holding the largest tree on Earth by volume (the General Sherman) and, at Mount Whitney, the highest point in the Lower 48. Sequoia dates to 1890, Kings Canyon to 1940. 2025 visits: Sequoia 1,378,337 + Kings Canyon 779,791.",
+    "established": "1890 / 1940",
+    "sizeAcres": 865964,
+    "sizeSqMi": 1353,
+    "visits2025": 2158128,
+    "rankNote": "Sequoia #23, Kings Canyon #30 (2025 NPS ranking)"
+  },
+  "nps:deva": {
+    "different": "The hottest, driest and lowest place in North America — 282 feet below sea level at Badwater, air temperatures past 130 °F — and the largest national park outside Alaska.",
+    "established": "1994 (NM 1933)",
+    "sizeAcres": 3408396,
+    "sizeSqMi": 5326,
+    "visits2025": 1320134,
+    "rank2025": 24
+  },
+  "nps:redw": {
+    "different": "Protects nearly half the world's remaining old-growth coast redwoods, the tallest trees on Earth, co-managed with three California state parks along 40 miles of coast.",
+    "established": "1968",
+    "sizeAcres": 138999,
+    "sizeSqMi": 217,
+    "visits2025": 1202480,
+    "rank2025": 25
+  },
+  "nps:badl": {
+    "different": "Eroded prairie: buttes, spires and striped rock set in a mixed-grass grassland grazed by bison and bighorn, and the richest known bed of late-Eocene mammal fossils.",
+    "established": "1978",
+    "sizeAcres": 242756,
+    "sizeSqMi": 379,
+    "visits2025": 1139361,
+    "rank2025": 26
+  },
+  "nps:hale": {
+    "different": "A 10,000-foot Maui volcano with a vast, cinder-cone-studded summit basin, protecting more endangered species than any other national park. Sunrise entry, 3–7 a.m., needs a reservation.",
+    "established": "1961",
+    "sizeAcres": 33489,
+    "sizeSqMi": 52,
+    "visits2025": 853711,
+    "rank2025": 27
+  },
+  "nps:sagu": {
+    "different": "Two desert districts flanking Tucson, protecting forests of the giant saguaro cactus — which lives 150-plus years and grows its first arm around age 75.",
+    "established": "1994 (NM 1933)",
+    "sizeAcres": 92877,
+    "sizeSqMi": 145,
+    "visits2025": 847749,
+    "rank2025": 28
+  },
+  "nps:cany": {
+    "different": "The Colorado and Green rivers cut it into three districts with no road between them — Island in the Sky, the Needles, and the roadless Maze, one of the most remote places in the Lower 48.",
+    "established": "1964",
+    "sizeAcres": 337598,
+    "sizeSqMi": 527,
+    "visits2025": 796057,
+    "rank2025": 29
+  },
+  "nps:ever": {
+    "different": "The largest tropical wilderness in the U.S., a slow, wide river of grass, and the only place American alligators and crocodiles share range. The dry winter season is the time to visit.",
+    "established": "1934",
+    "sizeAcres": 1508939,
+    "sizeSqMi": 2358,
+    "visits2025": 778198,
+    "rank2025": 31
+  },
+  "nps:glba": {
+    "different": "A bay that lay under a mile of ice in 1794 and has since melted back 65 miles, opening the fjords the tour boats now cruise. Reached only by boat or plane.",
+    "established": "1980",
+    "sizeAcres": 3223383,
+    "sizeSqMi": 5037,
+    "visits2025": 740044,
+    "rank2025": 32
+  },
+  "nps:thro": {
+    "different": "Three separate units of North Dakota badlands on the ranch country that shaped Theodore Roosevelt's conservation politics, roamed by bison and wild horses.",
+    "established": "1978",
+    "sizeAcres": 70447,
+    "sizeSqMi": 110,
+    "visits2025": 729893,
+    "rank2025": 33
+  },
+  "nps:maca": {
+    "different": "The longest cave system on Earth — over 400 mapped miles with no end found — beneath a quiet stretch of Kentucky hills along the Green River.",
+    "established": "1941",
+    "sizeAcres": 72473,
+    "sizeSqMi": 113,
+    "visits2025": 660734,
+    "rank2025": 34
+  },
+  "nps:whsa": {
+    "different": "275 square miles of pure gypsum dunes, the largest such field anywhere, sitting entirely inside an active missile range that closes the park during tests.",
+    "established": "2019 (NM 1933)",
+    "sizeAcres": 146344,
+    "sizeSqMi": 229,
+    "visits2025": 659742,
+    "rank2025": 35
+  },
+  "nps:crla": {
+    "different": "The deepest lake in the U.S. at 1,943 feet, filling the caldera of a volcano that blew itself apart about 7,700 years ago. Fed only by snow and rain; the rim road is buried in snow most of the year.",
+    "established": "1902",
+    "sizeAcres": 183224,
+    "sizeSqMi": 286,
+    "visits2025": 632242,
+    "rank2025": 36
+  },
+  "nps:wica": {
+    "different": "One of the world's longest, most complex caves, known for a fragile honeycomb formation called boxwork that is rare everywhere else, under a prairie with a free-roaming bison herd.",
+    "established": "1903",
+    "sizeAcres": 33971,
+    "sizeSqMi": 53,
+    "visits2025": 606258,
+    "rank2025": 37
+  },
+  "nps:bibe": {
+    "different": "A huge, remote piece of the Chihuahuan Desert wrapped in a bend of the Rio Grande, with the Chisos Mountains rising in the center. Winter is peak season; summer is punishing.",
+    "established": "1944",
+    "sizeAcres": 801163,
+    "sizeSqMi": 1252,
+    "visits2025": 568104,
+    "rank2025": 38
+  },
+  "nps:dena": {
+    "different": "Built around the highest peak in North America (20,310 ft). One 92-mile gravel road is the only way in, private cars stop at Mile 15, and a 2021 landslide at Pretty Rocks cut the road mid-park until a new bridge opened in 2026.",
+    "established": "1917 (as Mount McKinley NP)",
+    "sizeAcres": 4740911,
+    "sizeSqMi": 7408,
+    "visits2025": 543300,
+    "rank2025": 39
+  },
+  "nps:lavo": {
+    "different": "All four types of volcano occur here around Lassen Peak, which last erupted in 1917. Boiling mud pots and fumaroles stay active; the through-road is snowed shut most of the year.",
+    "established": "1916",
+    "sizeAcres": 106589,
+    "sizeSqMi": 167,
+    "visits2025": 504777,
+    "rank2025": 40
+  },
+  "nps:bisc": {
+    "different": "Ninety-five percent underwater — a national park of Biscayne Bay, mangrove coast and the northernmost Florida Keys reef, reached almost entirely by boat.",
+    "established": "1980",
+    "sizeAcres": 172971,
+    "sizeSqMi": 270,
+    "visits2025": 486567,
+    "rank2025": 41
+  },
+  "nps:viis": {
+    "different": "Covers about 60% of St. John plus surrounding reef, donated by Laurance Rockefeller in the 1950s, with beaches, snorkelling and the ruins of Danish sugar plantations.",
+    "established": "1956",
+    "sizeAcres": 15052,
+    "sizeSqMi": 24,
+    "visits2025": 471074,
+    "rank2025": 42
+  },
+  "nps:meve": {
+    "different": "Preserves 5,000 archaeological sites of the Ancestral Puebloans, including cliff dwellings like the 150-room Cliff Palace built into canyon walls in the 1200s. A World Heritage Site.",
+    "established": "1906",
+    "sizeAcres": 52485,
+    "sizeSqMi": 82,
+    "visits2025": 463130,
+    "rank2025": 43
+  },
+  "nps:grsa": {
+    "different": "The tallest dunes in North America, up to 750 feet, piled against the Sangre de Cristo Mountains, with a seasonal snowmelt creek (Medano) running along their base.",
+    "established": "2004",
+    "sizeAcres": 107346,
+    "sizeSqMi": 168,
+    "visits2025": 432498,
+    "rank2025": 44
+  },
+  "nps:kefj": {
+    "different": "Nearly 40 glaciers spilling off the Harding Icefield toward the sea near Seward. Exit Glacier is the only part reachable by road, and it's retreating fast; the rest is seen by boat.",
+    "established": "1980",
+    "sizeAcres": 669650,
+    "sizeSqMi": 1046,
+    "visits2025": 425369,
+    "rank2025": 45
+  },
+  "nps:cave": {
+    "different": "A desert cave with a room almost 4,000 feet long, entered on foot down a switchbacking natural entrance or by elevator (reservation required), and home to a summer colony of 400,000 bats.",
+    "established": "1930",
+    "sizeAcres": 46766,
+    "sizeSqMi": 73,
+    "visits2025": 410778,
+    "rank2025": 46
+  },
+  "nps:pinn": {
+    "different": "The eroded core of a volcano that has since drifted about 200 miles up the San Andreas Fault. Talus caves, spires, and one of the few places to see wild California condors.",
+    "established": "2013 (NM 1908)",
+    "sizeAcres": 26686,
+    "sizeSqMi": 42,
+    "visits2025": 343208,
+    "rank2025": 47
+  },
+  "nps:pefo": {
+    "different": "225-million-year-old logs turned to multicoloured quartz, scattered across the banded badlands of the Painted Desert, alongside 350-plus archaeological sites.",
+    "established": "1962 (NM 1906)",
+    "sizeAcres": 221390,
+    "sizeSqMi": 346,
+    "visits2025": 315951,
+    "rank2025": 48
+  },
+  "nps:cong": {
+    "different": "The largest surviving tract of old-growth bottomland hardwood forest in the U.S. — some of the tallest trees in the East — seen from a 2.4-mile boardwalk over the floodplain.",
+    "established": "2003",
+    "sizeAcres": 26693,
+    "sizeSqMi": 42,
+    "visits2025": 287833,
+    "rank2025": 49
+  },
+  "nps:blca": {
+    "different": "A gorge so deep, narrow and sheer that parts of the floor get about 33 minutes of sunlight a day. The rock is nearly two-billion-year-old gneiss and schist.",
+    "established": "1999",
+    "sizeAcres": 30780,
+    "sizeSqMi": 48,
+    "visits2025": 250086,
+    "rank2025": 50
+  },
+  "nps:chis": {
+    "different": "Five islands off the Southern California coast, the 'Galapagos of North America,' with about 150 species found nowhere else. Reached only by park concessioner boat or plane.",
+    "established": "1980",
+    "sizeAcres": 249561,
+    "sizeSqMi": 390,
+    "visits2025": 227186,
+    "rank2025": 51
+  },
+  "nps:gumo": {
+    "different": "A fossilised Permian reef that is now the highest range in Texas (Guadalupe Peak, 8,751 ft), rising abruptly from the desert with almost no visitor development.",
+    "established": "1972",
+    "sizeAcres": 86367,
+    "sizeSqMi": 135,
+    "visits2025": 206423,
+    "rank2025": 52
+  },
+  "nps:voya": {
+    "different": "A water-based park on the Canadian border where the roads are the lakes — most of it is reached only by boat or canoe, and in winter by ice road and ski.",
+    "established": "1975",
+    "sizeAcres": 218222,
+    "sizeSqMi": 341,
+    "visits2025": 206326,
+    "rank2025": 53
+  },
+  "nps:grba": {
+    "different": "Nevada's quiet corner: 13,000-foot Wheeler Peak, a grove of 5,000-year-old bristlecone pines, the marble Lehman Caves, and some of the darkest night skies in the country.",
+    "established": "1986",
+    "sizeAcres": 77180,
+    "sizeSqMi": 121,
+    "visits2025": 161210,
+    "rank2025": 54
+  },
+  "nps:wrst": {
+    "different": "The largest national park in the U.S., bigger than Switzerland, with nine of the country's sixteen highest peaks and glaciers larger than some states. Two rough gravel roads are the only car access.",
+    "established": "1980",
+    "sizeAcres": 8323146,
+    "sizeSqMi": 13005,
+    "visits2025": 108840,
+    "rank2025": 55
+  },
+  "nps:drto": {
+    "different": "A cluster of small islands 70 miles west of Key West, built around Fort Jefferson, the largest brick structure in the Americas. Reachable only by boat or seaplane.",
+    "established": "1992",
+    "sizeAcres": 64701,
+    "sizeSqMi": 101,
+    "visits2025": 89355,
+    "rank2025": 56
+  },
+  "nps:noca": {
+    "different": "One of the most heavily glaciated places in the Lower 48 — over 300 glaciers — yet one of the least-visited parks: a single dead-end road touches it and the rest is wilderness.",
+    "established": "1968",
+    "sizeAcres": 504781,
+    "sizeSqMi": 789,
+    "visits2025": 46925,
+    "rank2025": 57
+  },
+  "nps:npsa": {
+    "different": "The only U.S. national park south of the equator, spread across three volcanic islands to protect Pacific coral reef and rainforest. The land is leased from Samoan villages, not owned.",
+    "established": "1988",
+    "sizeAcres": 8257,
+    "sizeSqMi": 13,
+    "visits2025": 43258,
+    "rank2025": 58
+  },
+  "nps:katm": {
+    "different": "Set aside after the 1912 Novarupta eruption — the largest of the 20th century — which created the Valley of Ten Thousand Smokes. Now best known for the brown bears fishing at Brooks Falls. No roads.",
+    "established": "1980 (NM 1918)",
+    "sizeAcres": 3674529,
+    "sizeSqMi": 5741,
+    "visits2025": 34479,
+    "rank2025": 59
+  },
+  "nps:isro": {
+    "different": "A roadless island in Lake Superior, closed completely every winter, home to the longest-running predator–prey study anywhere — its wolves and moose have been tracked for over six decades.",
+    "established": "1940",
+    "sizeAcres": 571790,
+    "sizeSqMi": 893,
+    "visits2025": 29091,
+    "rank2025": 60
+  },
+  "nps:lacl": {
+    "different": "Volcanoes, salmon rivers and the Chigmit Mountains where the Alaska and Aleutian ranges meet. No road connects it to the rest of the state; access is by small plane.",
+    "established": "1980",
+    "sizeAcres": 2619816,
+    "sizeSqMi": 4093,
+    "visits2025": 19778,
+    "rank2025": 61
+  },
+  "nps:gaar": {
+    "different": "The northernmost national park, entirely above the Arctic Circle, with no roads, trails, campgrounds or signs — most years the least-visited park in the system.",
+    "established": "1980",
+    "sizeAcres": 7523897,
+    "sizeSqMi": 11756,
+    "visits2025": 14923,
+    "rank2025": 62
+  },
+  "nps:kova": {
+    "different": "Arctic sand dunes up to 100 feet high in the path of a half-million-caribou migration. No roads or trails; in most years the single least-visited national park.",
+    "established": "1980",
+    "sizeAcres": 1750716,
+    "sizeSqMi": 2735,
+    "visits2025": 7786,
+    "rank2025": 63
+  }
+}
