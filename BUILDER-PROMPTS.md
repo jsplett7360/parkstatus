@@ -20,6 +20,8 @@ plan and stop. The next "complete next step" = implement the approved plan.
 | 6 | `/shutdown/` live hub (Worker auto-detect + generated page + NPS park section) | DONE + deployed — `detectShutdown()` + blob `shutdown` + `/shutdown-override`; `shutdownPageHtml`; NPS `#shutdown-note`; guide retitled; `git add public_html/shutdown` landed | 2026-09-08 | 2026-09-08 `b0388615` + `5124a997` (Worker auto-deploy; `/shutdown/` page on next cron) |
 | 7 | Timed-entry index page + per-park sections | DONE — generated `/reservations/` index from `reservations.json` (6 parks table + "dropped for 2026" block naming Arches/Glacier/Rainier/Yosemite + explainer); `reservationsIndexHtml()` in build-parks.js, wired into `main()`, `sitemap()` (+1), `llmsTxt()`; per-park reservation `<article>` links back to `/reservations/`; NOT in `siteNav()`. `parks*.json` byte-identical. | 2026-09-08 | 2026-09-09 (pending commit) |
 | 8 | Seasonal guides (fee-free days, holiday hours, most-visited, open-in-winter) | READY | 2026-09-08 | — |
+| 10 | Indexation — per-park distinctiveness pass (de-dupe boilerplate + "what makes it different" line + structured facts row; deep for the top ~75) | READY | 2026-09-10 | — |
+| 11 | Indexation — internal linking: "parks near here" + "more in [state]" blocks + generated `/state/<slug>/` hub pages | READY | 2026-09-10 | — |
 | 9 | 4b — Blue Ridge Parkway live status: Worker-side scrape of `nps.gov/blri/planyourvisit/roadclosures.htm` (server-rendered per-milepost table + timestamp), `detectShutdown()` mold; promotes BRP from Tier C. Worker + `roadStatus()` change. | BACKLOG | 2026-09-08 | — |
 
 Backlog items are one-liners until the prompt-engineer promotes one to READY with a full
@@ -816,4 +818,221 @@ byte-identical; `/road/` page verdict now sourced from the blob).
 5. parks-enriched.json / parks.json byte-identical.
 6. No file outside worker.js / build-parks.js / index.html / app-native.js changed.
 7. Coordination files updated, consistent with git.
+</self_check>
+
+---
+
+## Item 10 — Indexation: per-park distinctiveness pass
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Generator engineer. Get current first
+(git + coordination files); rebase on origin/main — the branch was diverged (Item 7
+unpushed + a daily-cron commit); that must be resolved before this runs.
+</role>
+
+<task>
+Make the ~1,290 generated `/park/<slug>/` pages substantially non-duplicate, so Google
+stops parking them in "Discovered – currently not indexed". Three changes to `pageHtml`
+in build-parks.js: (a) de-duplicate the shared boilerplate, (b) a 1–2 sentence "what
+makes this park different" line, (c) a compact structured-facts row. Deeper treatment
+for the top ~75 parks by visitation.
+</task>
+
+<why>
+Google Search Console: 1,310 pages "Discovered – currently not indexed", "Not Started",
+no positive trend — i.e. Google discovered them via the sitemap and judged them not
+worth crawling. For a low-authority site that verdict lands on near-duplicate templated
+pages. Current template repeats byte-identical blocks ("How we read this status", the
+"Before you go" cards, the same FAQ shape) on every page. Making each page carry real
+per-park content is the root-cause fix (Item 11 adds the crawl paths).
+Strategy chosen: subset-first — get the top ~75 (by NPS visitation, a good proxy for
+search demand) genuinely rich, get those indexed, let trust extend.
+</why>
+
+<context>
+- `pageHtml(e, en, updatedISO, tally, roadsHere = [], sd = {active:false})` (~line 500).
+  Boilerplate to fix: `<h2>How we read this status</h2>` (~661) and
+  `<div class="related"><h2>Before you go</h2>` cards (~668) — currently identical across
+  all parks except a source-type substitution.
+- `en` (built in `main()`, written to `parks-enriched.json`, consumed by the homepage
+  click-card in index.html): name, kind, state, description (NPS, clip 600), history
+  (Wikipedia extract), photo, wiki, address, phone, email, website, hours, directions,
+  fee, reservation, gmaps.
+- `npsRich()` (~184) fetches: description, addresses, contacts, operatingHours, images,
+  directionsInfo, weatherInfo, entranceFees, url, fullName. It does NOT fetch established
+  date / designation / acreage / visitation.
+- `e.kind` already holds the designation-ish label; `e.state`, `e.lat`, `e.lon` exist.
+- Curated-file precedent: `roads.json`, `reservations.json` at repo root, keyed by entity
+  id, with a `_note`. `RESERVATIONS[e.id]` pattern in `main()`.
+- JSON-LD graph in `pageHtml`: BreadcrumbList + FAQPage + TouristAttraction/Park (+
+  openingHoursSpecification).
+</context>
+
+<constraints>
+- build-parks.js stays zero-dependency (Node stdlib only). No build step. Match the
+  terse template-function style.
+- NO web fonts. Only ADD to `PARK_CSS`; keep new rules token-driven and minimal.
+- `parks.json` byte-identical. For `parks-enriched.json`: either keep it byte-identical
+  and put new per-park data in a NEW `park-facts.json` the page reads directly, OR extend
+  `enriched` and update the index.html click-card consumer in the same change. Plan
+  picks one and says why.
+- Any curated content (the "different" line for the top ~75, the facts for the top ~75):
+  research/draft it, present it as a table, STOP for the user to review, then apply. Do
+  NOT ship an unverified established-date/acreage/visitation number. Reshaped Wikipedia
+  text must be genuinely reworded, not copied.
+- Never touch: secrets, deploy/release workflows (the plan may PROPOSE a
+  `refresh-park-data.yml` `git add` line if a new output dir is added), KV ids, the
+  Worker `GET /` contract.
+- Plan-first: no code until the user approves the plan.
+</constraints>
+
+<reference_material>
+- build-parks.js: `pageHtml`, `main()` (the `en` assembly), `npsRich`, `collectEntities`
+  (~324), `PARK_CSS` (~1324).
+- `reservations.json` / `roads.json` as the curated-file shape.
+- NPS visitation dataset (irma.nps.gov "Visitation Numbers" / annual recreation visits)
+  for the top-75 ranking and the visitation fact.
+- GSC "Why pages aren't indexed" (the 1,310 "Discovered – currently not indexed" row).
+</reference_material>
+
+<process>
+1. <thinking>: list the pageHtml sections you'll change; decide enriched-vs-new-file;
+   note the risk that a weak "different" line reads worse than none.
+2. DE-DUPE: rework "How we read this status" and the "Before you go" cards so they vary
+   by park kind AND state AND (where present) roads/reservation/fees — no two parks get a
+   byte-identical block. Keep them short and honest.
+3. "WHAT MAKES IT DIFFERENT": propose the mechanism — a curated `park-facts.json` line
+   for the top ~75 (draft from `en.history`, reworded, user-reviewed), and for the rest a
+   cleaned first-sentence extract of `en.description`/`en.history` with a fallback to
+   nothing when it's too thin. Show 10 sample lines.
+4. FACTS ROW: a compact `<dl>` — designation (from `e.kind`), state(s), nearest city
+   (from `en.address`), and for parks in `park-facts.json`: established year, size,
+   latest annual visitation + rank. Add `foundingDate` / area to the JSON-LD Place where
+   known. Present the top-75 facts table for review.
+5. Build the top-75 list (by NPS visitation). Present it.
+6. STOP and present the full plan + the sample lines + the facts table + the 75 list.
+   No code before approval.
+7. On approval: implement. Run build-parks.js if `NPS_API_KEY` is available; else a
+   module harness (require build-parks.js with `main()` stubbed), render ~10 varied park
+   pages, confirm no two boilerplate blocks are byte-identical, JSON-LD valid,
+   `parks.json` byte-identical.
+8. Update PROGRESS.md + BUILDER-PROMPTS.md.
+</process>
+
+<output_format>
+Plan first: the de-dupe approach, the "different"-line mechanism + 10 samples, the
+facts-row shape + the top-75 facts table + the 75-park list, the enriched-vs-new-file
+decision, JSON-LD additions, QA checklist. Then edited files + a change-summary table +
+before/after of 3 park pages (a marquee NP, a small historic site, a sparse state park).
+</output_format>
+
+<self_check>
+1. Every constraint met (list, check each).
+2. No two park pages share a byte-identical boilerplate block (state how verified).
+3. Every curated fact/line is sourced and user-approved; nothing fabricated; reshaped
+   text is reworded not copied.
+4. `parks.json` byte-identical; `parks-enriched.json` either byte-identical or its
+   consumer updated in the same change.
+5. JSON-LD still valid on a sample.
+6. Coordination files agree with each other and git.
+</self_check>
+
+---
+
+## Item 11 — Indexation: internal linking + `/state/` hub pages
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Generator engineer. Get current first;
+rebase on origin/main. Runs best AFTER Item 10 but is independent of it.
+</role>
+
+<task>
+Add crawl paths: a "Parks near here" and "More parks in [state]" block on every
+`/park/<slug>/` page, and a new generated page type `/state/<slug>/` — one hub per state
+listing every park, road and beach hub it contains.
+</task>
+
+<why>
+Same GSC problem (1,310 "Discovered – currently not indexed"). Beyond the sitemap and the
+A–Z directory, Google has almost no internal signal about which park pages matter or how
+they relate. Dense contextual internal links + state hubs create crawl priority and
+targeted landing pages for "[state] national parks" / "[state] state parks" (e.g.
+"california state parks" 14.8k, "texas state parks" 33.1k, "national parks by state"
+5.4k).
+</why>
+
+<context>
+- `pageHtml` (~500) — has `e.lat`, `e.lon`, `e.state`, `roadsHere`. The "Roads in this
+  park" block (~656) is the model for a new related block.
+- `main()` (~1818) already builds reverse indexes (roads-by-park). It has the full
+  `entities` list with lat/lon/state, `beachHubs`, and `published` roads.
+- `siteNav()` (~496) — the single nav source (used in build-parks.js templates; the
+  homepage header in index.html is separate — keep in sync).
+- `sitemap(list, updatedISO, beachHubs, roads)` (~1498), `llmsTxt(...)` (~1528) — extend
+  signatures for `states`.
+- `roadIndexHtml` / `reservationsIndexHtml` / `beachIndexHtml` are the models for a new
+  index + hub page type.
+- `refresh-park-data.yml` `git add` line currently covers park/road/shutdown/roads.json/
+  enriched/parks/sitemap/llms.
+- haversine helper: check build-parks.js for an existing one (`roadStatus`/geo code) or
+  worker.js `haversineMi`; if none in build-parks.js, add a small local one.
+</context>
+
+<constraints>
+- Zero new deps. Vanilla, terse, match existing template functions. NO web fonts; only
+  ADD to `PARK_CSS`.
+- `parks.json` / `parks-enriched.json` byte-identical (this is pages + links only).
+- "Parks near here": nearest ~6 entities of ANY type by great-circle distance, excluding
+  self, with the distance shown. "More in [state]": up to ~8 same-state entities not
+  already in the nearby list. Both must degrade gracefully (island parks, single-park
+  states).
+- `/state/` hubs: one per state/territory with ≥1 covered entity (~40–50). Group by type
+  (national · state parks · forests · beaches · roads), show each entity's current status
+  (baked + the existing blob-refetch script), link to each. `/state/index.html` lists
+  them. JSON-LD BreadcrumbList + ItemList.
+- Add `/state/` to `siteNav()` (and the index.html header) OR footer — recommend one.
+  Add every hub to `sitemap()` (priority ~0.6) + `llmsTxt()`. The plan may PROPOSE adding
+  `public_html/state` to the `refresh-park-data.yml` `git add` line; don't apply it.
+- Never touch the "never touch" list. Plan-first.
+</constraints>
+
+<reference_material>
+- build-parks.js: `pageHtml` "Roads in this park" block, `main()` reverse-index code,
+  `roadIndexHtml` / `beachHubHtml` / `beachIndexHtml`, `siteNav`, `sitemap`, `llmsTxt`,
+  `PARK_CSS`. worker.js `haversineMi` for the distance formula.
+- Semrush demand noted in <why>.
+</reference_material>
+
+<process>
+1. <thinking>: files touched; the state-slug scheme (full name → `california`,
+   `new-york`); how multi-state parks (e.g. Yellowstone) appear on multiple hubs; risk of
+   a thin hub for a 1-park state.
+2. Add the "Parks near here" + "More in [state]" block to `pageHtml` (computed in
+   `main()` and passed in, like `roadsHere` — don't recompute per page).
+3. New `stateHubHtml(state, members, updatedISO, tally)` → `public_html/state/<slug>/index.html`
+   and `stateIndexHtml(...)` → `public_html/state/index.html`. Wire into `main()`.
+4. Cross-link: each park/road page → its state hub(s); `/state/` index from the nav/
+   footer and the `/park/` + `/road/` indexes.
+5. `sitemap()` + `llmsTxt()` + `siteNav()` + index.html header. PROPOSE the workflow line.
+6. STOP and present the plan (block copy, hub layout, slug scheme, nav placement,
+   sample `/state/california/`). No code before approval.
+7. On approval: implement; harness-render a park page (nearby + state blocks),
+   `/state/california/`, `/state/` index; JSON-LD valid; `parks.json` byte-identical.
+8. Update PROGRESS.md + BUILDER-PROMPTS.md.
+</process>
+
+<output_format>
+Plan first: the two related blocks, the `stateHubHtml` layout + slug scheme + multi-state
+handling, nav placement, sitemap/llms/workflow edits, QA checklist. Then edited files +
+a change summary + a rendered `/state/california/` and one park page's new blocks.
+</output_format>
+
+<self_check>
+1. Every constraint met (list, check each).
+2. "Parks near here" / "More in [state]" render sensibly for a marquee park, an island
+   park, and a single-park state.
+3. Every `/state/` hub + the index are in the sitemap and llms.txt; JSON-LD valid.
+4. `parks.json` / `parks-enriched.json` byte-identical.
+5. `siteNav()` and the index.html header agree.
+6. Coordination files agree with each other and git.
 </self_check>
