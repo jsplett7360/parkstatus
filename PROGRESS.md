@@ -21,6 +21,46 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-09-10 — Item 8 DONE: four seasonal guide articles
+
+- **New flat guides** in `public_html/guides/` (hand-authored, no generator changes):
+  - `national-park-free-days-2026.html` — the 8 NPS 2026 fee-free dates (Feb 16, May 25,
+    June 14, July 3–5, Aug 25, Sept 17, Oct 27, Nov 11), the "entrance fee only" fine
+    print → `/reservations/`, the new U.S.-residents-only rule, and the days dropped from
+    prior years. June 14 rendered as "Flag Day" with a muted note that NPS labels it
+    "Flag Day/President Trump's birthday". Source: nps.gov/planyourvisit/passes.htm
+    (updated Jan 5, 2026).
+  - `national-parks-open-holidays.html` — grounds stay open, visitor centers close
+    Thanksgiving / Dec 25 / Jan 1; the 4 fee-free holidays; shutdown override → shutdown guide.
+  - `most-visited-national-parks.html` — top-15 `<ol>` by 2025 recreation visits, each
+    linked to `/park/<slug>/`; system total 323,014,305 (−2.7% vs 2024). Ranks 1–10 +
+    total from the NPS 2025 visitation release; 11–15 from publiclandsdata.com (labeled).
+  - `national-parks-open-in-winter.html` — best-in-winter parks (Death Valley, Big Bend,
+    Everglades, Joshua Tree, …) vs. parks where snow closes the highlights (Yellowstone,
+    Glacier/GTSR, Rocky Mtn/Trail Ridge, Yosemite/Tioga) → `/road/` + road pages.
+  - All four: existing guide template (header/nav/strip/footer/scripts, `guides.css`, no
+    web fonts) + `<script type="application/ld+json">` `@graph` BreadcrumbList + FAQPage
+    (4 dated Qs) + a visible FAQ section + 6–15 internal links each.
+- **Wiring**: `public_html/guides/index.html` 4 → 8 gcards; `build-parks.js` `sitemap()`
+  +4 `staticUrls` (fee-free `0.7`/weekly, most-visited `0.7`, winter/holidays `0.6`),
+  count `+12` → `+16`; `build-parks.js` `llmsTxt()` +4 `## Guides` bullets. Also
+  hand-patched the deployed `public_html/sitemap.xml` (1341 urls) and `public_html/llms.txt`
+  so the guide URLs are live on this push, not just after the next cron.
+- No workflow change: `refresh-park-data.yml` `git add` covers `public_html/park` etc. but
+  not `public_html/guides` — correct, guides are hand-authored; they deploy on push via
+  `deploy.yml`. The cron regenerates `sitemap.xml` / `llms.txt` daily and now carries the
+  4 URLs from `build-parks.js`.
+- **Verified**: `node --check build-parks.js`; all 4 guides' JSON-LD parses (BreadcrumbList +
+  FAQPage, 4 Qs), canonical/og:url correct, tags balanced; **every internal
+  `/park/<slug>/`, `/road/<slug>/` and sibling-guide link resolves** against
+  `parks.json` / published `roads.json` / the guides dir; `sitemap.xml` well-formed;
+  rendered in-browser at 1200px + 375px, no horizontal overflow, matches existing guides.
+- **Scope**: `build-parks.js` (guide lists only) + `public_html/guides/**` +
+  `public_html/sitemap.xml` + `public_html/llms.txt`. `parks-enriched.json` / `parks.json`
+  untouched.
+- **Backlog candidate**: convert `most-visited` + `free-days` to generated pages later
+  (small `visitation.json` / `fee-free.json` → auto-refresh, no year baked in the URL).
+
 ### 2026-09-09 — Item 7 DONE: `/reservations/` timed-entry index page
 
 - **build-parks.js `reservationsIndexHtml(reservations, entities, updatedISO, tally)`** →

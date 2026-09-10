@@ -1507,6 +1507,10 @@ function sitemap(list, updatedISO, beachHubs, roads) {
     { loc: `${SITE}/guides/`, freq: "weekly", pri: "0.8" },
     { loc: `${SITE}/guides/national-parks-government-shutdown.html`, freq: "weekly", pri: "0.9" },
     { loc: `${SITE}/guides/why-national-parks-close.html`, freq: "monthly", pri: "0.7" },
+    { loc: `${SITE}/guides/national-park-free-days-2026.html`, freq: "weekly", pri: "0.7" },
+    { loc: `${SITE}/guides/most-visited-national-parks.html`, freq: "monthly", pri: "0.7" },
+    { loc: `${SITE}/guides/national-parks-open-in-winter.html`, freq: "monthly", pri: "0.6" },
+    { loc: `${SITE}/guides/national-parks-open-holidays.html`, freq: "monthly", pri: "0.6" },
     { loc: `${SITE}/guides/nps-alerts-explained.html`, freq: "monthly", pri: "0.7" },
     { loc: `${SITE}/guides/how-we-check-park-status.html`, freq: "monthly", pri: "0.6" },
     { loc: `${SITE}/privacy.html`, freq: "yearly", pri: "0.3" },
@@ -1559,6 +1563,10 @@ ${(roads || []).map((r) => `- [Is ${r.name} open?](${SITE}/road/${r.slug}/)`).jo
 - [How we check park status](${SITE}/guides/how-we-check-park-status.html): the method and sources behind every status
 - [Why national parks close](${SITE}/guides/why-national-parks-close.html)
 - [NPS alerts explained](${SITE}/guides/nps-alerts-explained.html): Danger, Closure, Caution, Information
+- [National park fee-free days 2026](${SITE}/guides/national-park-free-days-2026.html): all 8 entrance-fee-free dates and what the waiver covers
+- [The most visited national parks](${SITE}/guides/most-visited-national-parks.html): top 15 by 2025 recreation visits, official NPS figures
+- [National parks open in winter](${SITE}/guides/national-parks-open-in-winter.html): best off-season parks and where snow closes the roads
+- [Are national parks open on holidays?](${SITE}/guides/national-parks-open-holidays.html): what's open on Thanksgiving, December 25 and January 1
 
 ## Structured data
 - [Status API (JSON)](${API}): current open/partial/closed status, coordinates, and reason for every park and beach, updated hourly
@@ -1999,7 +2007,7 @@ async function main() {
     `  ${beachHubs.length} beach county hubs + index\n` +
     `  parks-enriched.json: ${withWiki} with Wikipedia about/history, ${withNps} with NPS visitor info\n` +
     `  baked tally: ${tally.open} open / ${tally.partially_closed} partial / ${tally.closed} closed / ${tally.no_data} no-data\n` +
-    `  sitemap.xml: ${entities.length + beachHubs.length + published.length + 12} urls\n  data timestamp: ${updatedISO}\n`
+    `  sitemap.xml: ${entities.length + beachHubs.length + published.length + 16} urls\n  data timestamp: ${updatedISO}\n`
   );
 }
 

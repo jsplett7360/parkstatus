@@ -45,6 +45,10 @@ Coverage as of September 10, 2026: 474 National Park Service units, 815 state pa
 - [How we check park status](https://parkstatus.today/guides/how-we-check-park-status.html): the method and sources behind every status
 - [Why national parks close](https://parkstatus.today/guides/why-national-parks-close.html)
 - [NPS alerts explained](https://parkstatus.today/guides/nps-alerts-explained.html): Danger, Closure, Caution, Information
+- [National park fee-free days 2026](https://parkstatus.today/guides/national-park-free-days-2026.html): all 8 entrance-fee-free dates and what the waiver covers
+- [The most visited national parks](https://parkstatus.today/guides/most-visited-national-parks.html): top 15 by 2025 recreation visits, official NPS figures
+- [National parks open in winter](https://parkstatus.today/guides/national-parks-open-in-winter.html): best off-season parks and where snow closes the roads
+- [Are national parks open on holidays?](https://parkstatus.today/guides/national-parks-open-holidays.html): what's open on Thanksgiving, December 25 and January 1
 
 ## Structured data
 - [Status API (JSON)](https://parkstatus-api.parkstatus.workers.dev/): current open/partial/closed status, coordinates, and reason for every park and beach, updated hourly
