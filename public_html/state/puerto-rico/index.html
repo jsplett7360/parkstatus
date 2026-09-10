@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PFZYJ3L871"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PFZYJ3L871');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- IndexerNow pixel -->
+<script>(function(){try{var q=new URLSearchParams(location.search);navigator.sendBeacon("https://www.indexernow.com/api/pixel/rFr2Mq0S1bpnXV_rmsqgDYT0",JSON.stringify({path:location.pathname,referrer:document.referrer||"",utm:{source:q.get("utm_source")||"",medium:q.get("utm_medium")||"",campaign:q.get("utm_campaign")||""}}));}catch(e){}})();</script>
+<title>Puerto Rico national &amp; state parks — open now? &middot; Park Status</title>
+<meta name="description" content="Live open / partially closed / closed status for 1 national and state parks, forests and beaches in Puerto Rico. Refreshed hourly.">
+<meta name="theme-color" content="#0b1b35">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://parkstatus.today/state/puerto-rico/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Puerto Rico park status — open or closed right now?">
+<meta property="og:url" content="https://parkstatus.today/state/puerto-rico/">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://parkstatus.today/"},{"@type":"ListItem","position":2,"name":"Parks by state","item":"https://parkstatus.today/state/"},{"@type":"ListItem","position":3,"name":"Puerto Rico","item":"https://parkstatus.today/state/puerto-rico/"}]},{"@type":"ItemList","name":"Parks and public lands in Puerto Rico","numberOfItems":1,"itemListElement":[{"@type":"ListItem","position":1,"url":"https://parkstatus.today/park/san-juan-national-historic-site/","name":"San Juan National Historic Site"}]}]}</script>
+<link rel="stylesheet" href="/park/park.css">
+</head>
+<body data-state="PR">
+<div id="shutdown-banner"></div>
+<header class="site"><div class="wrap">
+  <a class="wordmark" href="/" aria-label="Park Status home">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a>
+  <nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/state/">States</a><a href="/road/">Roads</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>
+</div></header>
+<div class="strip"><div class="wrap">
+  <span class="k"><span class="dot open"></span><b id="s-open">1242</b>&nbsp;open</span>
+  <span class="k"><span class="dot partial"></span><b id="s-partial">276</b>&nbsp;partially closed</span>
+  <span class="k"><span class="dot closed"></span><b id="s-closed">38</b>&nbsp;closed</span>
+  <span class="k"><span class="dot nodata"></span><b id="s-nodata">91</b>&nbsp;no data</span>
+  <span class="upd"><span id="s-upd">updated Sep 10</span> · <a href="/#map">view map →</a></span>
+</div></div>
+<main class="wrap">
+  <div class="crumbs"><a href="/">Home</a> / <a href="/state/">Parks by state</a> / Puerto Rico</div>
+  <h1>Puerto Rico parks — open right now?</h1>
+  <p class="sub">We track 1 place in Puerto Rico — 1 National Park Service site. Each shows whether it's open, partially closed, or closed right now.</p>
+  <div class="state-group"><h2>National Park Service sites <span class="cnt">1</span></h2><ul class="plist"><li data-eid="nps:saju"><a href="/park/san-juan-national-historic-site/"><span class="d open"></span><span class="nm">San Juan National Historic Site</span></a> <span class="st">National Historic Site</span></li></ul></div>
+
+
+
+
+  <p class="sub" style="margin-top:24px"><a href="/state/">← All states</a> · <a href="/park/">Every park, A–Z →</a></p>
+</main>
+<footer class="site"><div class="wrap">
+  <div class="frow"><a class="wordmark" href="/" aria-label="Park Status">PARK<span class="flag-mark" aria-hidden="true"><i></i><i></i><i></i></span>STATUS</a><span class="sister">A sister site of <a href="https://half-mast.com" target="_blank" rel="noopener">half-mast.com ↗</a></span></div>
+  <span class="disc">Live status refreshed hourly · always confirm with the official park page before you travel.</span>
+  <span class="disc"><a href="/privacy.html" style="color:#fff">Privacy</a> · <a href="/support.html" style="color:#fff">Support</a></span>
+  <span class="corp">© 2026 The Association of Recreation and District Spaces Corp. · A property of Little Ideas Big Story, Corp.</span>
+</div></footer>
+<script>
+(function(){
+  var CLS={open:"open",partially_closed:"partial",closed:"closed",no_data:"nodata"};
+  var bmap=function(s){return s==="advisory"?"partially_closed":(s==="open"||s==="closed")?s:"no_data";};
+  fetch("https://parkstatus-api.parkstatus.workers.dev/",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+    var by={};
+    (d.parks||[]).forEach(function(x){by["nps:"+(x.parkCode||x.id)]=x.status;});
+    ["nyParks","caParks","txParks","mnParks","flParks","waParks","usfs"].forEach(function(k){(d[k]||[]).forEach(function(x){by[x.id]=x.status;});});
+    (d.roads||[]).forEach(function(x){by["road:"+x.slug]=x.status;});
+    document.querySelectorAll("li[data-eid]").forEach(function(li){
+      var s=by[li.getAttribute("data-eid")];if(s==null)return;
+      var dotEl=li.querySelector(".d");if(dotEl)dotEl.className="d "+(CLS[s]||"nodata");
+    });
+    fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(sd){
+      if(!sd||!sd.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
+      b.innerHTML='<div class="sb-in"><strong>'+sd.headline+'</strong> '+(sd.message||"")+' <a href="'+(sd.url||"#")+'">'+(sd.cta||"Learn more →")+'</a></div>';b.className="show";
+    }).catch(function(){});
+  }).catch(function(){});
+})();
+</script>
+<script src="/app-native.js" defer></script>
+</body>
+</html>

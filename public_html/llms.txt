@@ -4,11 +4,70 @@
 
 Park Status Today is an independent informational service, not affiliated with the National Park Service or any state or county agency. Each status is our reading of public data, not an official determination, and is refreshed hourly. Every park page and beach-county page states the current status as plain text with the UTC time it was last checked, and carries schema.org structured data (TouristAttraction / Park, FAQPage with a dated answer, and — where known — openingHoursSpecification).
 
-Coverage as of September 10, 2026: 474 National Park Service units, 815 state parks, and 358 monitored New York beaches across 15 counties. Site-wide that is 1241 open, 278 partially closed, 37 closed, 91 without data.
+Coverage as of September 10, 2026: 474 National Park Service units, 815 state parks, and 358 monitored New York beaches across 15 counties. Site-wide that is 1242 open, 276 partially closed, 38 closed, 91 without data.
 
 ## Parks
 - [All park & waterway statuses, A–Z](https://parkstatus.today/park/): browsable directory of every national and state park tracked, each linking to a status + visitor-info page at https://parkstatus.today/park/<slug>/
 - [Full sitemap](https://parkstatus.today/sitemap.xml): every page on the site
+
+## Parks by state
+- [Parks by state](https://parkstatus.today/state/): every U.S. state/territory we cover, each hub at https://parkstatus.today/state/<state-name>/ listing its national and state parks, forests, beaches and seasonal roads with live status
+- [Alabama parks](https://parkstatus.today/state/alabama/): 11 tracked
+- [Alaska parks](https://parkstatus.today/state/alaska/): 20 tracked
+- [American Samoa parks](https://parkstatus.today/state/american-samoa/): 1 tracked
+- [Arizona parks](https://parkstatus.today/state/arizona/): 26 tracked
+- [Arkansas parks](https://parkstatus.today/state/arkansas/): 9 tracked
+- [California parks](https://parkstatus.today/state/california/): 313 tracked
+- [Colorado parks](https://parkstatus.today/state/colorado/): 20 tracked
+- [Connecticut parks](https://parkstatus.today/state/connecticut/): 5 tracked
+- [Delaware parks](https://parkstatus.today/state/delaware/): 4 tracked
+- [District of Columbia parks](https://parkstatus.today/state/district-of-columbia/): 36 tracked
+- [Florida parks](https://parkstatus.today/state/florida/): 186 tracked
+- [Georgia parks](https://parkstatus.today/state/georgia/): 12 tracked
+- [Guam parks](https://parkstatus.today/state/guam/): 1 tracked
+- [Hawaii parks](https://parkstatus.today/state/hawaii/): 9 tracked
+- [Idaho parks](https://parkstatus.today/state/idaho/): 10 tracked
+- [Illinois parks](https://parkstatus.today/state/illinois/): 8 tracked
+- [Indiana parks](https://parkstatus.today/state/indiana/): 4 tracked
+- [Iowa parks](https://parkstatus.today/state/iowa/): 4 tracked
+- [Kansas parks](https://parkstatus.today/state/kansas/): 10 tracked
+- [Kentucky parks](https://parkstatus.today/state/kentucky/): 9 tracked
+- [Louisiana parks](https://parkstatus.today/state/louisiana/): 6 tracked
+- [Maine parks](https://parkstatus.today/state/maine/): 8 tracked
+- [Maryland parks](https://parkstatus.today/state/maryland/): 27 tracked
+- [Massachusetts parks](https://parkstatus.today/state/massachusetts/): 18 tracked
+- [Michigan parks](https://parkstatus.today/state/michigan/): 6 tracked
+- [Minnesota parks](https://parkstatus.today/state/minnesota/): 59 tracked
+- [Mississippi parks](https://parkstatus.today/state/mississippi/): 10 tracked
+- [Missouri parks](https://parkstatus.today/state/missouri/): 14 tracked
+- [Montana parks](https://parkstatus.today/state/montana/): 11 tracked
+- [Nebraska parks](https://parkstatus.today/state/nebraska/): 10 tracked
+- [Nevada parks](https://parkstatus.today/state/nevada/): 7 tracked
+- [New Hampshire parks](https://parkstatus.today/state/new-hampshire/): 2 tracked
+- [New Jersey parks](https://parkstatus.today/state/new-jersey/): 11 tracked
+- [New Mexico parks](https://parkstatus.today/state/new-mexico/): 19 tracked
+- [New York parks](https://parkstatus.today/state/new-york/): 86 tracked
+- [North Carolina parks](https://parkstatus.today/state/north-carolina/): 15 tracked
+- [North Dakota parks](https://parkstatus.today/state/north-dakota/): 5 tracked
+- [Northern Mariana Islands parks](https://parkstatus.today/state/northern-mariana-islands/): 1 tracked
+- [Ohio parks](https://parkstatus.today/state/ohio/): 10 tracked
+- [Oklahoma parks](https://parkstatus.today/state/oklahoma/): 7 tracked
+- [Oregon parks](https://parkstatus.today/state/oregon/): 10 tracked
+- [Pennsylvania parks](https://parkstatus.today/state/pennsylvania/): 26 tracked
+- [Puerto Rico parks](https://parkstatus.today/state/puerto-rico/): 1 tracked
+- [Rhode Island parks](https://parkstatus.today/state/rhode-island/): 4 tracked
+- [South Carolina parks](https://parkstatus.today/state/south-carolina/): 8 tracked
+- [South Dakota parks](https://parkstatus.today/state/south-dakota/): 7 tracked
+- [Tennessee parks](https://parkstatus.today/state/tennessee/): 17 tracked
+- [Texas parks](https://parkstatus.today/state/texas/): 57 tracked
+- [U.S. Virgin Islands parks](https://parkstatus.today/state/u-s-virgin-islands/): 5 tracked
+- [Utah parks](https://parkstatus.today/state/utah/): 17 tracked
+- [Vermont parks](https://parkstatus.today/state/vermont/): 3 tracked
+- [Virginia parks](https://parkstatus.today/state/virginia/): 35 tracked
+- [Washington parks](https://parkstatus.today/state/washington/): 141 tracked
+- [West Virginia parks](https://parkstatus.today/state/west-virginia/): 8 tracked
+- [Wisconsin parks](https://parkstatus.today/state/wisconsin/): 4 tracked
+- [Wyoming parks](https://parkstatus.today/state/wyoming/): 12 tracked
 
 ## Roads
 - [Park road status](https://parkstatus.today/road/): seasonal opening/closing dates and live closure status for major national-park roads, each at https://parkstatus.today/road/<slug>/
@@ -33,6 +92,9 @@ Coverage as of September 10, 2026: 474 National Park Service units, 815 state pa
 - [Is Kings Canyon Scenic Byway open?](https://parkstatus.today/road/kings-canyon-scenic-byway/)
 - [Is Denali Park Road open?](https://parkstatus.today/road/denali-park-road/)
 - [Is Park Loop Road open?](https://parkstatus.today/road/park-loop-road/)
+
+## Reservations & timed entry
+- [Which national parks require a reservation in 2026?](https://parkstatus.today/reservations/): the national parks with a timed-entry or vehicle reservation requirement, their 2026 seasons and booking links; also names the parks (Arches, Glacier, Mount Rainier, Yosemite) that dropped timed entry for 2026
 
 ## Beaches
 - [Beach water quality & closures by county](https://parkstatus.today/beach/): New York public beaches grouped by county, with current swimming advisories and closures at https://parkstatus.today/beach/<county>/
