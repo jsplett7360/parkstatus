@@ -21,6 +21,19 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-09-10 — Item 10 phase 1: plan drafted (PENDING APPROVAL)
+
+- Startup found an untracked `park-facts.json` (repo root, 62 National Parks: `different`
+  line + established/size/visits2025/rank2025, sourced per its `_note`). Resuming it, not
+  rebuilding. Fixes needed: `nps:jeff` size, `nps:seki` rank.
+- Plan: shorten `<title>` templates (park/road/beach — audit #102, 2,066 pages);
+  de-dupe "How we read this status" + "Before you go" cards (park-dependent); add a
+  `.distinct` lead line (park-facts.json `different`, or a cleaned first-sentence
+  fallback); add a `.pfacts` `<dl>`. `PARK_FACTS` require mirrors RESERVATIONS/ROADS.
+  `parks*.json` stay byte-identical (new data via park-facts.json only).
+- Awaiting user review of the 62 `different` lines + facts table, then phase 2.
+
+
 ### 2026-09-10 — Item 8 DONE: four seasonal guide articles
 
 - **New flat guides** in `public_html/guides/` (hand-authored, no generator changes):
