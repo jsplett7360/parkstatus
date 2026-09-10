@@ -21,6 +21,20 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-09-10 — Item 11 phase 1: plan drafted (PENDING APPROVAL)
+
+- Plan: `byState` map in `main()` (split multi-state `states` strings); "Parks near here"
+  (nearest ~6 by a new local haversine) + "More in [state]" (~8 + state-hub link) blocks
+  in `pageHtml`, computed once and passed in like `roadsHere`; new `stateHubHtml()` /
+  `stateIndexHtml()` → `public_html/state/<slug>/` + `/state/`; grouped by type, baked
+  pills + a blob-refetch script keyed by `data-eid`; JSON-LD BreadcrumbList + ItemList.
+- Cross-links: park/road → state hub; `siteNav()` + index.html header get a "States"
+  link; `sitemap()` gains a `states` param (hub pri 0.6); `llmsTxt()` "## Parks by state".
+- Decisions pending user: nav link (rec yes), hub threshold ≥1 entity (rec yes), nearby
+  = park entities + beach hubs only, NY beaches all on /state/new-york/.
+- No code yet. `parks*.json` to stay byte-identical.
+
+
 ### 2026-09-10 — Item 10 DONE: per-park distinctiveness pass (`080ce3c8`)
 
 - **park-facts.json** (new, tracked): 63 National Parks — `different` (original 1–2
