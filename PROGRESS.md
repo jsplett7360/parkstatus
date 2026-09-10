@@ -21,18 +21,35 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
-### 2026-09-10 — Item 10 phase 1: plan drafted (PENDING APPROVAL)
+### 2026-09-10 — Item 10 DONE: per-park distinctiveness pass (`080ce3c8`)
 
-- Startup found an untracked `park-facts.json` (repo root, 62 National Parks: `different`
-  line + established/size/visits2025/rank2025, sourced per its `_note`). Resuming it, not
-  rebuilding. Fixes needed: `nps:jeff` size, `nps:seki` rank.
-- Plan: shorten `<title>` templates (park/road/beach — audit #102, 2,066 pages);
-  de-dupe "How we read this status" + "Before you go" cards (park-dependent); add a
-  `.distinct` lead line (park-facts.json `different`, or a cleaned first-sentence
-  fallback); add a `.pfacts` `<dl>`. `PARK_FACTS` require mirrors RESERVATIONS/ROADS.
-  `parks*.json` stay byte-identical (new data via park-facts.json only).
-- Awaiting user review of the 62 `different` lines + facts table, then phase 2.
-
+- **park-facts.json** (new, tracked): 63 National Parks — `different` (original 1–2
+  sentence line), `established`, `sizeAcres`/`sizeSqMi`, `visits2025`/`rank2025`; `_note`
+  documents sourcing. Fixed `nps:jeff` `sizeSqMi` 0→0.3. `nps:seki` carries `rankNote`
+  (combined entity). Wired via `PARK_FACTS` (mirrors `RESERVATIONS`/`ROADS`).
+- **pageHtml**: `.distinct` lead line = park-facts `different`, else a cleaned
+  first-sentence extract of the NPS/Wikipedia text (`firstSentence()`), else nothing
+  (thin pages render none rather than filler). `.pfacts` `<dl>`: Type · State +
+  Established/Size/2025 visits(#rank) for listed parks; + Nearest town (parsed past the
+  street segment) for the rest. JSON-LD `place.foundingDate` where known.
+- **De-dupe**: "How we read this status" now names the park and carries a per-park tail
+  from `e.reason`; "Before you go" cards are park-dependent (shutdown vs why-close,
+  reservations, roads, fee-free, state name in the A–Z card). Harness: 8/8 distinct on
+  both blocks across a varied sample.
+- **Titles (Semrush #102, 2,066 pages)**: `Is <name> open? · Park Status Today` (park),
+  `… Road status · Park Status Today` (road), `<label> beach closures · Park Status
+  Today` (beach hub). ~907/1,289 park titles now ≤60 chars; ~382 remain (parks with
+  32+ char official names) — front-loaded so SERP truncation stays legible. Knob if we
+  want more: drop the " · Park Status Today" suffix (−19 chars).
+- **PARK_CSS** + `public_html/park/park.css`: additive `.distinct` / `.pfacts` rules.
+- `parks.json` / `parks-enriched.json` **byte-identical** (all new data via
+  park-facts.json, read directly in `pageHtml`).
+- QA: module harness over 8 entities (top-5 NP, mid NP, thin listed park, NPS military
+  park, sparse NY/CA/TX/FL state parks) — de-dup, title length, JSON-LD validity all
+  pass. No full `node build-parks.js` (no `NPS_API_KEY`).
+- **Scope note**: park-facts.json covers the 63 NPs; the ~13 highest-traffic non-"NP"
+  units (Muir Woods, Statue of Liberty, Alcatraz, Mount Rushmore, Gettysburg…) are a
+  fast follow.
 
 ### 2026-09-10 — Item 8 DONE: four seasonal guide articles
 
