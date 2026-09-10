@@ -22,6 +22,7 @@ plan and stop. The next "complete next step" = implement the approved plan.
 | 8 | Seasonal guides (fee-free days, holiday hours, most-visited, open-in-winter) | DONE — 4 flat guides in `public_html/guides/` (fee-free-days-2026, open-holidays, most-visited [top-15 2025 NPS data], open-in-winter); on the existing guide template + BreadcrumbList/FAQPage JSON-LD; added to `guides/index.html`, `sitemap()`+`sitemap.xml`, `llmsTxt()`+`llms.txt`; every internal park/road link verified. Facts user-confirmed (2026 fee-free dates from nps.gov, 2025 visitation from NPS release + publiclandsdata). | 2026-09-08 | 2026-09-10 (pending commit) |
 | 10 | Indexation — per-park distinctiveness pass (de-dupe boilerplate + "what makes it different" line + structured facts row; deep for the top ~75) | READY | 2026-09-10 | — |
 | 11 | Indexation — internal linking: "parks near here" + "more in [state]" blocks + generated `/state/<slug>/` hub pages | READY | 2026-09-10 | — |
+| 12 | Broken external links — build-time validation of baked `official`/`statusUrl`/`photo` URLs with a sane fallback (Semrush: 234 broken links, 2 broken images) | READY | 2026-09-10 | — |
 | 9 | 4b — Blue Ridge Parkway live status: Worker-side scrape of `nps.gov/blri/planyourvisit/roadclosures.htm` (server-rendered per-milepost table + timestamp), `detectShutdown()` mold; promotes BRP from Tier C. Worker + `roadStatus()` change. | BACKLOG | 2026-09-08 | — |
 
 Backlog items are one-liners until the prompt-engineer promotes one to READY with a full
@@ -832,10 +833,9 @@ unpushed + a daily-cron commit); that must be resolved before this runs.
 
 <task>
 Make the ~1,290 generated `/park/<slug>/` pages substantially non-duplicate, so Google
-stops parking them in "Discovered – currently not indexed". Three changes to `pageHtml`
-in build-parks.js: (a) de-duplicate the shared boilerplate, (b) a 1–2 sentence "what
-makes this park different" line, (c) a compact structured-facts row. Deeper treatment
-for the top ~75 parks by visitation.
+stops parking them in "Discovered – currently not indexed". Four changes to the generated pages: (a) de-duplicate the shared boilerplate, (b) a
+1–2 sentence "what makes this park different" line, (c) a compact structured-facts row
+(deeper for the top ~75 by visitation), (d) shorten the `<title>` templates.
 </task>
 
 <why>
@@ -898,6 +898,12 @@ search demand) genuinely rich, get those indexed, let trust extend.
 <process>
 1. <thinking>: list the pageHtml sections you'll change; decide enriched-vs-new-file;
    note the risk that a weak "different" line reads worse than none.
+1b. TITLES: 2,066/2,673 pages exceed Semrush's title-length limit. Shorten the
+   `<title>` templates in build-parks.js (park ~595, road ~861, `/park/` ~742, beach
+   hub ~1643, beach index ~1768) — front-load "Is <name> open?" and cut the
+   "Current status & visitor info —" / "Road status & season —" filler; keep the
+   "Park Status Today" brand. Accept that the ~5% longest park names still exceed;
+   don't drop the name or the brand to force it.
 2. DE-DUPE: rework "How we read this status" and the "Before you go" cards so they vary
    by park kind AND state AND (where present) roads/reservation/fees — no two parks get a
    byte-identical block. Keep them short and honest.
@@ -1034,5 +1040,98 @@ a change summary + a rendered `/state/california/` and one park page's new block
 3. Every `/state/` hub + the index are in the sitemap and llms.txt; JSON-LD valid.
 4. `parks.json` / `parks-enriched.json` byte-identical.
 5. `siteNav()` and the index.html header agree.
+6. Coordination files agree with each other and git.
+</self_check>
+
+---
+
+## Item 12 — Broken external links: build-time validation
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Generator engineer. Get current first;
+rebase on origin/main.
+</role>
+
+<task>
+Stop shipping dead outbound links. At build time (or in the Worker's hourly job — plan
+decides), validate the external URLs build-parks.js bakes into pages — each entity's
+`official` link (`e.url`), each road's `statusUrl`, and each `en.photo` — and substitute
+a sane fallback when one is dead.
+</task>
+
+<why>
+Semrush site audit (2026-09-10): 234 broken external links, 2 broken external images.
+On ~1,290 park pages + 21 road pages the outbound links are the park's official page and
+its photo; ~18% of the `e.url` values are 404 or moved (upstream URL rot at nps.gov /
+state park systems). Dead outbound links are a UX and minor ranking negative, and they
+undermine the "always confirm on the official page" framing the pages lean on.
+</why>
+
+<context>
+- `pageHtml` (~500): `const official = e.url || (e.source === "nps" ? "https://www.nps.gov/findapark/index.htm" : SITE)`
+  (~507), rendered at ~633. `officialLabel` switches on `e.source`.
+- `roadPageHtml` (~801): `road.statusUrl` rendered at ~896 (curated in roads.json).
+- `en.photo` — NPS image URL or Wikipedia photo, set in `main()`'s `en` assembly;
+  rendered as the hero `<img>`.
+- build-parks.js already does many network fetches (`npsRich`, `enrichWikipedia`,
+  `wget`) with a `mapPool` concurrency helper — reuse it. It's zero-dependency Node;
+  use `fetch` with `{ method: "HEAD" }` (fall back to GET if HEAD is rejected).
+- `e.source` values: nps / ny / ca / tx / mn / fl / wa / usfs. Each has a findable
+  system-level fallback (nps.gov/findapark, parks.ca.gov, tpwd.texas.gov, etc. — the
+  `officialLabel` switch already encodes the system).
+</context>
+
+<constraints>
+- Zero new deps. Don't blow up build time — cap concurrency, short timeout (~5s),
+  cache results within a run; a validation failure must NEVER abort the build (fall
+  back, log, continue). Treat 403/429 from a link as "keep it" (crawler blocks, not a
+  real break).
+- parks.json / parks-enriched.json byte-identical UNLESS the plan chooses to persist a
+  validated `official`/`photo` back into `enriched` — if so, update the index.html
+  click-card consumer in the same change and say why.
+- Fallback rules: dead `e.url` → the entity's system landing page (from the `e.source`
+  switch) with the label adjusted ("Find this park on nps.gov ↗"); dead `en.photo` →
+  omit the hero image (don't substitute a wrong photo); dead `road.statusUrl` → flag it
+  in the build output for a human to fix in roads.json (curated, small set).
+- Never fabricate a "working" status for a link you didn't actually check.
+- Plan-first.
+</constraints>
+
+<reference_material>
+- build-parks.js: `pageHtml` (`official`/`officialLabel`), `roadPageHtml` (`statusUrl`),
+  `main()` `en` assembly (`photo`), `mapPool`, `wget`.
+- The Semrush export row: "Broken external links, 234, 7500".
+</reference_material>
+
+<process>
+1. <thinking>: build-time vs Worker-hourly (build-time is simpler and these URLs rarely
+   change intra-day — lean that way); concurrency/timeout budget; whether to persist
+   results or re-check every run.
+2. Add a `validateUrl(url)` helper (HEAD→GET fallback, timeout, 2xx/3xx = ok, 403/429 =
+   ok, else dead) and a pooled pass over the unique set of `official` + `statusUrl` +
+   `photo` URLs.
+3. Apply the fallback rules in `pageHtml` / `roadPageHtml` / the `en` assembly.
+4. Emit a build-log summary: N checked, M dead, and the list of dead `roads.json`
+   `statusUrl`s for a human.
+5. STOP and present the plan (approach, fallback table, expected build-time delta).
+6. On approval: implement. Run build-parks.js if `NPS_API_KEY` is available; else run the
+   validator in isolation over a sample of ~50 `e.url`s from `parks.json` and report the
+   dead count + a few examples. Confirm parks.json byte-identical (or the consumer
+   updated).
+7. Update PROGRESS.md + BUILDER-PROMPTS.md.
+</process>
+
+<output_format>
+Plan first: build-time-vs-Worker decision, the `validateUrl` contract, the fallback
+table, build-time impact. Then edited build-parks.js + a change summary + the dead-link
+count from the run + any `roads.json` `statusUrl`s that need a human fix.
+</output_format>
+
+<self_check>
+1. Every constraint met (list, check each).
+2. A validation failure/timeout never aborts the build (state how verified).
+3. 403/429 links are kept, not dropped.
+4. parks.json byte-identical, or the click-card consumer updated in the same change.
+5. Dead `roads.json` statusUrls are surfaced for a human, not silently swapped.
 6. Coordination files agree with each other and git.
 </self_check>
