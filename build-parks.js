@@ -117,6 +117,43 @@ async function mapPool(items, size, fn) {
   return out;
 }
 
+// ===================== broken external link validation (Item 12) ==========
+// Never throws. HEAD first (cheap); falls back to GET on 405/501 or any error.
+// 403/429 = "ok" (bot-blocked, not actually broken). Memoized per unique URL per run.
+const _urlCache = new Map();
+async function validateUrl(url) {
+  if (!url) return false;
+  if (_urlCache.has(url)) return _urlCache.get(url);
+  const p = (async () => {
+    for (const method of ["HEAD", "GET"]) {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 5000);
+        let r;
+        try { r = await fetch(url, { method, redirect: "follow", signal: ctrl.signal, headers: { "User-Agent": UA } }); }
+        finally { clearTimeout(timer); }
+        if (r.status === 405 || r.status === 501) continue; // HEAD not allowed here — try GET
+        return r.ok || r.status === 403 || r.status === 429;
+      } catch (_) { /* try GET, or fall through to dead */ }
+    }
+    return false;
+  })();
+  _urlCache.set(url, p);
+  return p;
+}
+
+// System landing pages used when an entity's own official link is dead.
+const SOURCE_FALLBACK = {
+  nps: "https://www.nps.gov/findapark/index.htm",
+  ny: "https://parks.ny.gov/parks/",
+  ca: "https://www.parks.ca.gov/",
+  tx: "https://tpwd.texas.gov/state-parks/",
+  mn: "https://www.dnr.state.mn.us/state_parks/index.html",
+  fl: "https://www.floridastateparks.org/",
+  wa: "https://parks.wa.gov/",
+  usfs: "https://www.fs.usda.gov/visit/forests",
+};
+
 // ===================== shared status helpers ==============================
 // Beach vocab -> the 4-status model the whole site uses.
 const beach4 = (s) => (s === "advisory" ? "partially_closed" : (s === "open" || s === "closed") ? s : "no_data");
@@ -542,22 +579,34 @@ function siteNav() {
   return `<nav class="site"><a href="/#map">Map</a><a href="/park/">All parks</a><a href="/state/">States</a><a href="/road/">Roads</a><a href="/beach/">Beaches</a><a href="/guides/">Guides</a><a href="/#signup" class="btn-alerts">Get alerts</a></nav>`;
 }
 
-function pageHtml(e, en, updatedISO, tally, roadsHere = [], sd = { active: false }, geo = {}) {
+function pageHtml(e, en, updatedISO, tally, roadsHere = [], sd = { active: false }, geo = {}, officialOk = true) {
   const name = esc(e.name);
   const cls = STATUS_CLASS[e.status] || "nodata";
   const label = STATUS_LABEL[e.status] || "Status unknown";
   const url = `${SITE}/park/${e.slug}/`;
   const stateTxt = statesText(e);
   const meta = (e.kind || "Park") + (stateTxt ? " · " + stateTxt : "");
-  const official = e.url || (e.source === "nps" ? "https://www.nps.gov/findapark/index.htm" : SITE);
-  const officialLabel = e.source === "nps" ? "Official NPS page ↗"
-    : e.source === "ny" ? "View on parks.ny.gov ↗"
-    : e.source === "ca" ? "View on parks.ca.gov ↗"
-    : e.source === "tx" ? "View on tpwd.texas.gov ↗"
-    : e.source === "mn" ? "View on dnr.state.mn.us ↗"
-    : e.source === "fl" ? "View on floridastateparks.org ↗"
-    : e.source === "wa" ? "View on parks.wa.gov ↗"
-    : e.source === "usfs" ? "Forest alerts & notices ↗" : "Official page ↗";
+  // officialOk (Item 12, build-time-validated): a dead e.url falls back to the
+  // system landing page with an adjusted, honest label — never a dead link.
+  const officialLive = !!(e.url && officialOk);
+  const official = officialLive ? e.url : (SOURCE_FALLBACK[e.source] || SITE);
+  const officialLabel = officialLive
+    ? (e.source === "nps" ? "Official NPS page ↗"
+      : e.source === "ny" ? "View on parks.ny.gov ↗"
+      : e.source === "ca" ? "View on parks.ca.gov ↗"
+      : e.source === "tx" ? "View on tpwd.texas.gov ↗"
+      : e.source === "mn" ? "View on dnr.state.mn.us ↗"
+      : e.source === "fl" ? "View on floridastateparks.org ↗"
+      : e.source === "wa" ? "View on parks.wa.gov ↗"
+      : e.source === "usfs" ? "Forest alerts & notices ↗" : "Official page ↗")
+    : (e.source === "nps" ? "Find this park on nps.gov ↗"
+      : e.source === "ny" ? "Browse parks.ny.gov ↗"
+      : e.source === "ca" ? "Browse parks.ca.gov ↗"
+      : e.source === "tx" ? "Browse tpwd.texas.gov ↗"
+      : e.source === "mn" ? "Browse dnr.state.mn.us ↗"
+      : e.source === "fl" ? "Browse floridastateparks.org ↗"
+      : e.source === "wa" ? "Browse parks.wa.gov ↗"
+      : e.source === "usfs" ? "Browse fs.usda.gov ↗" : "Find this park ↗");
   const overview = (en && (en.description || en.history)) || "";
   const desc = clip(`${e.name} ${STATUS_SENTENCE[e.status] || "status"}. ${e.reason || ""} ${overview}`, 300);
   const photo = en && en.photo;
@@ -723,7 +772,7 @@ ${stripHtml(tally, updatedISO)}
     <p>A federal government shutdown is in effect. Access and staffing at National Park Service sites vary — some close and barricade entrances, some stay open but unstaffed. <a href="/shutdown/">Live shutdown status →</a></p>
   </section>` : ""}
 
-  ${photo ? `<img class="hero-photo" src="${esc(photo)}" alt="${name}" loading="lazy" width="820" height="349" style="display:block;width:100%;aspect-ratio:40/17;max-height:340px;object-fit:cover;border-radius:14px">` : ""}
+  ${photo ? `<img class="hero-photo" src="${esc(photo)}" alt="${name}" loading="lazy" width="820" height="349" style="display:block;width:100%;aspect-ratio:40/17;max-height:340px;object-fit:cover;border-radius:14px" onerror="this.style.display='none'">` : ""}
 
   ${overview ? `<article><h2>About ${name}</h2><p id="p-about">${esc(overview)}</p>${en && en.wiki ? `<p><a href="${esc(en.wiki)}" target="_blank" rel="noopener">Read more on Wikipedia ↗</a> <span class="disc" style="opacity:.7">Text from Wikipedia, CC BY-SA.</span></p>` : ""}</article>` : ""}
 
@@ -2228,6 +2277,27 @@ async function main() {
   const shutdown = data.shutdown || { active: false };
   process.stdout.write(`  shutdown: ${shutdown.active ? "ACTIVE" : "none"}${shutdown.stale ? " (stale)" : ""}\n`);
 
+  // ---- broken external link validation (Item 12) ---------------------------
+  // official (e.url): dead ones get a live system-landing fallback in pageHtml.
+  // road.statusUrl: dead ones are only logged — no generic fallback per-road makes
+  // sense, a human fixes roads.json. Photos are NOT network-checked: the hero <img>
+  // now carries onerror, which handles a broken photo for free, client-side.
+  const officialUrls = [...new Set(entities.map((e) => e.url).filter(Boolean))];
+  const officialOkPairs = await mapPool(officialUrls, 10, async (u) => [u, await validateUrl(u)]);
+  const officialOk = new Map(officialOkPairs.filter(Boolean));
+  const officialDead = officialOkPairs.filter((p) => p && p[1] === false).length;
+  process.stdout.write(`  official links: ${officialUrls.length} checked, ${officialDead} dead (fell back)\n`);
+
+  const roadStatusUrls = [...new Set(published.map((r) => r.statusUrl).filter(Boolean))];
+  const roadUrlOkPairs = await mapPool(roadStatusUrls, 10, async (u) => [u, await validateUrl(u)]);
+  const roadUrlOk = new Map(roadUrlOkPairs.filter(Boolean));
+  const deadRoadUrls = published.filter((r) => roadUrlOk.get(r.statusUrl) === false);
+  process.stdout.write(`  road status links: ${roadStatusUrls.length} checked, ${deadRoadUrls.length} dead\n`);
+  if (deadRoadUrls.length) {
+    process.stdout.write(`  DEAD roads.json statusUrl — fix by hand:\n`);
+    for (const r of deadRoadUrls) process.stdout.write(`    ${r.slug}: ${r.statusUrl}\n`);
+  }
+
   // ---- /state/ hubs + per-park "Parks near here" / "More in [state]" (Item 11)
   const entType = (x) => x.source === "nps" ? "nps" : x.source === "usfs" ? "forest" : "statepark";
   const byState = {};
@@ -2287,7 +2357,7 @@ async function main() {
   for (const e of entities) {
     const dir = path.join(PARK_DIR, e.slug);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, "index.html"), pageHtml(e, e._en, updatedISO, tally, roadsByPark[e.id] || [], shutdown, geoByEntity[e.id] || {}));
+    fs.writeFileSync(path.join(dir, "index.html"), pageHtml(e, e._en, updatedISO, tally, roadsByPark[e.id] || [], shutdown, geoByEntity[e.id] || {}, officialOk.get(e.url) !== false));
     n++;
   }
   fs.writeFileSync(path.join(PARK_DIR, "index.html"), directoryHtml(entities, updatedISO, tally));

@@ -21,6 +21,39 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-09-11 — Item 12 DONE: broken external link validation
+
+- **`validateUrl(url)`** (build-parks.js): HEAD first, falls back to GET on 405/501 or
+  any thrown error (timeout/DNS/network — never propagates); 5s `AbortController`
+  timeout per attempt; 403/429 treated as "ok" (bot-blocked, not broken); memoized in
+  `_urlCache` so a repeated URL in one run only hits the network once.
+- **`SOURCE_FALLBACK`**: a system landing page per `e.source` (nps/ny/ca/tx/mn/fl/wa/usfs).
+- **`main()`**: after `published` roads resolve, a pooled (`mapPool`, size 10) pass
+  validates the unique set of `entities[].url` and `published[].statusUrl`. Logs
+  `N official links checked, M dead (fell back)` and `N road status links checked, M
+  dead`, plus the dead-road list by slug for a human to fix in `roads.json` — never
+  auto-swapped (no generic fallback fits a specific road).
+- **`pageHtml`**: new trailing param `officialOk = true`. A dead `e.url` renders the
+  `SOURCE_FALLBACK` link with an honestly-adjusted label ("Find this park on nps.gov ↗"
+  etc.) instead of the dead specific-park link. Computed fresh at render time, NOT
+  persisted — `parks.json` / `parks-enriched.json` untouched, no consumer-update needed.
+- **Photos NOT network-validated.** The `hero-photo <img>` gained `onerror="this.style
+  .display='none'"` — a broken photo self-heals client-side for free (matches the
+  homepage click-card's existing `onerror="this.remove()"`), covering the 2 Semrush
+  hits and any future ones at zero build cost.
+- **Verified** (18/18 harness): real live nps.gov URLs (Yosemite/Acadia/GRSM) validate
+  true; a real nps.gov 404 and an unresolvable domain both validate false without
+  throwing; empty/undefined input → false; repeat-URL calls are cached; all 8
+  `SOURCE_FALLBACK` sources present; `pageHtml` with `officialOk:false` renders the
+  fallback link + adjusted label and drops the dead specific URL, with `officialOk:true`
+  / the default (no arg) both keeping the original; `hero-photo` carries `onerror`;
+  JSON-LD valid on both variants. Separately stubbed `fetch` to confirm 403→true,
+  429→true, 500→false.
+- **Not run**: no `NPS_API_KEY` locally, so the full-build dead-link count / measured
+  build-time delta across all ~1,290 entities wasn't produced — only the isolated/sample
+  checks above. The real count + timing will show in the next cron's log output.
+- Scope: `build-parks.js` only. No `PARK_CSS`, no workflow/secret/Worker change.
+
 ### 2026-09-10/11 — Items 10 + 11 pushed and deployed
 
 - Picked up mid-flight by a second session on this repo while Item 10 was in its
