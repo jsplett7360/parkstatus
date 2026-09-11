@@ -889,8 +889,15 @@ async function get(endpoint, key, params = {}) {
 // `alertsByPark[code]` = [{ title, description, category, date }]; `parkStatusById`
 // is the per-park status map, used only for the full-park-closure cascade.
 const _roadClip = (s, n) => { s = String(s || "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s; };
-function roadStatus(road, alertsByPark, parkStatusById) {
+function roadStatus(road, alertsByPark, parkStatusById, brp = null) {
   const CLS = { open: "open", "partially open": "partial", closed: "closed", seasonal: "nodata" };
+  // Blue Ridge Parkway (Item 9): a live scrape of its own closures page replaces
+  // Tier B/C entirely — its NPS-alerts feed rarely names specific mileposts, which
+  // is why it otherwise falls through to the generic Tier-C fallback year-round.
+  // Tagged tier:"B" so it flows through the existing Tier-B notify + cooldown path.
+  if (road.slug === "blue-ridge-parkway" && brp) {
+    return { tier: "B", status: brp.status, cls: CLS[brp.status] || "nodata", reason: brp.reason, date: brp.date || "" };
+  }
   const inSeason = () => { const m = new Date().getUTCMonth(); return m >= 5 && m <= 8; };
   const npsParents = (road.parentIds || []).filter((p) => p.startsWith("nps:")).map((p) => p.slice(4));
   if (npsParents.length) {
@@ -1038,6 +1045,13 @@ async function rebuild(env, { notify = false } = {}) {
     active: false, since: null, source: "nps-operating-status", summary: "", checkedAt: new Date().toISOString(), stale: true,
   }));
 
+  // Blue Ridge Parkway (Item 9): one scrape per cycle, not per-road — BRP is a
+  // single road entity. Never throws; falls back to the prior cycle on failure.
+  const brp = await brpStatus(env, prevRaw).catch(() => ({
+    status: "open", reason: "Blue Ridge Parkway is normally open year-round; sections close for weather, rockslides and maintenance.",
+    date: "", checkedAt: new Date().toISOString(), stale: true,
+  }));
+
   // ---- road status (hourly) + road-change notifications -------------------
   // roads.json is published to the site by build-parks.js (same as forests.json).
   // Until it deploys, the fetch 404s, roadsOut stays [] and the generator uses
@@ -1065,7 +1079,7 @@ async function rebuild(env, { notify = false } = {}) {
       if (slug === "_note" || !v || v.datesReviewed !== true) continue;
       const road = { slug, ...v, parentNames:
         (v.parentIds || []).filter((p) => p.startsWith("nps:")).map((p) => parkNameByCode[p.slice(4)]).filter(Boolean).join(" and ") };
-      const st = roadStatus(road, roadAlertsByPark, roadParkStatus);
+      const st = roadStatus(road, roadAlertsByPark, roadParkStatus, slug === "blue-ridge-parkway" ? brp : null);
       const prev = prevRoadById.get(slug);
       const since = (prev && prev.status === st.status) ? prev.since : nowISO;
       roadsOut.push({ slug, name: v.name, status: st.status, cls: st.cls, tier: st.tier,
@@ -1100,7 +1114,7 @@ async function rebuild(env, { notify = false } = {}) {
 
   await env.PARKS_KV.put("status:latest", JSON.stringify({
     updated: new Date().toISOString(),
-    tally, parks: parksOut, shutdown, roads: roadsOut,
+    tally, parks: parksOut, shutdown, roads: roadsOut, brp,
     beachTally, beaches: beachesOut, beachStale,
     nyParkTally, nyParks: nyParksOut, nyParkStale,
     caParkTally, caParks: caParksOut, caParkStale,
@@ -1556,6 +1570,97 @@ async function detectShutdown(env, prevRaw) {
     summary = ((m && m[0]) || (main.match(/[^.!?]{15,240}[.!?]/) || [main.slice(0, 200)])[0]).trim();
   }
   return { active, since, source: "nps-operating-status", summary: summary.slice(0, 220), checkedAt: now, stale: false };
+}
+
+// ===================== Blue Ridge Parkway live status (Item 9) =============
+// nps.gov publishes BRP's own road-status table (no ArcGIS/keyless API exists —
+// checked in Item 4). Same fetch/fallback mold as detectShutdown(): never throws,
+// falls back to the prior cycle's value with stale:true on any failure.
+const BRP_URL = "https://www.nps.gov/blri/planyourvisit/roadclosures.htm";
+const BRP_MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December";
+const BRP_FACILITY = /(campground|picnic area|visitor center|comfort station|restroom)/i;
+const BRP_CLOSE_LANG = /(clos(e|ed|ure)|full closure|detour)/i;
+
+function brpCellText(html) {
+  return String(html || "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&").replace(/&#8211;|&ndash;/gi, "-").replace(/\s+/g, " ").trim();
+}
+// One <table>'s rows -> [{ mp, crossroads, status, notes }]. Header row (th cells,
+// or a "Status" text cell) is naturally skipped since it never matches a status word.
+function brpParseTable(tableHtml) {
+  const rows = [];
+  for (const rowHtml of tableHtml.split(/<tr[^>]*>/i).slice(1)) {
+    const cells = [...rowHtml.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)].map((m) => brpCellText(m[1]));
+    if (cells.length < 3) continue;
+    rows.push({ mp: cells[0], crossroads: cells[1] || "", status: cells[2] || "", notes: cells[3] || "" });
+  }
+  return rows;
+}
+// Status cell + notes text -> "open" | "partially open" | "closed". Notes-driven
+// road-closure language can only escalate to "partially open" (never invent
+// "closed" from free text) and is ignored when it's describing a facility
+// (campground/picnic area/etc.), not the roadway itself.
+function brpRowStatus(row) {
+  let st = /ungated/i.test(row.status) ? "open"
+    : /^open$/i.test(row.status) ? "open"
+    : /partial/i.test(row.status) ? "partially open"
+    : /^closed$/i.test(row.status) ? "closed"
+    : "open";
+  if (st === "open" && row.notes) {
+    const m = BRP_CLOSE_LANG.exec(row.notes);
+    if (m && !BRP_FACILITY.test(row.notes.slice(Math.max(0, m.index - 40), m.index + 40))) st = "partially open";
+  }
+  return st;
+}
+async function brpStatus(env, prevRaw) {
+  const now = new Date().toISOString();
+  let prev = null;
+  try { prev = prevRaw ? (JSON.parse(prevRaw).brp || null) : null; } catch (_) {}
+  const fallback = () => prev
+    ? { ...prev, checkedAt: now, stale: true }
+    : { status: "open", reason: "Blue Ridge Parkway is normally open year-round; sections close for weather, rockslides and maintenance.", date: "", checkedAt: now, stale: true };
+
+  let text = "";
+  try {
+    const r = await fetch(BRP_URL, { headers: { "User-Agent": CRAWL_UA }, cf: { cacheTtl: 900 } });
+    if (r.ok) text = await r.text();
+  } catch (_) {}
+  if (!text || text.length < 500) return fallback();
+
+  let tables;
+  try { tables = text.match(/<table[^>]*>[\s\S]*?<\/table>/gi) || []; } catch (_) { tables = []; }
+  const rows = tables.flatMap(brpParseTable).filter((r) => r.mp && r.status);
+  if (!rows.length) return fallback();
+
+  // Mainline (ranged milepost, e.g. "61.4 - 66.3") vs. a named spur/access road
+  // (single milepost, e.g. "120.3 Roanoke Mountain Loop") — only mainline rows
+  // drive the Parkway-wide verdict; a closed side-spur shouldn't redden the whole page.
+  const mainline = rows.filter((r) => /[-–]/.test(r.mp)).map((r) => ({ ...r, eff: brpRowStatus(r) }));
+  if (!mainline.length) return fallback();
+
+  const rank = { open: 0, "partially open": 1, closed: 2 };
+  const worst = mainline.reduce((a, b) => (rank[b.eff] > rank[a.eff] ? b : a));
+
+  let reason;
+  if (worst.eff === "closed") {
+    const closedRows = mainline.filter((r) => r.eff === "closed")
+      .map((r) => { const m = r.mp.match(/([\d.]+)\s*[-–]\s*([\d.]+)/); return m ? { lo: +m[1], hi: +m[2], notes: r.notes } : null; })
+      .filter(Boolean).sort((a, b) => a.lo - b.lo);
+    const lo = Math.min(...closedRows.map((r) => r.lo)), hi = Math.max(...closedRows.map((r) => r.hi));
+    const cause = _roadClip((closedRows.find((r) => r.notes) || {}).notes || "", 120).replace(/[.!]+$/, "");
+    reason = `Closed MP ${lo}–${hi}${cause ? ` (${cause})` : ""}. Other sections of the Parkway remain open.`;
+  } else if (worst.eff === "partially open") {
+    reason = `Partial closure MP ${worst.mp}${worst.notes ? `: ${_roadClip(worst.notes, 140)}` : "."}`;
+  } else {
+    reason = "No closures reported on the Parkway's main route right now.";
+  }
+
+  let date = "";
+  const plainText = brpCellText(text);
+  const dm = plainText.match(new RegExp("[Rr]oad status as of.{0,60}?((?:" + BRP_MONTHS + ")\\s+\\d{1,2},?\\s+(\\d{4}))"));
+  if (dm) { const d = new Date(dm[1]); if (!isNaN(d)) date = d.toISOString().slice(0, 10); }
+
+  return { status: worst.eff, reason: reason.slice(0, 300), date, checkedAt: now, stale: false };
 }
 
 export default {

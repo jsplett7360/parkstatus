@@ -21,6 +21,62 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-09-11 — Item 9 DONE: Blue Ridge Parkway live status (4b)
+
+- **`brpStatus(env, prevRaw)`** (worker.js): scrapes `nps.gov/blri/planyourvisit/
+  roadclosures.htm`'s two `<table>`s (VA + NC), same fetch/fallback mold as
+  `detectShutdown()` — `CRAWL_UA`, `cf.cacheTtl:900`, on fetch failure / <500 chars /
+  no parseable table returns the prior cycle's `blob.brp` with `stale:true`, never
+  throws, never blocks `rebuild()`.
+- **Row classification** (`brpRowStatus`): normalizes the Status cell
+  (`ungated`→open per the item's own instruction — informational, not a closure;
+  `partial*`→"partially open"; `closed`→closed) and separately scans the Notes cell for
+  road-closure language, escalating an `open` row to `"partially open"` — but never to
+  `closed` from free text — while explicitly excluding matches next to facility words
+  (campground/picnic area/etc.) so a closed *campground* doesn't read as a closed *road*.
+  This is what correctly catches the Deep Gap Bridge partial closure, which the page
+  files under an "Ungated" status row.
+- **Aggregation**: worst-wins (`rank {open:0,"partially open":1,closed:2}`, the same
+  pattern the Tier-B alert merge already uses) — but **only across mainline rows**
+  (milepost *ranges*, e.g. "61.4 - 66.3"). Single-milepost rows (e.g. "120.3 Roanoke
+  Mountain Loop") are named spurs/access roads, verified against all 12 such rows on
+  the live page, and are excluded from the Parkway-wide verdict so a closed side-spur
+  can't redden the whole page.
+- **Reason text**: for a `closed` verdict, merges adjacent/overlapping closed mainline
+  rows into one cited range + a cleaned cause phrase, explicitly says "Other sections
+  of the Parkway remain open" — never claims the whole Parkway is closed. For
+  `"partially open"`, cites the specific MP range + note.
+- **`roadStatus(road, alertsByPark, parkStatusById, brp = null)`**: new 4th param; when
+  `road.slug === "blue-ridge-parkway"` and `brp` is supplied, short-circuits to
+  `{tier:"B", status: brp.status, cls, reason: brp.reason, date: brp.date}` *before*
+  the Tier B NPS-alert branch (BRP's own alerts rarely name mileposts, which is why it
+  was stuck on the generic Tier-C fallback). Every other road is unaffected — verified.
+- **`rebuild()`**: one `brpStatus()` call per cycle (not per-road), before the road
+  loop; passed into `roadStatus()` only for `blue-ridge-parkway`. `blob.brp` added
+  (additive). **No changes to the notify pipeline** — `st.tier === "B"` already fires
+  the existing Tier-B notify + 24h/slug cooldown, so BRP transitions flow through
+  automatically.
+- **`roads.json` / `build-parks.js`: no change.** Confirmed `blob.roads` consumption in
+  `build-parks.js` is fully generic (`roadBlob.get(r.slug)` → `{tier,status,cls,reason,
+  date}`), no per-road special-casing exists or is needed; `roadPageHtml`'s "alert
+  dated" rendering already handles the `YYYY-MM-DD` date format `brpStatus()` produces.
+  build-parks.js's own local fallback `roadStatus()` copy (used only when `blob.roads`
+  is entirely empty — a rare first-deploy race) does **not** get the BRP short-circuit;
+  BRP gets the old generic Tier-C line in that narrow window, which is expected and
+  unchanged from before.
+- **Verified** (20/20 harness, worker.js loaded as an ES module with `export default`
+  stripped): a REAL fetch against the live page correctly found the actual current
+  closure (~38 mi, MP 317.5–355.3, Hurricane-Helene damage) and produced a
+  non-overclaiming reason string with a correctly-extracted `2026-09-09` date; 3
+  fabricated-failure cases (thrown fetch, too-short response, HTTP 500) all resolved to
+  `stale:true` without throwing, including one that correctly carried a prior value
+  forward; 6 row-classifier unit tests against real scraped rows (Deep-Gap-under-
+  "Ungated", facility-only note, explicit Closed, "Partial closure" text, plain Open,
+  "Ungated*"); `roadStatus()` routing confirmed for blue-ridge-parkway-with-brp,
+  blue-ridge-parkway-without-brp (falls through to old Tier C), and a different road
+  (ignores `brp` entirely — regression check).
+- Scope: `worker.js` only.
+
 ### 2026-09-11 — Item 12 DONE: broken external link validation
 
 - **`validateUrl(url)`** (build-parks.js): HEAD first, falls back to GET on 405/501 or
