@@ -21,6 +21,20 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-09-10/11 — Items 10 + 11 pushed and deployed
+
+- Picked up mid-flight by a second session on this repo while Item 10 was in its
+  research/review phase here; that session implemented both Items 10 and 11 (below) and
+  committed locally, unpushed. Reconciled: pushed `dc8ab2db..3df9bd8e`, added the
+  Item 11 CI line (`public_html/state` → `refresh-park-data.yml` `git add`, commit
+  `cd313872`), then triggered `refresh-park-data.yml` manually (run `34514446082`) so
+  the ~1,290 regenerated park pages + new `/state/**` hubs shipped same-day instead of
+  waiting for the next cron. `deploy.yml` (run `34515643816`) synced it to Hostinger.
+- Verified live: `/state/` → 200; `nps:grsm` park page — title `Is Great Smoky Mountains
+  National Park open? · Park Status Today`, `.distinct` line present, `.pfacts` row
+  present, "Parks near here" + "More in North Carolina" present.
+- The next scheduled cron (`34598812328`, 2026-09-11) ran clean on top of this.
+
 ### 2026-09-10 — Item 11 DONE: internal linking + /state/ hubs (`8ca76182`)
 
 - **Helpers**: `US_STATES` (50 + DC + 5 territories), local `haversineMi` (= worker.js
