@@ -23,7 +23,7 @@ plan and stop. The next "complete next step" = implement the approved plan.
 | 10 | Indexation — per-park distinctiveness pass (de-dupe + distinct line + facts row + title shortening) | DONE + deployed — `park-facts.json` (63 NPs) + `PARK_FACTS`; `.distinct` line (curated / first-sentence fallback) + `.pfacts` <dl> + JSON-LD `foundingDate`; de-duped "How we read" & "Before you go"; titles `Is <name> open? · Park Status Today`. `parks*.json` byte-identical. Live on all park pages (verified `nps:grsm`). | 2026-09-10 | 2026-09-10 `080ce3c8`, pushed `cd313872`, live via cron run `34514446082` + deploy `34515643816` |
 | 11 | Indexation — internal linking + /state/ hubs | DONE + deployed — `byState` map + `haversineMi`; "Parks near here" + "More in <state>" on park pages; `/state/<slug>/` + `/state/` hubs; `siteNav()` + `sitemap()`/`llms.txt` wired. `parks*.json` byte-identical. `refresh-park-data.yml` `git add public_html/state` landed (`cd313872`). Live — verified `/state/` 200 + grsm page links "More in North Carolina". | 2026-09-10 | 2026-09-10 `8ca76182`, CI line `cd313872`, live via cron run `34514446082` + deploy `34515643816` |
 | 12 | Broken external links — build-time validation of baked `official`/`statusUrl`/`photo` URLs with a sane fallback (Semrush: 234 broken links, 2 broken images) | DONE — `validateUrl()` (HEAD→GET, 5s timeout, 403/429=ok, never throws) + `SOURCE_FALLBACK`; dead `e.url` falls back to the system landing page + adjusted label in `pageHtml` (not persisted — `parks*.json` untouched); dead `road.statusUrl` only logged for a human; `hero-photo img` gets `onerror` (photos never network-checked — self-healing client-side). 18/18 harness incl. live nps.gov checks, a real 404, a DNS failure, and 403/429/500 branch logic. No `NPS_API_KEY` locally — full-build dead-link count not run. | 2026-09-10 | 2026-09-11 `d66c6e24` |
-| 9 | 4b — Blue Ridge Parkway live status: Worker-side scrape of `nps.gov/blri/planyourvisit/roadclosures.htm` (server-rendered per-milepost table + timestamp), `detectShutdown()` mold; promotes BRP from Tier C. Worker + `roadStatus()` change. | BACKLOG | 2026-09-08 | — |
+| 9 | 4b — Blue Ridge Parkway live status: Worker-side scrape of `nps.gov/blri/planyourvisit/roadclosures.htm` (server-rendered per-milepost table + timestamp), `detectShutdown()` mold; promotes BRP from Tier C. Worker + `roadStatus()` change. | READY | 2026-09-08 | — |
 
 Backlog items are one-liners until the prompt-engineer promotes one to READY with a full
 block below.
@@ -1133,5 +1133,144 @@ count from the run + any `roads.json` `statusUrl`s that need a human fix.
 3. 403/429 links are kept, not dropped.
 4. parks.json byte-identical, or the click-card consumer updated in the same change.
 5. Dead `roads.json` statusUrls are surfaced for a human, not silently swapped.
+6. Coordination files agree with each other and git.
+</self_check>
+
+---
+
+## Item 9 — Blue Ridge Parkway live status (4b: scrape `roadclosures.htm`)
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Worker engineer. Get current first; rebase
+on origin/main.
+</role>
+
+<task>
+Give Blue Ridge Parkway a real, live status instead of its permanent Tier-C fallback.
+Add a Worker-side scrape of `https://www.nps.gov/blri/planyourvisit/roadclosures.htm`
+(confirmed 2026-09-11: two plain HTML `<table>`s — Virginia and North Carolina sections
+— each row `{milepost range, crossroads, status: Open/Partially closed/Closed/Ungated,
+description}`, plus a "Last updated: <date>" line), aggregate it into one status +
+reason for the `blue-ridge-parkway` road entity, and wire it into `roadStatus()` so BRP
+stops being Tier C.
+</task>
+
+<why>
+BRP (`roads.json`: `blue-ridge-parkway`, `seasonal:false`, parent `nps:blri`) has no
+ArcGIS/keyless live-closures API (checked during Item 4) and its NPS park-alerts feed
+rarely names specific Parkway mileposts, so `roadStatus()` falls through to the generic
+Tier-C "normally open year-round" line year-round — even during real closures (ice,
+rockslides, the Deep Gap Bridge repair currently closing MP 274.3–276.5). This is the
+single busiest road entity without live data; the closures page it links to for "confirm
+with the official status page" is itself scrapeable.
+</why>
+
+<context>
+- `detectShutdown()` (worker.js:1509) is the mold: `fetch` with `{ headers: { "User-Agent":
+  CRAWL_UA }, cf: { cacheTtl: 900 } }`, strip tags to plain text, regex-extract, and on
+  fetch failure / too-short response fall back to the previous cycle's value with
+  `stale: true` — never throws, never blocks `rebuild()`.
+- `roadStatus(road, alertsByPark, parkStatusById)` (worker.js:892): Tier B branch walks
+  `road.parentIds` NPS alerts; Tier C is the `road.seasonal` / generic-accessNote
+  fallback BRP currently hits. Return shape: `{ tier, status, cls, reason, date }`,
+  `status` ∈ open/partially open/closed/seasonal, `cls` via the `CLS` map.
+  `rank = { open: 0, "partially open": 1, closed: 2 }` is the existing worst-wins pattern
+  used when merging multiple NPS alerts into one verdict — reuse it here to merge the
+  VA + NC table rows into one BRP-wide verdict.
+- `rebuild()` (worker.js:940) computes the blob once per hour; Item 5 added `blob.roads`
+  there (per-road `roadStatus()` output) and `notifyChanges()` already fires on Tier-B
+  road transitions with a 24h/slug cooldown (KV `road:notifylog`) — treat a live BRP
+  scrape result the same as Tier B for notification purposes.
+- `roads.json`'s `blue-ridge-parkway.statusUrl` already IS
+  `https://www.nps.gov/blri/planyourvisit/roadclosures.htm` (only used today as a
+  display link in `roadPageHtml`).
+- build-parks.js reads `blob.roads` with a local fallback (Item 5) — no build-parks.js
+  change should be needed unless the plan finds otherwise.
+</context>
+
+<constraints>
+- Zero new deps (native `fetch`, regex/string parsing — same toolkit as `detectShutdown`).
+- Never let a scrape failure or a page-structure change break the hourly `rebuild()`:
+  on fetch error, non-2xx, or a response that doesn't contain a recognizable table,
+  fall back to the previous cycle's BRP status with a `stale: true` flag, exactly like
+  `detectShutdown()`. Log a warning; don't throw.
+- The scrape is BRP-specific (one function, one URL) — don't build a generic multi-road
+  scraper framework for a set of one.
+- Aggregation across the ~10-15 VA/NC table rows must produce ONE status/reason for the
+  single `blue-ridge-parkway` entity (it's modeled as one road, not per-segment) — use
+  the existing worst-wins `rank` pattern: "Closed" row anywhere → propose `closed`
+  status but word the reason as a specific-segment closure (not "the Parkway is
+  closed"), unless the plan finds evidence the page ever reports a full-Parkway
+  closure distinctly from a segment one. Default reason text: cite the worst row's
+  milepost range + description, e.g. "Closed MP 274.3–276.5 (Deep Gap Bridge repair);
+  detour signed MP 269.8–276.5." "Ungated" is not a closure state — treat as `open`
+  for ranking purposes.
+- This is a live feed, same trust tier as Tier-B road changes: promote it to notify via
+  the existing Item-5 pipeline (same 24h/slug cooldown), not the Tier-C
+  never-notify path.
+- `roads.json` schema stays the shape it is — don't add a bespoke `liveSource` field
+  unless the plan decides it's the cleanest way to route BRP to this new path in
+  `roadStatus()` (a slug/id check inline is also fine for a set of one).
+- Plan-first.
+</constraints>
+
+<reference_material>
+- worker.js: `detectShutdown()` (~1509), `roadStatus()` (~892), `rebuild()` (~940),
+  `notifyChanges()` (~1261), `CRAWL_UA` / `SHUTDOWN_URL` constants near the top.
+- `roads.json`: `blue-ridge-parkway` entry (`parentIds: ["nps:blri"]`, `statusUrl`,
+  `seasonal: false`, `accessNote`, `datesReviewed: true`).
+- Confirmed live page structure (fetched 2026-09-11): two `<table>` elements (VA / NC),
+  columns Parkway Mileposts / Crossroads / Status / Important Information, a trailing
+  "Last updated: <date>" line. Sample row: "61.4 - 66.3 | VA Route 130 (Elon Road) to VA
+  Route 501 | Partially closed | CLOSED from MP 63.5 - MP 63.9 for Bridge
+  rehabilitation..." — re-fetch and re-verify this structure at implementation time,
+  don't trust it verbatim months later.
+</reference_material>
+
+<process>
+1. <thinking>: confirm the live table structure again (fetch fresh); decide the exact
+   regex/parse approach (two tables, header detection, row extraction); decide the
+   worst-wins → single-reason wording rule; decide the route-in point in `roadStatus()`
+   (id/slug check vs. a new road field); confirm the notify-cooldown reuse is a clean
+   fit or needs its own key.
+2. Add a `brpStatus(env, prevRaw)` function (or equivalent) following the
+   `detectShutdown()` mold: fetch, parse both tables, apply worst-wins ranking, build
+   the reason string, extract the "Last updated" date, return
+   `{ status, reason, date, checkedAt, stale }` with a safe fallback on any failure.
+3. Call it once per `rebuild()` cycle (not per-road — BRP is one road); store the result
+   in the blob (e.g. `blob.brp`) alongside the existing `blob.roads`/`blob.shutdown`
+   pattern.
+4. Wire `roadStatus()` so the `blue-ridge-parkway` road consumes this result instead of
+   falling through to Tier C — return it tagged so `notifyChanges()` treats it as a live
+   (Tier-B-equivalent) transition, cooldown included.
+5. Verify build-parks.js's existing `blob.roads` consumption already surfaces this
+   correctly on `/road/blue-ridge-parkway/` with no generator change — call out any gap.
+6. STOP and present the plan (parse approach, worst-wins wording rule, blob shape,
+   notify-tier decision).
+7. On approval: implement. Test against the live page (real fetch) plus at least one
+   fabricated failure case (bad HTML / network error) proving graceful fallback — you
+   have no local Worker execution harness by default, so mirror the module-harness
+   approach used for build-parks.js (strip `export default`, stub `env`/KV, call the
+   function directly) or state clearly if you instead verify by isolated Node script
+   against the real page HTML.
+8. Update PROGRESS.md + BUILDER-PROMPTS.md.
+</process>
+
+<output_format>
+Plan first: parse approach + worst-wins wording rule + blob shape + notify-tier
+decision. Then the worker.js diff + a summary of what was verified against the live
+page + the fabricated-failure test result + confirmation `roads.json` and build-parks.js
+either need no change or exactly what changed.
+</output_format>
+
+<self_check>
+1. A scrape failure/parse-miss never breaks `rebuild()` — falls back to prior BRP status
+   with `stale: true`, doesn't throw.
+2. Worst-wins ranking reuses the existing `rank` pattern, not a new ad-hoc scheme.
+3. Reason text names the actual closed segment, never overclaims "the Parkway is
+   closed" for a partial/segment closure.
+4. BRP transitions flow through the existing Tier-B notify + cooldown path, verified
+   against `notifyChanges()`/`changeMatchesSub()`, not a new parallel mechanism.
+5. `roads.json` schema unchanged unless the plan explicitly justified a new field.
 6. Coordination files agree with each other and git.
 </self_check>
