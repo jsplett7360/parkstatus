@@ -26,6 +26,8 @@ plan and stop. The next "complete next step" = implement the approved plan.
 | 9 | 4b — Blue Ridge Parkway live status: Worker-side scrape of `nps.gov/blri/planyourvisit/roadclosures.htm` (server-rendered per-milepost table + timestamp), `detectShutdown()` mold; promotes BRP from Tier C. Worker + `roadStatus()` change. | DONE — `brpStatus()` scrapes both VA/NC tables, classifies each row (Status cell + notes-escalation w/ facility exclusion), worst-wins over mainline (ranged-MP) rows only — spur/single-point rows excluded from the verdict. `roadStatus()` short-circuits `blue-ridge-parkway` to `tier:"B"` when `brp` is supplied; flows through the existing Tier-B notify/cooldown path unchanged. Additive `blob.brp`. Never throws; falls back to prior cycle w/ `stale:true`. 20/20 harness incl. a REAL fetch (correctly found the live MP 317.5–355.3 Helene closure) + 3 fabricated-failure cases + row-classifier unit tests + `roadStatus()` routing regression. `roads.json`/`build-parks.js` unchanged (confirmed `blob.roads` consumption is generic, no BRP special-case needed). `worker.js` only. | 2026-09-08 | 2026-09-11 `769aefc4` |
 | 13 | Indexation — `www` → apex 301 redirect (GSC: "Alternate page with proper canonical tag" flagged across homepage/guides/roads/parks/privacy) | DONE + deployed — `deploy.yml` excludes `.htaccess` from its FTP sync (protects a "server-managed" file), so the committed `public_html/.htaccess` (`433e7d8e`) couldn't ship through the normal pipeline; user uploaded it directly via Hostinger's File Manager (server had no `.htaccess` at all before this). Live-verified: `https://www.parkstatus.today/*` → single-hop 301 to the same path on apex; apex `http`/`https` behavior unchanged. One known deviation: `http://www…` is 2 hops (Hostinger's edge upgrades http→https on `www` before `.htaccess` runs, then `.htaccess` sends it to apex) — outside `.htaccess`'s control, not fixable at this layer, still lands correctly. `.htaccess` now lives outside the deploy pipeline — future edits need another manual File Manager upload. | 2026-09-17 | 2026-09-17, manual upload (uncommitted change on the server; repo copy at `433e7d8e`) |
 
+| 14 | Indexation — extend `park-facts.json` to ~13 high-traffic non-"National Park" NPS units | READY | 2026-09-17 | — |
+
 Backlog items are one-liners until the prompt-engineer promotes one to READY with a full
 block below.
 
@@ -1407,4 +1409,172 @@ else changed.
 3. No redirect loop introduced.
 4. Nothing outside `public_html/.htaccess` touched.
 5. Coordination files agree with each other and git.
+</self_check>
+
+---
+
+## Item 14 — Extend `park-facts.json` to high-traffic non-"National Park" units
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Same content/data task as Item 10 — a
+research-and-data pass, not a code-writing one. Get current first; rebase on
+origin/main.
+</role>
+
+<task>
+Add curated facts entries to `park-facts.json` for ~13 additional NPS units that are
+NOT designated "National Park" (so Item 10 skipped them) but are among the highest-
+traffic units NPS-wide. Reuse the exact schema and rendering Item 10 already built —
+`PARK_FACTS[e.id]` in `pageHtml` (build-parks.js) already renders the `.distinct` line,
+`.pfacts` `<dl>`, and JSON-LD `foundingDate` for ANY `nps:` id present in the file, so
+**this should need zero build-parks.js changes** — confirm that assumption in the plan
+before treating it as settled.
+</task>
+
+<why>
+Item 10 covered the 63 official "National Park"-kind units. But `PARK_FACTS` keys off
+`e.id`, not `kind` — every other NPS unit (parkways, memorials, monuments, recreation
+areas, seashores, historic sites — 412 of them, per a fresh count against
+`parks-enriched.json`) still falls back to the generic `firstSentence()` distinct line
+and gets no facts row / no `foundingDate` JSON-LD, even though several of them
+individually out-draw every actual National Park except Great Smoky Mountains. Blue
+Ridge Parkway alone — already a tracked park entity here, `nps:blri`, separate from its
+`roads.json` road-segment entity — was the single most-visited NPS unit in the country
+in 2025.
+</why>
+
+<context>
+- Candidate list, ranked by real 2025 NPS-wide recreation-visit data (source:
+  National Park Service's 2025 Annual Park Ranking Report, as reported by
+  unofficialnetworks.com's "Top 20 Most Visited National Park Service Units in 2025" —
+  re-verify against nps.gov/subjects/socialscience directly before finalizing, the way
+  Item 10 verified its top-10 against the official NPS release):
+
+  | Rank (NPS-wide) | Entity id | Name | 2025 visits |
+  | --- | --- | --- | --- |
+  | 1 | `nps:blri` | Blue Ridge Parkway | 16,533,753 |
+  | 2 | `nps:goga` | Golden Gate National Recreation Area | 15,748,676 |
+  | 4 | `nps:natr` | Natchez Trace Parkway | 7,994,783 |
+  | 5 | `nps:linc` | Lincoln Memorial | 7,743,295 |
+  | 6 | `nps:gate` | Gateway National Recreation Area | 7,696,939 |
+  | 7 | `nps:guis` | Gulf Islands National Seashore | 7,576,923 |
+  | 8 | `nps:gwmp` | George Washington Memorial Parkway | 6,732,932 |
+  | 9 | `nps:appa` | Appalachian National Scenic Trail | 6,215,118 |
+  | 10 | `nps:lake` | Lake Mead National Recreation Area | 6,135,586 |
+  | 12 | `nps:vive` | Vietnam Veterans Memorial | 4,848,112 |
+  | 14 | `nps:choh` | Chesapeake & Ohio Canal National Historical Park | 4,579,704 |
+  | 19 | `nps:wwii` | World War II Memorial | 3,993,717 |
+  | 20 | `nps:dewa` | Delaware Water Gap National Recreation Area | 3,986,709 |
+
+  (Ranks 3, 11, 13, 15–18 are Great Smoky, Zion, Yellowstone, Grand Canyon, Yosemite,
+  Rocky Mountain, Acadia — already in `park-facts.json` from Item 10, correctly
+  excluded here.)
+- **Known gap in this list, flagged not resolved:** the earlier fast-follow note (from
+  Item 10's own wrap-up) named Muir Woods, Statue of Liberty, Alcatraz, Mount Rushmore,
+  and Gettysburg as candidates — these are NOT in the NPS-wide top 20 by raw visits
+  (each draws well under half of #20's total) but are unusually high in search/brand
+  recognition, similar to why Item 8's "most-visited" guide leaned on curated
+  popularity rather than pure visit counts for some entries. Semrush keyword-volume
+  comparison would settle whether any of these five should swap in for the bottom of
+  the visits-ranked list above, but the account has no API units available right now
+  (checked 2026-09-17). Default: ship the visits-ranked 13 above (it's real, sourced,
+  defensible data); treat the five landmark names as a follow-up once Semrush access
+  is back, not blocking. If the user disagrees with that ordering, that's a
+  plan-review call, not a builder judgment call.
+- Entity ids confirmed present in `public_html/parks-enriched.json` (2026-09-17) for
+  all 13 above, with their `kind` field for reference: `nps:blri`/Parkway,
+  `nps:goga`/National Recreation Area, `nps:natr`/Parkway, `nps:linc`/"National Park
+  Service site" (NPS's own kind label — don't rename it, that's an existing pattern for
+  DC memorials), `nps:gate`/National Recreation Area, `nps:guis`/National Seashore,
+  `nps:gwmp`/Memorial Parkway, `nps:appa`/National Scenic Trail,
+  `nps:lake`/National Recreation Area, `nps:vive`/"National Park Service site",
+  `nps:choh`/National Historical Park, `nps:wwii`/"National Park Service site",
+  `nps:dewa`/National Recreation Area. Note `nps:natt` (Natchez Trace National *Scenic
+  Trail*) is a distinct entity from `nps:natr` (Natchez Trace *Parkway*) — the ranked
+  visits figure is for the Parkway; don't conflate them.
+- `park-facts.json` schema (from Item 10, `nps:yose` as the reference example):
+  `{ different, established, sizeAcres, sizeSqMi, visits2025, rank2025 }` — `different`
+  is a curated 1–3 sentence "what makes this place distinct" line (NOT a rephrase of
+  the NPS description — Item 10's own bar), `established` is the 4-digit founding
+  year as a string, `visits2025`/`rank2025` are the NPS-wide figures (not a
+  National-Park-only rank — these units were never in that ranking to begin with, so
+  just use their real NPS-wide numbers/rank from the table above once confirmed).
+  `sizeAcres`/`sizeSqMi` may not apply cleanly to a memorial or a linear parkway/trail —
+  Item 10 hit this exact issue with `nps:jeff` (Gateway Arch, tiny footprint) and fixed
+  a bad `sizeSqMi:0` to `0.3`; for a point-feature memorial (Lincoln, Vietnam Veterans,
+  WWII) a landscaped-grounds acreage may be more honest than "size of the park" — use
+  judgment and say so, or omit the size fields entirely for a memorial where "size"
+  isn't a meaningful visitor fact.
+- `firstSentence()` (build-parks.js, added in Item 10) is the fallback these pages
+  currently get without a `different` line — read it before writing new `different`
+  lines so the curated version is a genuine improvement, not a restatement.
+</context>
+
+<constraints>
+- Zero build-parks.js changes expected — verify this against the live rendering (a
+  local harness like Item 10's, or reasoning through `PARK_FACTS[e.id]` lookup) before
+  claiming it; if something doesn't render cleanly for a non-"National Park" `kind`
+  (e.g. a `<dl class="pfacts">` label that assumes "square miles of park" phrasing
+  doesn't read right for a linear parkway), say so in the plan rather than forcing data
+  to fit a mismatched template.
+- Every fact traceable to a named, real source (nps.gov, Wikipedia, the NPS visitation
+  report) — same rigor as Item 10. Never invent an establishment year, acreage, or
+  visitor count.
+- `parks.json` / `parks-enriched.json` byte-identical — this is a `park-facts.json`-only
+  change (matching Item 10 exactly).
+- Don't touch the 63 existing National Park entries already in the file.
+- Plan-first: present the 13-entry draft table (with sources cited per fact) before
+  writing it to `park-facts.json`.
+</constraints>
+
+<reference_material>
+- build-parks.js: `PARK_FACTS` (require + lookup), `firstSentence()`, the `pageHtml`
+  block computing `facts`/`distinct`/`pf`/`factsRow` (~Item 10's diff, search for
+  `PARK_FACTS[e.id]`).
+- `park-facts.json`: existing 63-entry file + its `_note` (documents Item 10's
+  sourcing convention — visits: NPS 2025 release for top 10 + total, rest
+  publiclandsdata.com; sizes: Wikipedia list. Follow the same convention, updated for
+  this list's actual sources).
+- Ranked visits table above (unofficialnetworks.com, re-verify against
+  nps.gov/subjects/socialscience/visitor-use-statistics-dashboard.htm or the official
+  2025 Annual Park Ranking Report before finalizing).
+</reference_material>
+
+<process>
+1. <thinking>: confirm the zero-code-change assumption by tracing `PARK_FACTS[e.id]`
+   through `pageHtml` for one of these 13 ids; decide how to handle `sizeAcres`/
+   `sizeSqMi` for the memorial-type entries (omit vs. grounds acreage); re-verify the
+   visits/rank figures against an official NPS source, not just the one article.
+2. Research and draft each of the 13 entries: `different` (curated, sourced,
+   non-generic), `established`, `sizeAcres`/`sizeSqMi` (or omitted with a stated
+   reason), `visits2025`, `rank2025`.
+3. STOP and present the plan: the full 13-entry draft table with a source cited per
+   fact, plus the zero-code-change confirmation (or what minimal template tweak is
+   needed, if any, and why).
+4. On approval: write the entries into `park-facts.json`, following the existing file's
+   formatting exactly. Update its `_note`.
+5. Verify rendering — a module harness (Item 10's pattern: neuter `main()`, call
+   `pageHtml` directly) for at least 3 of the new entries spanning different `kind`s
+   (a parkway, a memorial, a recreation area) confirming the `.distinct` line, facts
+   row, and JSON-LD all render sensibly with no leftover placeholder/undefined text.
+6. Confirm `parks.json`/`parks-enriched.json` byte-identical.
+7. Update PROGRESS.md + BUILDER-PROMPTS.md.
+</process>
+
+<output_format>
+Plan first: the 13-entry draft table with sources, the zero-code-change confirmation.
+Then the `park-facts.json` diff + harness verification output for the 3 spot-checked
+entries + confirmation nothing else changed.
+</output_format>
+
+<self_check>
+1. Every fact sourced, nothing invented.
+2. `different` lines are genuinely distinct from the `firstSentence()` fallback, not a
+   restatement of it.
+3. Size fields make sense for the entity type (or are honestly omitted with a reason)
+   — not force-fit from the National-Park template.
+4. Confirmed zero build-parks.js changes were needed, or documented exactly what
+   minimal change was and why.
+5. `parks.json`/`parks-enriched.json` byte-identical.
+6. Coordination files agree with each other and git.
 </self_check>
