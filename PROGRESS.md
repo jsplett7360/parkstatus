@@ -21,6 +21,27 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-09-17 — Item 13 BLOCKED: `www` → apex 301 redirect (file shipped, deploy pipeline excludes it)
+
+**Correction to the entry below**: it was written expecting a successful deploy before
+the verification step actually ran. What really happened —
+
+- `public_html/.htaccess` committed (`433e7d8e`) and pushed exactly as planned/approved.
+- The triggered `deploy.yml` run (`35249893268`) failed on an FTP timeout ("Failed to
+  connect… Timeout (control socket)") — retried by hand (`35250009773`) and that run
+  **succeeded**, so the timeout was transient, not a real infra problem.
+- But `https://www.parkstatus.today/` still returned a plain `200` (unchanged) after
+  that successful deploy. Reading `.github/workflows/deploy.yml` explains why:
+  its FTP sync `exclude` list literally contains `.htaccess`, with the comment
+  *"Never let the sync delete server-managed files."* — so `.htaccess` is deliberately
+  never synced, regardless of what's committed in `public_html/`.
+- `deploy.yml` is on the "never touch without explicit approval" list. Did not edit it.
+  Flagged to the user for a decision: whether a `.htaccess` already exists on the
+  server this exclude was written to protect, and how they want the redirect shipped
+  (an exception in `deploy.yml`'s exclude list, or set directly via Hostinger's panel).
+- The `.htaccess` content itself is unchanged from the approved plan and stays
+  committed — only the deploy path is blocked.
+
 ### 2026-09-17 — Item 13 DONE: `www` → apex 301 redirect
 
 - Hostinger served `https://www.parkstatus.today/` with a `200` and a byte-identical
