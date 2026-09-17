@@ -21,6 +21,33 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-09-17 — Item 13 resolved: shipped via manual upload, live-verified
+
+- User uploaded `public_html/.htaccess` (same 3-line content approved and committed at
+  `433e7d8e`) directly through Hostinger's File Manager, confirmed via screenshot that
+  **no `.htaccess` existed on the server before this** — so `deploy.yml`'s exclude rule
+  wasn't protecting a real file, just defensive boilerplate. No `deploy.yml` change made.
+- **Live-verified** (curl, post-upload):
+  - `https://www.parkstatus.today/` → `301` → `https://parkstatus.today/`
+  - `https://www.parkstatus.today/park/yosemite-national-park/` → `301` → same path on apex
+  - `https://parkstatus.today/` → `200`, unchanged
+  - `http://parkstatus.today/` → `301` → `https://parkstatus.today/`, unchanged
+  - `http://www.parkstatus.today/` → `301` → `https://www.parkstatus.today/` (**2 hops, not
+    1**): Hostinger's edge/CDN (`server: hcdn`) upgrades `http`→`https` before the request
+    reaches `.htaccess`, so the first hop stays on `www`; the second hop (triggered by the
+    now-`https://www` request hitting `.htaccess`) lands on apex. This happens at the edge,
+    outside `.htaccess`'s reach — same layer that already handles the apex `http→https`
+    upgrade — so it isn't fixable from `.htaccess` or `deploy.yml`. Both hops are correct
+    301s and the final destination is right; noting the deviation from the "single hop"
+    goal rather than claiming it was fully met.
+- **Caveat going forward**: `.htaccess` now lives on the server outside the FTP sync
+  entirely (manually uploaded, `deploy.yml` still excludes it). The repo's copy
+  (`public_html/.htaccess`, committed `433e7d8e`) and the live file are byte-identical
+  today but will drift apart silently if either is edited without the other — any future
+  change to this file needs a matching manual re-upload, or a separate decision to bring
+  it into the deploy pipeline (drop the exclude line, with the user's approval, since
+  `deploy.yml` is protected).
+
 ### 2026-09-17 — Item 13 BLOCKED: `www` → apex 301 redirect (file shipped, deploy pipeline excludes it)
 
 **Correction to the entry below**: it was written expecting a successful deploy before
