@@ -24,6 +24,7 @@ plan and stop. The next "complete next step" = implement the approved plan.
 | 11 | Indexation — internal linking + /state/ hubs | DONE + deployed — `byState` map + `haversineMi`; "Parks near here" + "More in <state>" on park pages; `/state/<slug>/` + `/state/` hubs; `siteNav()` + `sitemap()`/`llms.txt` wired. `parks*.json` byte-identical. `refresh-park-data.yml` `git add public_html/state` landed (`cd313872`). Live — verified `/state/` 200 + grsm page links "More in North Carolina". | 2026-09-10 | 2026-09-10 `8ca76182`, CI line `cd313872`, live via cron run `34514446082` + deploy `34515643816` |
 | 12 | Broken external links — build-time validation of baked `official`/`statusUrl`/`photo` URLs with a sane fallback (Semrush: 234 broken links, 2 broken images) | DONE — `validateUrl()` (HEAD→GET, 5s timeout, 403/429=ok, never throws) + `SOURCE_FALLBACK`; dead `e.url` falls back to the system landing page + adjusted label in `pageHtml` (not persisted — `parks*.json` untouched); dead `road.statusUrl` only logged for a human; `hero-photo img` gets `onerror` (photos never network-checked — self-healing client-side). 18/18 harness incl. live nps.gov checks, a real 404, a DNS failure, and 403/429/500 branch logic. No `NPS_API_KEY` locally — full-build dead-link count not run. | 2026-09-10 | 2026-09-11 `d66c6e24` |
 | 9 | 4b — Blue Ridge Parkway live status: Worker-side scrape of `nps.gov/blri/planyourvisit/roadclosures.htm` (server-rendered per-milepost table + timestamp), `detectShutdown()` mold; promotes BRP from Tier C. Worker + `roadStatus()` change. | DONE — `brpStatus()` scrapes both VA/NC tables, classifies each row (Status cell + notes-escalation w/ facility exclusion), worst-wins over mainline (ranged-MP) rows only — spur/single-point rows excluded from the verdict. `roadStatus()` short-circuits `blue-ridge-parkway` to `tier:"B"` when `brp` is supplied; flows through the existing Tier-B notify/cooldown path unchanged. Additive `blob.brp`. Never throws; falls back to prior cycle w/ `stale:true`. 20/20 harness incl. a REAL fetch (correctly found the live MP 317.5–355.3 Helene closure) + 3 fabricated-failure cases + row-classifier unit tests + `roadStatus()` routing regression. `roads.json`/`build-parks.js` unchanged (confirmed `blob.roads` consumption is generic, no BRP special-case needed). `worker.js` only. | 2026-09-08 | 2026-09-11 `769aefc4` |
+| 13 | Indexation — `www` → apex 301 redirect (GSC: "Alternate page with proper canonical tag" flagged across homepage/guides/roads/parks/privacy) | READY | 2026-09-17 | — |
 
 Backlog items are one-liners until the prompt-engineer promotes one to READY with a full
 block below.
@@ -1273,4 +1274,137 @@ either need no change or exactly what changed.
    against `notifyChanges()`/`changeMatchesSub()`, not a new parallel mechanism.
 5. `roads.json` schema unchanged unless the plan explicitly justified a new field.
 6. Coordination files agree with each other and git.
+</self_check>
+
+---
+
+## Item 13 — `www` → apex 301 redirect (indexation)
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Deploy/infra engineer this time, not
+build-parks.js/worker.js — the fix lives in a static `.htaccess` file. Get current
+first; rebase on origin/main.
+</role>
+
+<task>
+Add `public_html/.htaccess` with a single 301 redirect: any request to
+`www.parkstatus.today` (either scheme) → the same path on `https://parkstatus.today`.
+</task>
+
+<why>
+The canonical host has always been the apex domain — every canonical tag, the sitemap,
+and robots.txt only ever emit `https://parkstatus.today` (verified: zero `www.parkstatus`
+references anywhere in build-parks.js, worker.js, or public_html/index.html). But
+Hostinger serves `https://www.parkstatus.today/` with a 200 and byte-identical content
+(same ETag) to the apex version — there is no host-level redirect. Google's GSC "Page
+indexing" report (screenshots reviewed 2026-09-17, validation started 9/12/26) shows a
+long "Alternate page with proper canonical tag" list spanning the homepage, `/guides/`,
+`/road/`, `/park/`, and `/privacy.html` — Google is crawling both hosts for effectively
+every URL on the site and deduping via the canonical tag after the fact, wasting crawl
+budget across ~1,400+ URLs. This is a plausible contributor to the long-standing
+"Discovered – currently not indexed" backlog (1,310 pages, flagged pre-Items 10–12).
+The other two GSC categories in the same screenshots need no fix: `/push/subscribe`
+404s on the static host correctly (it's a Worker-only POST endpoint on a different
+domain — `parkstatus-api.parkstatus.workers.dev` — never linked from the static site;
+confirmed via grep of index.html/sitemap.xml/robots.txt) and the `http://` → `https://`
+redirects on both hosts already work correctly (curl-verified 2026-09-17, 301 to their
+own host's https version) — Google excluding those from the index is the intended
+outcome.
+</why>
+
+<context>
+- Confirmed live (2026-09-17): `curl -sI https://www.parkstatus.today/` → `200`, same
+  `etag` as `curl -sI https://parkstatus.today/` → same web root, no redirect between
+  hosts. `curl -sI http://parkstatus.today/` and `http://www.parkstatus.today/` both →
+  `301` to their own host's `https://` version already (Hostinger's forced-HTTPS,
+  happens above/outside any `.htaccess` — there is currently no `public_html/.htaccess`
+  file at all).
+- `SITE` constant in both build-parks.js (~line 29) and worker.js (~line 27) is
+  `"https://parkstatus.today"` — apex, no `www`. All `<link rel="canonical">` tags,
+  `sitemap.xml`, and `robots.txt`'s `Sitemap:` line use it.
+- Deploy path: `.github/workflows/deploy.yml` FTP-syncs everything under `public_html/`
+  to the Hostinger web root on every push touching `public_html/**` — a hand-added
+  `public_html/.htaccess` deploys the same way as any generated page.
+- build-parks.js never wipes or lists `public_html/` wholesale (no `rmSync`/`rimraf`
+  found) — it only writes/overwrites the specific subdirectories and files it generates
+  (`park/`, `road/`, `state/`, `guides/`, `sitemap.xml`, etc.), so a hand-placed root
+  `.htaccess` is never touched or deleted by the daily regeneration.
+- `refresh-park-data.yml`'s `git add` line only adds the directories it generates —
+  `.htaccess` won't be swept up by it or need to be; it's a one-time, hand-committed
+  file like `robots.txt`.
+</context>
+
+<constraints>
+- Exactly one redirect rule: `www.parkstatus.today` (any scheme) → the same path on
+  `https://parkstatus.today`, 301, single hop (don't chain through an intermediate
+  `https://www` step). Preserve the full path and query string.
+- Don't touch the existing apex `http` → `https` behavior — that's working and is
+  outside `.htaccess` (Hostinger-level); adding this file must not interfere with it or
+  create a redirect loop.
+- Don't add any other rules, headers, or directives to this file beyond the one
+  redirect — no speculative security headers, no caching rules, nothing not asked for.
+- Zero changes to build-parks.js, worker.js, `robots.txt`, `sitemap.xml`, or any
+  generated page — this is a hosting-config-only fix.
+- Plan-first.
+</constraints>
+
+<reference_material>
+- Hostinger serves Apache/LiteSpeed (`platform: hostinger`, `panel: hpanel` response
+  headers observed) — `.htaccess` with `mod_rewrite` is the standard mechanism.
+- Suggested rule (verify/adjust syntax against Hostinger's actual server, then test
+  live post-deploy — don't assume this is final without checking the real redirect
+  chain):
+  ```apache
+  RewriteEngine On
+  RewriteCond %{HTTP_HOST} ^www\.parkstatus\.today$ [NC]
+  RewriteRule ^(.*)$ https://parkstatus.today/$1 [L,R=301]
+  ```
+- GSC screenshots reviewed 2026-09-17: "Alternate page with proper canonical tag"
+  (validation started 9/12/26) listed `/`, `/guides/why-national-parks-close.html`,
+  `/road/skyline-drive/`, `/park/olympic-national-park/`,
+  `/guides/national-parks-government-shutdown.html`, `/road/trail-ridge-road/`,
+  `/road/blue-ridge-parkway/`, `/guides/how-we-check-park-status.html`,
+  `/road/bear-lake-road/`, `/park/rocky-mountain-national-park/`,
+  `/road/hurricane-ridge-road/`, `/road/going-to-the-sun-road/`,
+  `/park/shenandoah-national-park/`, `/park/glacier-national-park/`,
+  `/road/tioga-road/`, `/privacy.html`, `/road/` — all under the `www` host, all with a
+  proper canonical tag pointing to apex (list continues beyond what was screenshotted).
+  "Not found (404)": 1 pending, `/push/subscribe`, last crawled Sep 2, 2026 — no fix
+  (see `<why>`). "Page with redirect": 2 affected, `http://parkstatus.today/` and
+  `http://www.parkstatus.today/` — no fix (see `<why>`).
+</reference_material>
+
+<process>
+1. <thinking>: confirm the current live redirect chain again (fetch fresh — don't trust
+   the 2026-09-17 curl results verbatim if time has passed); confirm the exact
+   `mod_rewrite` syntax Hostinger's stack honors; decide whether the rule needs a
+   `RewriteBase` or any Hostinger-specific quirk.
+2. Add `public_html/.htaccess` with the redirect rule.
+3. STOP and present the plan (the exact file contents, the redirect chain before/after,
+   how it'll be verified post-deploy).
+4. On approval: implement, commit, and say clearly that `deploy.yml` will FTP-sync it
+   on push (same as any other `public_html/` change) — this is a live-site hosting
+   change, so don't push without the user's separate go-ahead on that step if one
+   hasn't already been given.
+5. Once deployed, verify live: `curl -sI https://www.parkstatus.today/` and
+   `curl -sI http://www.parkstatus.today/` both → single-hop `301` to
+   `https://parkstatus.today/` (no path/query loss); spot-check one non-root path (e.g.
+   `https://www.parkstatus.today/park/yosemite-national-park/` → 301 to the same path
+   on apex); confirm apex behavior (`https://parkstatus.today/`,
+   `http://parkstatus.today/`) is unchanged.
+6. Update PROGRESS.md + BUILDER-PROMPTS.md.
+</process>
+
+<output_format>
+Plan first: exact `.htaccess` contents + before/after redirect chain + verification
+steps. Then the file added, the live curl verification output, and confirmation nothing
+else changed.
+</output_format>
+
+<self_check>
+1. Single-hop redirect, path and query string preserved, verified live post-deploy.
+2. Apex `http`→`https` behavior unchanged (curl-verified before and after).
+3. No redirect loop introduced.
+4. Nothing outside `public_html/.htaccess` touched.
+5. Coordination files agree with each other and git.
 </self_check>
