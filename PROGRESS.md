@@ -21,6 +21,33 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-09-17 — Item 13 DONE: `www` → apex 301 redirect
+
+- Hostinger served `https://www.parkstatus.today/` with a `200` and a byte-identical
+  ETag to the apex version — no host-level redirect existed. GSC's "Page indexing"
+  report showed a long "Alternate page with proper canonical tag" list under the `www`
+  host spanning the homepage, `/guides/`, `/road/`, `/park/`, `/privacy.html`, wasting
+  crawl budget across ~1,400+ URLs by making Google crawl both hosts for every page.
+- **`public_html/.htaccess`** (new file, one rule): `RewriteCond %{HTTP_HOST}
+  ^www\.parkstatus\.today$` → `RewriteRule ^(.*)$ https://parkstatus.today/$1
+  [L,R=301]`. Matches on `HTTP_HOST` (scheme-independent), so both `http://www…` and
+  `https://www…` redirect in a single hop straight to the apex `https://` URL, path and
+  query preserved. Nothing else in the file.
+- Two other GSC categories in the same report needed **no fix**: `/push/subscribe`
+  404s correctly (it's a Worker-only endpoint on a different domain, never linked from
+  the static site); the `http://` → `https://` redirects on both hosts already worked
+  (Hostinger-level, outside `.htaccess`) — Google excluding those is the intended outcome.
+- **Verified live post-deploy** (curl):
+  - `https://www.parkstatus.today/` → `301` → `https://parkstatus.today/`
+  - `http://www.parkstatus.today/` → `301` → `https://parkstatus.today/` (single hop —
+    previously two hops, staying on `www`)
+  - `https://www.parkstatus.today/park/yosemite-national-park/` → `301` → same path on apex
+  - `https://parkstatus.today/` → `200`, unchanged
+  - `http://parkstatus.today/` → `301` → `https://parkstatus.today/`, unchanged
+- Scope: `public_html/.htaccess` only. `build-parks.js`, `worker.js`, `robots.txt`,
+  `sitemap.xml` untouched; the daily regeneration never writes/deletes files outside
+  the subdirectories it generates, so this file is safe from the cron.
+
 ### 2026-09-11 — Item 9 DONE: Blue Ridge Parkway live status (4b)
 
 - **`brpStatus(env, prevRaw)`** (worker.js): scrapes `nps.gov/blri/planyourvisit/
