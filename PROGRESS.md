@@ -21,6 +21,37 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-09-25 — Item 15 DONE: Microsoft Clarity tracking + privacy.html disclosure
+
+- Re-confirmed the GA `<head>` block count fresh (still exactly 10 in build-parks.js,
+  byte-identical across all of them — `pageHtml`, `directoryHtml`, `roadPageHtml`,
+  `roadIndexHtml`, `stateHubHtml`, `stateIndexHtml`, `reservationsIndexHtml`,
+  `shutdownPageHtml`, `beachHubHtml`, `beachIndexHtml` — plus `index.html`, 11 total)
+  before editing, per the item's own instruction not to trust the line numbers as
+  written.
+- Inserted the user-supplied Clarity snippet (project `ynwxj9dyuh`) **verbatim**,
+  immediately after the GA `<script async src="…gtag/js…">` line and before the GA
+  config block, in all 11 locations — one `replace_all` for the 10 identical
+  build-parks.js blocks, one targeted edit for `index.html`'s differently-formatted
+  block (same relative position preserved).
+- **`privacy.html`**: rewrote "Nothing else" to add a "Site behavior recording" bullet
+  naming Clarity, and added a matching line to the third-parties list. Verified
+  Microsoft's own masking docs (`learn.microsoft.com/.../clarity-masking`) before
+  writing the copy rather than assuming: *"Content in the input boxes is masked in
+  all modes and can't be customized"* — true even in the most permissive ("Relaxed")
+  mode. Since the site's only form field is the email-alerts box, this let the
+  disclosure say plainly that what you type there is never captured, without hedging.
+- **Left alone, confirmed still true**: `public_html/guides/*.html` (9 files) and
+  `public_html/support.html` still carry zero analytics tags — that pre-existing gap
+  from Items 7/8 was not silently "fixed" as a side effect.
+- **Verified** (node harness, all 10 build-parks.js page types + index.html — exceeds
+  "at least one sample"): every location has the Clarity snippet byte-identical to the
+  supplied source, positioned immediately after the GA line, exactly once, with
+  JSON-LD still valid where applicable. 51/51 checks passed.
+- Scope: `build-parks.js`, `public_html/index.html`, `public_html/privacy.html`. No
+  iOS/Capacitor change (web-only, per constraint). `parks.json`/`parks-enriched.json`
+  untouched.
+
 ### 2026-09-25 — Item 14 DONE: `park-facts.json` extended to 13 non-"National Park" units
 
 - Item 10 keyed `PARK_FACTS` off `e.id`, not `e.kind` — confirmed (by tracing
