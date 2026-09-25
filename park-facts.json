@@ -1,5 +1,5 @@
 {
-  "_note": "Curated distinctiveness + key facts for the highest-traffic parks (the 63 designated National Parks; Sequoia & Kings Canyon share one entity). `different` is an original 1-2 sentence line, not copied from any source. `established` = year designated a national park (earlier monument/reserve status noted). `sizeAcres` from Wikipedia's List of national parks (2023 area figures). `visits2025` / `rank2025` are 2025 recreation visits, National Park Service (ranks 1-10 + total from the NPS release, the rest via publiclandsdata.com). Re-verify visitation each spring. Parks not listed here fall back to a cleaned extract of the NPS/Wikipedia text.",
+  "_note": "Curated distinctiveness + key facts for the highest-traffic parks. `different` is an original 1-2 sentence line, not copied from any source. `established` = year designated (earlier monument/reserve/authorization status noted in parens where relevant). `sizeAcres`/`sizeSqMi` from Wikipedia infoboxes; omitted where size is not a meaningful visitor fact (e.g. a linear trail). `visits2025`/`rank2025` are 2025 recreation visits, National Park Service (ranks 1-10 + total from the NPS release, the rest via publiclandsdata.com). Re-verify visitation each spring. Parks not listed here fall back to a cleaned extract of the NPS/Wikipedia text.\n\nItem 14 (2026-09-25) extended this file to 13 high-traffic NPS units that are NOT designated \"National Park\" (parkways, memorials, recreation areas, seashores, a scenic trail, a historical park) so they get the same treatment as the 63 National Parks above. Same sourcing convention, with two exceptions: `nps:vive` and `nps:wwii` visits2025 come from Wikipedia infobox fields explicitly dated \"in 2025\" (IRMA's stats portal was down at research time); `nps:choh` and `nps:dewa` have NO confirmed 2025 visitor count anywhere as of this writing — visits2025/rank2025 intentionally omitted rather than guessed. `nps:appa` (Appalachian Trail) has no sizeAcres/sizeSqMi — a linear trail's length, not an area, is the meaningful fact, so size fields are omitted rather than force-fit.",
   "nps:grsm": {
     "different": "The most-visited national park by a factor of two, and the busiest one with no entrance fee and no gates — a through-highway (US-441) crosses it and every car is counted. It also holds more documented species than any other U.S. park.",
     "established": "1934",
@@ -495,5 +495,103 @@
     "sizeSqMi": 2735,
     "visits2025": 7786,
     "rank2025": 63
+  },
+  "nps:blri": {
+    "different": "The most-visited unit in the entire National Park System — more people drive some part of it each year than visit any single national park. No entrance fee, no fixed season, and it took 52 years to finish: the last link, the Linn Cove Viaduct, opened in 1987.",
+    "established": "1936",
+    "sizeAcres": 93390,
+    "sizeSqMi": 146,
+    "visits2025": 16533753,
+    "rank2025": 1
+  },
+  "nps:goga": {
+    "different": "A national park folded into a working city: Golden Gate NRA spans Alcatraz, the Presidio, Muir Woods and 59 miles of coastline across San Francisco and Marin, one of the largest urban national parks on Earth.",
+    "established": "1972",
+    "sizeAcres": 82116,
+    "sizeSqMi": 128,
+    "visits2025": 15748676,
+    "rank2025": 2
+  },
+  "nps:natr": {
+    "different": "Retraces a travel corridor used for centuries before it was a road. Authorized in 1938, the 444-mile parkway took 67 years to finish end to end — the last sections opened May 21, 2005.",
+    "established": "1938 (completed 2005)",
+    "sizeAcres": 51746,
+    "sizeSqMi": 81,
+    "visits2025": 7994783,
+    "rank2025": 4
+  },
+  "nps:linc": {
+    "different": "Built from marble, limestone and granite quarried in five different states — Colorado, Indiana, Tennessee, Alabama and Massachusetts — so no single state could claim to have built it alone. Its steps hosted Marian Anderson's 1939 concert and Martin Luther King Jr.'s \"I Have a Dream\" speech.",
+    "established": "1922",
+    "sizeAcres": 7.3,
+    "sizeSqMi": 0.01,
+    "visits2025": 7743295,
+    "rank2025": 5
+  },
+  "nps:gate": {
+    "different": "New York City's national park: three boroughs plus New Jersey — Jamaica Bay's wildlife refuge, Rockaway's ocean beaches, Sandy Hook's dunes, and a decommissioned Nike missile base — reachable by subway.",
+    "established": "1972",
+    "sizeAcres": 26607,
+    "sizeSqMi": 42,
+    "visits2025": 7696939,
+    "rank2025": 6
+  },
+  "nps:guis": {
+    "different": "A barrier-island seashore split across Florida and Mississippi, mostly open water, protecting Civil War-era Fort Pickens and Fort Massachusetts along some of the whitest sand on the Gulf Coast.",
+    "established": "1971",
+    "sizeAcres": 135458,
+    "sizeSqMi": 212,
+    "visits2025": 7576923,
+    "rank2025": 7
+  },
+  "nps:gwmp": {
+    "different": "A 1930s commuter parkway that's also a National Register landmark: it carries tens of thousands of daily drivers along the Potomac past Mount Vernon, Arlington National Cemetery and the Marine Corps War Memorial.",
+    "established": "1930",
+    "sizeAcres": 7142,
+    "sizeSqMi": 11,
+    "visits2025": 6732932,
+    "rank2025": 8
+  },
+  "nps:appa": {
+    "different": "A single continuous footpath from Georgia to Maine — 2,197 miles, conceived in 1921 and completed by volunteers in 1937, fourteen years before Congress passed any law to protect it.",
+    "established": "1968 (trail completed 1937)",
+    "visits2025": 6215118,
+    "rank2025": 9
+  },
+  "nps:lake": {
+    "different": "The first national recreation area in the NPS system — created in 1936 as the Boulder Dam Recreation Area, renamed in 1947 — built around the largest U.S. reservoir by volume, though two decades of drought have pulled it far below its historic high-water line.",
+    "established": "1936",
+    "sizeAcres": 1495806,
+    "sizeSqMi": 2337,
+    "visits2025": 6135586,
+    "rank2025": 10
+  },
+  "nps:vive": {
+    "different": "Maya Lin designed the black granite wall as a 21-year-old Yale undergraduate, winning a blind competition against more than 1,400 other entries. It lists over 58,000 names in the order they were lost, not alphabetically.",
+    "established": "1982",
+    "sizeAcres": 2,
+    "sizeSqMi": 0.003,
+    "visits2025": 4848112,
+    "rank2025": 12
+  },
+  "nps:choh": {
+    "different": "A single 184.5-mile towpath beside a canal that hauled coal from western Maryland to Georgetown by mule-drawn barge for nearly a century (1831–1924), until flood damage ended operations for good. Now walkable or bikeable the entire way, lock by lock.",
+    "established": "1971 (canal operated 1831–1924)",
+    "sizeAcres": 19586,
+    "sizeSqMi": 31
+  },
+  "nps:wwii": {
+    "different": "Dedicated in 2004, nearly 60 years after the war ended, after Tom Hanks fronted a national PSA campaign that drove tens of thousands of donation calls in a single night. Its 56 pillars represent every U.S. state and territory as of 1945.",
+    "established": "2004",
+    "sizeAcres": 7.4,
+    "sizeSqMi": 0.01,
+    "visits2025": 3993717,
+    "rank2025": 19
+  },
+  "nps:dewa": {
+    "different": "A 40-mile stretch of the Delaware River cutting the last major water gap through the Appalachians before the coast — created not by a park designation but by the cancellation of a dam project that would have flooded the whole valley.",
+    "established": "1965",
+    "sizeAcres": 66741,
+    "sizeSqMi": 104
   }
 }

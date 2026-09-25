@@ -21,6 +21,51 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-09-25 — Item 14 DONE: `park-facts.json` extended to 13 non-"National Park" units
+
+- Item 10 keyed `PARK_FACTS` off `e.id`, not `e.kind` — confirmed (by tracing
+  `pageHtml` and a harness render) that the `.distinct` line, `.pfacts` `<dl>`, and
+  JSON-LD `foundingDate` all Just Work for any NPS unit, so this shipped as a **pure
+  data change, zero build-parks.js edits**.
+- **13 new entries**: `blri` Blue Ridge Parkway, `goga` Golden Gate NRA, `natr`
+  Natchez Trace Parkway, `linc` Lincoln Memorial, `gate` Gateway NRA, `guis` Gulf
+  Islands National Seashore, `gwmp` George Washington Memorial Parkway, `appa`
+  Appalachian Trail, `lake` Lake Mead NRA, `vive` Vietnam Veterans Memorial, `choh`
+  C&O Canal NHP, `wwii` World War II Memorial, `dewa` Delaware Water Gap NRA.
+  `park-facts.json` now has 75 total entries.
+- **Sourcing**: `established`/size from Wikipedia infoboxes (quote-verified per
+  entity); `visits2025`/`rank2025` for the top 9 of these 13 straight from the
+  official NPS 2025 visitation press release (which does list `appa` and `lake` in
+  its top-10-all-sites table, not just the National Parks table); `vive` and `wwii`
+  from Wikipedia infobox `Visitors:` fields explicitly dated "in 2025" (IRMA's stats
+  portal was down for direct verification at research time — confirmed via browser,
+  "Service unavailable").
+- **Two fields intentionally omitted rather than guessed**: `choh` and `dewa` have no
+  sourceable 2025 visitor count anywhere (best real data found: `choh` 2022 —
+  4,286,185; `dewa` 2024 — 4,079,763, ranked #20 that year) — `visits2025`/`rank2025`
+  left out of both entries; the render code handles a missing visits field cleanly
+  (no "2025 visits" row, not a blank/undefined one). `appa` (a 2,197-mile linear
+  trail) has no `sizeAcres`/`sizeSqMi` — a trail length isn't an area — same graceful
+  omission (no "Size" row).
+- **Caught and dropped one fabrication risk before it shipped**: a planned line
+  credited the WWII Memorial's funding to "a $10M anonymous gift from Tom Hanks's
+  Saving Private Ryan production." Checked it — no source supports that specific
+  claim (real story: Hanks fronted PSAs and a 1999 awards-show fundraising push;
+  total private contributions were $140M, undifferentiated by donor). Rewrote the
+  line from only the verified facts.
+- **Verified** (node harness, all 13 new entries spot-checked — exceeds the planned
+  "at least 3"): every entry renders, JSON-LD parses and `foundingDate` matches the
+  `established` year, the `.pfacts`/`.distinct` blocks are free of leaked
+  `undefined`/`NaN`/`null`, the Size row is present/absent correctly per entity
+  (absent only for `appa`), and the "2025 visits" row is present/absent correctly
+  per entity (absent only for `choh`/`dewa`). Confirmed `Type` reads sensibly across
+  every non-National-Park `kind` (Parkway, National Recreation Area, National
+  Scenic Trail, National Historical Park, Memorial Parkway, National Seashore, and
+  "National Park Service site" for the three DC memorials — NPS's own label,
+  unchanged per existing convention).
+- Scope: `park-facts.json` only. `parks.json`/`parks-enriched.json` untouched
+  (no build run — nothing to touch).
+
 ### 2026-09-17 — Item 13 resolved: shipped via manual upload, live-verified
 
 - User uploaded `public_html/.htaccess` (same 3-line content approved and committed at
