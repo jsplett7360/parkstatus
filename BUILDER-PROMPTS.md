@@ -27,6 +27,7 @@ plan and stop. The next "complete next step" = implement the approved plan.
 | 13 | Indexation — `www` → apex 301 redirect (GSC: "Alternate page with proper canonical tag" flagged across homepage/guides/roads/parks/privacy) | DONE + deployed — `deploy.yml` excludes `.htaccess` from its FTP sync (protects a "server-managed" file), so the committed `public_html/.htaccess` (`433e7d8e`) couldn't ship through the normal pipeline; user uploaded it directly via Hostinger's File Manager (server had no `.htaccess` at all before this). Live-verified: `https://www.parkstatus.today/*` → single-hop 301 to the same path on apex; apex `http`/`https` behavior unchanged. One known deviation: `http://www…` is 2 hops (Hostinger's edge upgrades http→https on `www` before `.htaccess` runs, then `.htaccess` sends it to apex) — outside `.htaccess`'s control, not fixable at this layer, still lands correctly. `.htaccess` now lives outside the deploy pipeline — future edits need another manual File Manager upload. | 2026-09-17 | 2026-09-17, manual upload (uncommitted change on the server; repo copy at `433e7d8e`) |
 
 | 14 | Indexation — extend `park-facts.json` to ~13 high-traffic non-"National Park" NPS units | READY | 2026-09-17 | — |
+| 15 | Add Microsoft Clarity tracking script (site-wide, mirroring existing GA placement) + privacy.html disclosure | READY | 2026-09-25 | — |
 
 Backlog items are one-liners until the prompt-engineer promotes one to READY with a full
 block below.
@@ -1576,5 +1577,122 @@ entries + confirmation nothing else changed.
 4. Confirmed zero build-parks.js changes were needed, or documented exactly what
    minimal change was and why.
 5. `parks.json`/`parks-enriched.json` byte-identical.
+6. Coordination files agree with each other and git.
+</self_check>
+
+---
+
+## Item 15 — Add Microsoft Clarity tracking script
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Small, mechanical site-wide change plus one
+honest documentation update. Get current first; rebase on origin/main.
+</role>
+
+<task>
+Add the user's Microsoft Clarity tracking snippet to the `<head>` of every page that
+currently carries the Google Analytics tag, and update `public_html/privacy.html`'s
+existing analytics disclosure to name Clarity alongside GA.
+</task>
+
+<why>
+User signed up for Microsoft Clarity (session recording / heatmaps) and got the
+project-specific snippet from clarity.microsoft.com, project id `ynwxj9dyuh`, asking for
+it site-wide. Separately: `public_html/privacy.html` currently states "Nothing else" as
+the complete list of third-party tools after naming Google Analytics as the only one
+("Google Analytics — aggregate website usage, website only." / "We don't use it to
+identify individuals." / "Nothing else."). Clarity does more than GA — it can record
+session replay and click/scroll heatmaps — so shipping it without updating that
+disclosure would make the site's own privacy policy inaccurate. This is a normal,
+necessary companion to the tracking-script change, not a separate item.
+</task>
+
+<context>
+- User-supplied snippet (verbatim, paste as-is — don't reformat the IIFE):
+  ```html
+  <script>
+      (function(c,l,a,r,i,t,y){
+          c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+          t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i+"?ref=bwt";
+          y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+      })(window, document, "clarity", "script", "ynwxj9dyuh");
+  </script>
+  ```
+- Existing GA tag (`G-PFZYJ3L871`) is the placement reference — it appears as the very
+  first thing inside `<head>`, literally duplicated (no shared constant/helper) in
+  **10 separate `<head>...</head>` blocks in build-parks.js** (one per page template:
+  park, park-index, road, road-index, state, state-index, and others — grep
+  `<head>` for the full list, ~lines 719, 869, 988, 1137, 1228, 1306, 1414, 1520, 1965,
+  2090) **plus one copy in `public_html/index.html`** (~line 5, hand-maintained static
+  file, not generated).
+- **Known pre-existing gap, informational only, NOT in this item's scope:**
+  `public_html/guides/*.html` (9 files), `public_html/privacy.html`, and
+  `public_html/support.html` have ZERO analytics tags today (confirmed via grep,
+  2026-09-25) — GA was apparently never added to these when they were built (Items 7/8).
+  Mirror wherever GA already is; don't expand coverage to these as a silent side effect.
+  If the user wants Clarity (and retroactively GA) on guides/privacy/support too, that's
+  a separate, explicit decision — flag it in the plan, don't just do it.
+- `public_html/privacy.html`: the relevant lines (as of 2026-09-25) —
+  `<li><b>Standard web analytics</b> — we use Google Analytics on the website to see
+  aggregate traffic (pages viewed, rough device/location). We don't use it to identify
+  individuals.</li>` and `<li><b>Nothing else.</b> ...</li>` in one list, and
+  `<li><b>Google Analytics</b> — aggregate website usage, website only.</li>` in a
+  separate "third parties" list further down.
+</context>
+
+<constraints>
+- Site (web) only — this is a browser tracking snippet; do not add it to the iOS
+  Capacitor app shell unless the user separately asks.
+- Insert the Clarity `<script>` block immediately after the existing GA
+  `<script async src="...gtag/js...">` line in every one of the 10 build-parks.js
+  `<head>` blocks and in `index.html` — same relative position in all 11 places, so a
+  future person doesn't find it in a different spot on different page types.
+- Paste the snippet verbatim (don't minify, don't reformat, don't "improve" the IIFE).
+- Update `privacy.html`: rewrite "Nothing else." to name Clarity (site behavior
+  recording — heatmaps/session replay, no form input content — verify Clarity's actual
+  default PII-masking behavior before writing the description, don't assume) and add
+  a matching bullet to the third-parties list alongside the existing Google Analytics
+  one. Keep the plain, non-legalese tone the rest of the page already uses.
+- `parks.json` / `parks-enriched.json` untouched — this doesn't touch any entity data.
+- Plan-first: confirm the count and exact list of the 10 head-block locations (don't
+  assume the line numbers above are still current) before editing.
+</constraints>
+
+<reference_material>
+- build-parks.js: search `<head>` for all current occurrences; each is a template
+  literal for one page-type generator function.
+- `public_html/index.html`: `<head>` block, ~line 3–322.
+- `public_html/privacy.html`: analytics-disclosure bullets (see `<context>`).
+- clarity.microsoft.com project: `ynwxj9dyuh` (user-supplied 2026-09-25).
+</reference_material>
+
+<process>
+1. <thinking>: re-grep `<head>` in build-parks.js to get the current, exact count and
+   line numbers (may have shifted since this was written); confirm the "immediately
+   after the GA script tag" insertion point is unambiguous in each.
+2. Add the Clarity snippet at that position in all 10 build-parks.js `<head>` blocks +
+   `index.html`.
+3. Update `privacy.html`'s two Clarity-relevant spots per `<constraints>`.
+4. STOP and present the plan: confirmed location count/list, the exact privacy.html
+   wording change.
+5. On approval: implement. Run build-parks.js if `NPS_API_KEY` is available and confirm
+   the snippet renders identically across a park/road/state/guide-index sample page;
+   otherwise grep the edited file to confirm all 10 template locations + index.html got
+   the exact same snippet, positioned identically.
+6. Update PROGRESS.md + BUILDER-PROMPTS.md.
+</process>
+
+<output_format>
+Plan first: confirmed location list + the privacy.html wording. Then the diff across
+build-parks.js / index.html / privacy.html + verification that all locations match.
+</output_format>
+
+<self_check>
+1. Snippet is byte-identical (not reformatted) in every location.
+2. Same relative position (right after the GA tag) in all 11 places.
+3. privacy.html no longer says "Nothing else" while Clarity ships unmentioned.
+4. guides/privacy/support's pre-existing no-analytics gap was left alone, not silently
+   "fixed" as a side effect.
+5. `parks.json`/`parks-enriched.json` untouched.
 6. Coordination files agree with each other and git.
 </self_check>
