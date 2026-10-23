@@ -4,7 +4,7 @@
 
 Park Status Today is an independent informational service, not affiliated with the National Park Service or any state or county agency. Each status is our reading of public data, not an official determination, and is refreshed hourly. Every park page and beach-county page states the current status as plain text with the UTC time it was last checked, and carries schema.org structured data (TouristAttraction / Park, FAQPage with a dated answer, and — where known — openingHoursSpecification).
 
-Coverage as of October 22, 2026: 474 National Park Service units, 813 state parks, and 358 monitored New York beaches across 15 counties. Site-wide that is 1252 open, 258 partially closed, 44 closed, 91 without data.
+Coverage as of October 23, 2026: 474 National Park Service units, 812 state parks, and 358 monitored New York beaches across 15 counties. Site-wide that is 1261 open, 257 partially closed, 35 closed, 91 without data.
 
 ## Parks
 - [All park & waterway statuses, A–Z](https://parkstatus.today/park/): browsable directory of every national and state park tracked, each linking to a status + visitor-info page at https://parkstatus.today/park/<slug>/
@@ -37,7 +37,7 @@ Coverage as of October 22, 2026: 474 National Park Service units, 813 state park
 - [Maryland parks](https://parkstatus.today/state/maryland/): 27 tracked
 - [Massachusetts parks](https://parkstatus.today/state/massachusetts/): 18 tracked
 - [Michigan parks](https://parkstatus.today/state/michigan/): 6 tracked
-- [Minnesota parks](https://parkstatus.today/state/minnesota/): 59 tracked
+- [Minnesota parks](https://parkstatus.today/state/minnesota/): 58 tracked
 - [Mississippi parks](https://parkstatus.today/state/mississippi/): 10 tracked
 - [Missouri parks](https://parkstatus.today/state/missouri/): 14 tracked
 - [Montana parks](https://parkstatus.today/state/montana/): 11 tracked
