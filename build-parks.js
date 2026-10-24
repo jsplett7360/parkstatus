@@ -1631,7 +1631,7 @@ ${stripHtml(tally, updatedISO)}
 
   <article>
     <h2>State parks, national forests, and beaches are not affected</h2>
-    <p>A federal government shutdown does not close state park systems — New York, California, Texas, Minnesota, Florida, and Washington run and fund their own parks. National Forests are federal and also furlough staff, but their roads and trails generally stay physically open. New York's public beaches are monitored by state and county health departments, not the NPS. <a href="/#map">See what's open near you on the live map →</a></p>
+    <p>A federal government shutdown does not close state park systems — New York, California, Texas, Minnesota, Florida, and Washington run and fund their own parks. National Forests are federal and also furlough staff, but their roads and trails generally stay physically open. New York's and Hawaii's public beaches are monitored by state and county health departments, not the NPS. <a href="/#map">See what's open near you on the live map →</a></p>
   </article>
 
   <article>
@@ -1821,6 +1821,12 @@ footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;le
 .hubgrid a:hover{border-color:var(--navy)}
 .hubgrid .t{font-weight:bold;margin-bottom:4px}
 .hubgrid .m{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.hubstate{font-family:var(--font-display);font-weight:900;letter-spacing:var(--tracking-subsection);font-size:var(--type-subsection);margin:24px 0 2px}
+.hubnote{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin:0 0 12px;text-transform:uppercase;letter-spacing:.08em}
+.bnotices{border:1px solid var(--line);border-left:5px solid var(--partial-bright);background:var(--partial-tint);border-radius:14px;padding:14px 16px 6px;margin:0 0 20px}
+.bnotices h2{font-family:var(--font-display);font-weight:900;font-size:18px;margin:0 0 4px}
+.bnotices .bnote{font-size:13px;color:var(--muted);margin:0 0 10px}
+.bnotices ul{margin:0 0 8px;padding-left:18px}.bnotices li{font-size:14px;margin:0 0 8px}.bnotices a{color:var(--muted)}
 
 /* road-status pages (additive) */
 .road-window{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:18px 0;background:var(--card)}
@@ -1913,13 +1919,14 @@ function llmsTxt(updatedISO, entities, beachHubs, tally, roads, states) {
   const nps = entities.filter((e) => e.source === "nps").length;
   const state = entities.length - nps;
   const asOf = fmtLong(updatedISO);
+  const cov = beachCoverage(beachHubs);
   return `# Park Status Today
 
-> Live open / partially-closed / closed status for U.S. national parks, four state park systems (New York, California, Texas, Minnesota), and New York public beaches. Every status is derived hourly from official sources: National Park Service alerts and operating hours, state park-system alerts, and state / county health-department beach monitoring.
+> Live open / partially-closed / closed status for U.S. national parks, four state park systems (New York, California, Texas, Minnesota), and ${cov.length ? `public beaches in ${listPhrase(cov.map((s) => s.name))}` : "public beaches"}. Every status is derived hourly from official sources: National Park Service alerts and operating hours, state park-system alerts, and state / county health-department beach monitoring.
 
 Park Status Today is an independent informational service, not affiliated with the National Park Service or any state or county agency. Each status is our reading of public data, not an official determination, and is refreshed hourly. Every park page and beach-county page states the current status as plain text with the UTC time it was last checked, and carries schema.org structured data (TouristAttraction / Park, FAQPage with a dated answer, and — where known — openingHoursSpecification).
 
-Coverage as of ${asOf}: ${nps} National Park Service units, ${state} state parks, and ${beachHubs.reduce((n, h) => n + h.beaches.length, 0)} monitored New York beaches across ${beachHubs.length} counties. Site-wide that is ${tally.open} open, ${tally.partially_closed} partially closed, ${tally.closed} closed, ${tally.no_data} without data.
+Coverage as of ${asOf}: ${nps} National Park Service units, ${state} state parks, and ${beachHubs.reduce((n, h) => n + h.beaches.length, 0)} monitored beaches (${cov.map((s) => `${s.beaches} in ${s.name} across ${hubCount(s)}`).join("; ")}). Site-wide that is ${tally.open} open, ${tally.partially_closed} partially closed, ${tally.closed} closed, ${tally.no_data} without data.
 
 ## Parks
 - [All park & waterway statuses, A–Z](${SITE}/park/): browsable directory of every national and state park tracked, each linking to a status + visitor-info page at ${SITE}/park/<slug>/
@@ -1937,7 +1944,7 @@ ${(roads || []).map((r) => `- [Is ${r.name} open?](${SITE}/road/${r.slug}/)`).jo
 - [Which national parks require a reservation in 2026?](${SITE}/reservations/): the national parks with a timed-entry or vehicle reservation requirement, their 2026 seasons and booking links; also names the parks (Arches, Glacier, Mount Rainier, Yosemite) that dropped timed entry for 2026
 
 ## Beaches
-- [Beach water quality & closures by county](${SITE}/beach/): New York public beaches grouped by county, with current swimming advisories and closures at ${SITE}/beach/<county>/
+- [Beach water quality & closures](${SITE}/beach/): public beaches in ${listPhrase(cov.map((s) => `${s.name} (by ${s.by})`))}, with current swimming advisories and closures at ${SITE}/beach/<county-or-island>/
 
 ## Government shutdown
 - [Are the national parks open during a government shutdown? (live status)](${SITE}/shutdown/): checked hourly against the NPS operating-status page; evergreen when there is no shutdown
@@ -1961,7 +1968,87 @@ Cite as "Park Status Today (parkstatus.today)". Status figures are time-sensitiv
 `;
 }
 
-// ===================== beach county hubs ==================================
+// ===================== beach hubs ==========================================
+// NY: one hub per county (slug "<state>-<county>-county"; mirrored by beachCountySlug() in worker.js, and
+// those URLs are already indexed, so the rule must not change). Hawaii: one hub per ISLAND, and the Worker
+// names the hub on every row (`hub`), so only the display label lives here and the two can't drift apart.
+const HI_HUBS = {
+  "hawaii-oahu": "Oʻahu, Hawaii", "hawaii-maui": "Maui, Hawaii", "hawaii-molokai": "Molokaʻi, Hawaii",
+  "hawaii-lanai": "Lānaʻi, Hawaii", "hawaii-kauai": "Kauaʻi, Hawaii", "hawaii-hawaii": "Hawaiʻi Island, Hawaii",
+};
+// Per-state facts for page copy: what a hub is, and who the data comes from.
+const BEACH_STATES = {
+  NY: { name: "New York", by: "county", agency: "the New York State Department of Health and county health departments" },
+  HI: { name: "Hawaii", by: "island", agency: "the Hawaii Department of Health's Clean Water Branch" },
+};
+const listPhrase = (a) => a.length < 2 ? a.join("") : a.length === 2 ? a.join(" and ") : a.slice(0, -1).join(", ") + ", and " + a[a.length - 1];
+const byPlural = { county: "counties", island: "islands" };
+// Per-state beach/hub counts for the index, llms.txt and sitemap copy (sorted by state name).
+function beachCoverage(hubs) {
+  const by = new Map();
+  for (const h of hubs) {
+    if (!by.has(h.state)) by.set(h.state, { code: h.state, ...(BEACH_STATES[h.state] || { name: h.state || "Other", by: "area", agency: "state and local health departments" }), beaches: 0, hubs: 0 });
+    const s = by.get(h.state);
+    s.beaches += h.beaches.length; s.hubs++;
+  }
+  return [...by.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+const hubCount = (s) => `${s.hubs} ${s.hubs === 1 ? s.by : (byPlural[s.by] || s.by + "s")}`;
+
+function groupBeachHubs(beaches) {
+  const BOROUGH = {
+    Kings: "Kings County (Brooklyn)", Richmond: "Richmond County (Staten Island)",
+    "New York": "New York County (Manhattan)", Bronx: "Bronx County", Queens: "Queens County",
+  };
+  const bgroups = new Map();
+  for (const bch of beaches || []) {
+    if (typeof bch.lat !== "number" || typeof bch.lon !== "number") continue;
+    if (bch.hub) {   // Hawaii: grouped by the island hub the Worker assigned
+      const hkey = (bch.state || "") + "|hub:" + bch.hub;
+      if (!bgroups.has(hkey)) bgroups.set(hkey, { state: bch.state || "", county: bch.island || "", island: bch.island || "",
+        label: HI_HUBS[bch.hub] || (bch.island ? `${bch.island}, Hawaii` : bch.hub), slug: bch.hub, beaches: [] });
+      bgroups.get(hkey).beaches.push(bch);
+      continue;
+    }
+    const county = String(bch.county || "Other").trim();
+    const key = (bch.state || "") + "|" + county;
+    if (!bgroups.has(key)) {
+      const base = BOROUGH[county] || (/count(y|ies)$/i.test(county) ? county : county + " County");
+      bgroups.set(key, {
+        state: bch.state || "", county,
+        label: base + (bch.state ? ", " + bch.state : ""),
+        slug: slugify((bch.state || "") + "-" + county + (/count(y|ies)$/i.test(county) ? "" : "-county")),
+        beaches: [],
+      });
+    }
+    bgroups.get(key).beaches.push(bch);
+  }
+  const beachHubs = [...bgroups.values()]
+    .filter((g) => g.beaches.length >= 2)
+    .sort((a, b) => a.state.localeCompare(b.state) || a.label.localeCompare(b.label));
+  beachHubs.forEach((g) => g.beaches.sort((a, b) => String(a.name).localeCompare(String(b.name))));
+  return beachHubs;
+}
+
+// "Where this comes from" paragraph, per state. The NY text is byte-identical to what NY hubs always had.
+function beachSourceHtml(state) {
+  if (state === "HI") return `<p>Hawaii has no per-beach status feed. The Hawaii Department of Health, Clean Water Branch posts advisories — brown water after storms and heavy rain, bacteria (enterococci) test results, and sewage spills — and a beach shows here as <em>Open</em> unless an open DOH advisory covers it, <em>Water quality advisory</em> for brown-water and bacteria notices, or <em>Closed to swimming</em> for a sewage spill. DOH also advises staying out of brown or murky water even when no advisory has been issued. Where a notice doesn't name specific beaches we match its mapped area to nearby beaches, and anything we can't pin to a beach is listed under “Area-wide advisories.” It is <strong>our reading</strong> of DOH's public data, not an official determination, and it refreshes hourly. Always confirm with the <a href="https://health.hawaii.gov/cwb/" target="_blank" rel="noopener">Clean Water Branch</a> before you swim.</p>`;
+  return `<p>Beach status reflects public monitoring data from the New York State Department of Health and county health departments — <em>Open</em>, <em>Water quality advisory</em>, or <em>Closed to swimming</em>. Some beaches are managed by another agency and show as “no data.” It is <strong>our reading</strong> of that data, not an official determination, and it refreshes hourly. Always confirm with the operating agency before you swim.</p>`;
+}
+
+// Advisories DOH posted for an area (or that we couldn't pin to one beach): shown above the beach list.
+function noticeTail(n) {
+  const r = String(n.reason || ""), t = String(n.title || "");
+  return (r.startsWith(t) ? r.slice(t.length) : r).replace(/^[.\s—-]+/, "");
+}
+function beachNoticesHtml(notices) {
+  if (!notices.length) return "";
+  return `<section class="bnotices"><h2>Area-wide advisories</h2>
+    <p class="bnote">Hawaii DOH posted these for an area rather than one beach. They may affect beaches not flagged below.</p>
+    <ul>${notices.map((n) => `<li><strong>${esc(n.title)}</strong>${noticeTail(n) ? " — " + esc(noticeTail(n)) : ""} <a href="${esc(n.url)}" target="_blank" rel="noopener">DOH notice ↗</a></li>`).join("")}</ul>
+  </section>`;
+}
+
 function beachRow(b) {
   const cls = BEACH_CLASS[beach4(b.status)] || "nodata";
   const lab = b.statusLabel || BEACH_LABEL[b.status] || b.status || "Unknown";
@@ -1972,7 +2059,8 @@ function beachRow(b) {
   const meta = [
     b.waterbody ? esc(b.waterbody) : "",
     dates,
-    b.jurisdiction ? `<a href="${esc(b.jurisdictionUrl || "#")}" target="_blank" rel="noopener">${esc(b.jurisdiction)} ↗</a>` : "",
+    // Hawaii rows share one agency, so only flagged rows repeat the link (pointing at the specific DOH notice)
+    b.jurisdiction && !(b.source === "hi-doh" && !flagged) ? `<a href="${esc(b.sourceUrl || b.jurisdictionUrl || "#")}" target="_blank" rel="noopener">${esc(b.jurisdiction)} ↗</a>` : "",
   ].filter(Boolean).join(" · ");
   return `<li id="b-${esc(b.id)}">
   <div class="bh"><span class="d ${cls}"></span><span class="nm">${esc(b.name)}</span><span class="bl" data-role="label">${esc(lab)}</span></div>
@@ -1981,8 +2069,9 @@ function beachRow(b) {
 </li>`;
 }
 
-function beachHubHtml(g, updatedISO, tally) {
+function beachHubHtml(g, updatedISO, tally, notices = []) {
   const url = `${SITE}/beach/${g.slug}/`;
+  const isIsland = !!g.island;   // island hubs get the area-wide-advisories slot; NY county hubs stay exactly as they were
   const lt = { open: 0, partially_closed: 0, closed: 0, no_data: 0 };
   g.beaches.forEach((b) => lt[beach4(b.status)]++);
   const flagged = g.beaches.filter((b) => b.status === "advisory" || b.status === "closed")
@@ -1991,9 +2080,10 @@ function beachHubHtml(g, updatedISO, tally) {
   const rows = g.beaches.map(beachRow).join("\n");
   const desc = `Current swimming advisories, closures and water-quality status for ${g.beaches.length} monitored beaches in ${g.label}. ${lt.partially_closed} under advisory, ${lt.closed} closed as of ${asOf}.`;
 
-  const faqText = flagged.length
+  const faqText = (flagged.length
     ? `As of ${asOf}: ${flagged.map((b) => `${b.name} (${b.statusLabel || BEACH_LABEL[b.status] || b.status})`).join("; ")}.`
-    : `As of ${asOf}, no beaches in ${g.label} are under a swimming advisory or closure in our data.`;
+    : `As of ${asOf}, no beaches in ${g.label} are under a swimming advisory or closure in our data.`)
+    + (notices.length ? ` Also open for the area: ${notices.map((n) => n.title).join("; ")}.` : "");
   const jsonld = {
     "@context": "https://schema.org",
     "@graph": [
@@ -2056,20 +2146,22 @@ ${stripHtml(tally, updatedISO)}
   <h1>${esc(g.label)}: beach water quality &amp; closures</h1>
   <p class="sub">${esc(g.state)} · ${g.beaches.length} monitored beaches · <b id="h-open">${lt.open}</b> open · <b id="h-partial">${lt.partially_closed}</b> advisory · <b id="h-closed">${lt.closed}</b> closed · <b id="h-nodata">${lt.no_data}</b> no data</p>
 
-  <div class="verdict ${flagged.length ? "partial" : "open"}">
+  <div class="verdict ${flagged.length || notices.length ? "partial" : "open"}">
     <p class="line">${flagged.length
       ? `${flagged.length} beach${flagged.length === 1 ? "" : "es"} in ${esc(g.label)} ${flagged.length === 1 ? "is" : "are"} under a swimming advisory or closure right now.`
-      : `No swimming advisories or closures reported for ${esc(g.label)} right now.`}</p>
+      : notices.length
+        ? `No single beach is flagged, but ${notices.length} DOH advisor${notices.length === 1 ? "y" : "ies"} for ${esc(g.label)} couldn't be tied to a specific beach — see below.`
+        : `No swimming advisories or closures reported for ${esc(g.label)} right now.`}</p>
     <p class="checked">As of ${esc(new Date(updatedISO).toUTCString())} · refreshes hourly</p>
   </div>
-
+${isIsland ? `  <div id="hub-notices-slot">${beachNoticesHtml(notices)}</div>\n` : ""}
   <ul class="blist">
 ${rows}
   </ul>
 
   <article>
     <h2>Where this comes from</h2>
-    <p>Beach status reflects public monitoring data from the New York State Department of Health and county health departments — <em>Open</em>, <em>Water quality advisory</em>, or <em>Closed to swimming</em>. Some beaches are managed by another agency and show as “no data.” It is <strong>our reading</strong> of that data, not an official determination, and it refreshes hourly. Always confirm with the operating agency before you swim.</p>
+    ${beachSourceHtml(g.state)}
   </article>
 
   <div class="related">
@@ -2112,7 +2204,28 @@ ${rows}
     });
     if(lt.open+lt.partially_closed+lt.closed+lt.no_data){
       set("h-open",lt.open);set("h-partial",lt.partially_closed);set("h-closed",lt.closed);set("h-nodata",lt.no_data);
-    }
+    }${isIsland ? `
+    if(d.beachNotices instanceof Array){
+      var slot=document.getElementById("hub-notices-slot");
+      if(slot){
+        var mine=d.beachNotices.filter(function(n){return n.hub==="${g.slug}";});
+        while(slot.firstChild)slot.removeChild(slot.firstChild);
+        if(mine.length){
+          var sec=document.createElement("section");sec.className="bnotices";
+          var h=document.createElement("h2");h.textContent="Area-wide advisories";sec.appendChild(h);
+          var p=document.createElement("p");p.className="bnote";p.textContent="Hawaii DOH posted these for an area rather than one beach. They may affect beaches not flagged below.";sec.appendChild(p);
+          var ul=document.createElement("ul");
+          mine.forEach(function(n){
+            var li=document.createElement("li"),st=document.createElement("strong");st.textContent=n.title;li.appendChild(st);
+            var r=String(n.reason||""),t=String(n.title||""),tail=(r.indexOf(t)===0?r.slice(t.length):r).replace(/^[.\\s—-]+/,"");
+            if(tail)li.appendChild(document.createTextNode(" — "+tail));
+            if(/^https:\\/\\//.test(n.url||"")){li.appendChild(document.createTextNode(" "));var a=document.createElement("a");a.href=n.url;a.target="_blank";a.rel="noopener";a.textContent="DOH notice ↗";li.appendChild(a);}
+            ul.appendChild(li);
+          });
+          sec.appendChild(ul);slot.appendChild(sec);
+        }
+      }
+    }` : ""}
   }).catch(function(){});
   fetch("/shutdown.json",{cache:"no-store"}).then(function(r){return r.json();}).then(function(s){
     if(!s||!s.active)return;var b=document.getElementById("shutdown-banner");if(!b)return;
@@ -2131,20 +2244,28 @@ function beachIndexHtml(hubs, updatedISO, tally) {
   const total = hubs.reduce((n, h) => n + h.beaches.length, 0);
   const flaggedTotal = hubs.reduce((n, h) => n + h.beaches.filter((b) => b.status === "advisory" || b.status === "closed").length, 0);
   const asOf = fmtLong(updatedISO);
-  const cards = hubs.map((h) => {
+  const cov = beachCoverage(hubs);
+  const stateNames = listPhrase(cov.map((s) => s.name));
+  const card = (h) => {
     const lt = { adv: 0, closed: 0 };
     h.beaches.forEach((b) => { if (b.status === "advisory") lt.adv++; if (b.status === "closed") lt.closed++; });
     const tag = lt.closed ? `${lt.closed} closed` : lt.adv ? `${lt.adv} advisory` : "all clear";
     return `<li><a href="/beach/${h.slug}/"><div class="t">${esc(h.label)}</div><div class="m">${h.beaches.length} beaches · ${tag}</div></a></li>`;
-  }).join("\n");
-  const desc = `Swimming advisories and water-quality closures for ${total} monitored beaches across ${hubs.length} counties. ${flaggedTotal} under advisory or closed as of ${asOf}.`;
+  };
+  // One section per state: New York is grouped by county, Hawaii by island.
+  const cards = cov.map((s) => `<h2 class="hubstate">${esc(s.name)}</h2>
+  <p class="hubnote">${s.beaches} monitored beaches · by ${s.by}</p>
+  <ul class="hubgrid">
+${hubs.filter((h) => h.state === s.code).map(card).join("\n")}
+  </ul>`).join("\n");
+  const desc = `Swimming advisories and water-quality closures for ${total} monitored beaches in ${stateNames}, across ${listPhrase(cov.map(hubCount))}. ${flaggedTotal} under advisory or closed as of ${asOf}.`;
   const jsonld = {
     "@context": "https://schema.org",
     "@graph": [
       { "@type": "BreadcrumbList", itemListElement: [
         { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
         { "@type": "ListItem", position: 2, name: "Beaches", item: url } ] },
-      { "@type": "ItemList", name: "Beach water quality by county", numberOfItems: hubs.length,
+      { "@type": "ItemList", name: "Beach water quality by county and island", numberOfItems: hubs.length,
         itemListElement: hubs.map((h, i) => ({ "@type": "ListItem", position: i + 1, name: h.label, url: `${SITE}/beach/${h.slug}/` })) },
     ],
   };
@@ -2163,12 +2284,12 @@ function beachIndexHtml(hubs, updatedISO, tally) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 ${INDEXERNOW}
-<title>Beach water quality &amp; closures by county — Park Status Today</title>
+<title>Beach water quality &amp; closures: ${esc(stateNames)} — Park Status Today</title>
 <meta name="description" content="${esc(desc)}">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="canonical" href="${url}">
 <meta name="robots" content="index, follow">
-<meta property="og:title" content="Beach water quality &amp; closures by county">
+<meta property="og:title" content="Beach water quality &amp; closures: ${esc(stateNames)}">
 <meta property="og:url" content="${url}">
 <script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, "\\u003c")}</script>
 <link rel="stylesheet" href="/park/park.css">
@@ -2183,13 +2304,11 @@ ${stripHtml(tally, updatedISO)}
 <main class="wrap">
   <div class="crumbs"><a href="/">Home</a> / Beaches</div>
   <h1>Beach water quality &amp; closures</h1>
-  <p class="sub">${total} monitored beaches · ${hubs.length} counties · ${flaggedTotal} under advisory or closed as of ${esc(fmtUpd(updatedISO))}</p>
-  <ul class="hubgrid">
-${cards}
-  </ul>
+  <p class="sub">${total} monitored beaches · ${cov.map(hubCount).join(" · ")} · ${flaggedTotal} under advisory or closed as of ${esc(fmtUpd(updatedISO))}</p>
+  ${cards}
   <article>
     <h2>About this data</h2>
-    <p>Beaches are grouped by county. Status reflects public monitoring from the New York State Department of Health and county health departments and refreshes hourly. It is <strong>our reading</strong> of that data, not an official determination — always confirm with the operating agency before you swim.</p>
+    <p>Beaches are grouped by ${cov.length === 1 ? cov[0].by : listPhrase(cov.map((s) => `${s.by} (${s.name})`))}. Status reflects public monitoring from ${listPhrase(cov.map((s) => s.agency))} and refreshes hourly. It is <strong>our reading</strong> of that data, not an official determination — always confirm with the operating agency before you swim.</p>
   </article>
 </main>
 <footer class="site"><div class="wrap">
@@ -2235,32 +2354,9 @@ async function main() {
   // Site-wide 4-status count, baked into every page's status strip.
   const tally = combinedTally(data);
 
-  // Beach county hubs, grouped by state + county.
-  const BOROUGH = {
-    Kings: "Kings County (Brooklyn)", Richmond: "Richmond County (Staten Island)",
-    "New York": "New York County (Manhattan)", Bronx: "Bronx County", Queens: "Queens County",
-  };
-  const bgroups = new Map();
-  for (const bch of data.beaches || []) {
-    if (typeof bch.lat !== "number" || typeof bch.lon !== "number") continue;
-    const county = String(bch.county || "Other").trim();
-    const key = (bch.state || "") + "|" + county;
-    if (!bgroups.has(key)) {
-      const base = BOROUGH[county] || (/count(y|ies)$/i.test(county) ? county : county + " County");
-      bgroups.set(key, {
-        state: bch.state || "", county,
-        label: base + (bch.state ? ", " + bch.state : ""),
-        slug: slugify((bch.state || "") + "-" + county + (/count(y|ies)$/i.test(county) ? "" : "-county")),
-        beaches: [],
-      });
-    }
-    bgroups.get(key).beaches.push(bch);
-  }
-  const beachHubs = [...bgroups.values()]
-    .filter((g) => g.beaches.length >= 2)
-    .sort((a, b) => a.label.localeCompare(b.label));
-  beachHubs.forEach((g) => g.beaches.sort((a, b) => String(a.name).localeCompare(String(b.name))));
-  process.stdout.write(`  ${beachHubs.length} beach county hubs (${beachHubs.reduce((n, g) => n + g.beaches.length, 0)} beaches)\n`);
+  // Beach hubs: NY by county, Hawaii by island (see groupBeachHubs).
+  const beachHubs = groupBeachHubs(data.beaches);
+  process.stdout.write(`  ${beachHubs.length} beach hubs (${beachHubs.reduce((n, g) => n + g.beaches.length, 0)} beaches)\n`);
 
   // forests.json — simplified National Forest footprints for the Worker's
   // wildfire-proximity check. Regenerated daily; the boundaries rarely move.
@@ -2437,7 +2533,7 @@ async function main() {
   for (const g of beachHubs) {
     const dir = path.join(BEACH_DIR, g.slug);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, "index.html"), beachHubHtml(g, updatedISO, tally));
+    fs.writeFileSync(path.join(dir, "index.html"), beachHubHtml(g, updatedISO, tally, (data.beachNotices || []).filter((n) => n.hub === g.slug)));
   }
   fs.writeFileSync(path.join(BEACH_DIR, "index.html"), beachIndexHtml(beachHubs, updatedISO, tally));
 
@@ -2484,7 +2580,7 @@ async function main() {
   const withNps = Object.values(enriched).filter((x) => x.hours || x.address).length;
   process.stdout.write(
     `\nDone.\n  ${n} park pages + directory\n` +
-    `  ${beachHubs.length} beach county hubs + index\n` +
+    `  ${beachHubs.length} beach hubs + index\n` +
     `  parks-enriched.json: ${withWiki} with Wikipedia about/history, ${withNps} with NPS visitor info\n` +
     `  baked tally: ${tally.open} open / ${tally.partially_closed} partial / ${tally.closed} closed / ${tally.no_data} no-data\n` +
     `  sitemap.xml: ${entities.length + beachHubs.length + published.length + 16} urls\n  data timestamp: ${updatedISO}\n`

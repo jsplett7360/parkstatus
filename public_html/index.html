@@ -359,7 +359,7 @@
   <div class="board">
     <div class="mapwrap">
       <div class="mapframe">
-        <div id="usmap" role="region" aria-label="Map of U.S. national park sites and New York beaches by status"></div>
+        <div id="usmap" role="region" aria-label="Map of U.S. national park sites and New York and Hawaii beaches by status"></div>
         <div class="zoomhint" id="zoomhint">Scroll-zoom is off — click the map, or use + / −</div>
         <div class="loading" id="loading">Loading current park status…</div>
       </div>
@@ -408,6 +408,7 @@
       <div class="src-item"><span class="hdot" id="hdot-a"></span><div><b>NPS Data API · Alerts</b><span id="src-alerts">Connecting…</span></div></div>
       <div class="src-item"><span class="hdot" id="hdot-p"></span><div><b>NPS Data API · Operating hours</b><span id="src-parks">Connecting…</span></div></div>
       <div class="src-item"><span class="hdot" id="hdot-b"></span><div><b>NY DOH · Beach Advisory</b><span id="src-beaches">Connecting…</span></div></div>
+      <div class="src-item"><span class="hdot" id="hdot-bh"></span><div><b>HI DOH · Clean Water Branch</b><span id="src-beaches-hi">Connecting…</span></div></div>
       <div class="src-item"><span class="hdot" id="hdot-n"></span><div><b>NY State Parks · parks.ny.gov</b><span id="src-nysp">Connecting…</span></div></div>
       <div class="src-item"><span class="hdot" id="hdot-c"></span><div><b>CA State Parks · ArcGIS status layer</b><span id="src-casp">Connecting…</span></div></div>
       <div class="src-item"><span class="hdot" id="hdot-t"></span><div><b>TX State Parks · tpwd.texas.gov</b><span id="src-txsp">Connecting…</span></div></div>
@@ -581,8 +582,8 @@ async function boot(){
     payload = await fetch(API_URL).then(r=>r.json());
   }catch(e){
     document.getElementById("loading").textContent="Couldn't reach the status service. Refresh to try again.";
-    ["src-alerts","src-parks","src-beaches","src-nysp","src-casp","src-txsp","src-mnsp","src-flsp","src-wasp","src-usfs"].forEach(id=>t3(id,"Unreachable"));
-    ["hdot-a","hdot-p","hdot-b","hdot-n","hdot-c","hdot-t","hdot-m","hdot-f","hdot-w","hdot-u"].forEach(id=>document.getElementById(id)&&document.getElementById(id).classList.add("stale"));
+    ["src-alerts","src-parks","src-beaches","src-beaches-hi","src-nysp","src-casp","src-txsp","src-mnsp","src-flsp","src-wasp","src-usfs"].forEach(id=>t3(id,"Unreachable"));
+    ["hdot-a","hdot-p","hdot-b","hdot-bh","hdot-n","hdot-c","hdot-t","hdot-m","hdot-f","hdot-w","hdot-u"].forEach(id=>document.getElementById(id)&&document.getElementById(id).classList.add("stale"));
     return;
   }
   PARKS = (payload.parks||[]).map(p=>({...p, slug:slugify(p.fullName)}));
@@ -601,7 +602,12 @@ async function boot(){
 
   const src = fmtSource(payload.updated);
   t3("src-alerts", src); t3("src-parks", src);
-  t3("src-beaches", payload.beachStale ? "Stale — showing last known status" : (src + " · " + BEACHES.length + " NY beaches"));
+  // beaches come from two sources with separate freshness: NY DOH and Hawaii DOH (beachSources; older payloads only have beachStale)
+  const bsrc = payload.beachSources || {};
+  const nyBeachN = BEACHES.filter(b=>b.state!=="HI").length, hiBeachN = BEACHES.length-nyBeachN;
+  const nyBeachStale = bsrc.ny ? bsrc.ny.stale : payload.beachStale, hiBeachStale = bsrc.hi ? bsrc.hi.stale : !hiBeachN;
+  t3("src-beaches", nyBeachStale ? "Stale — showing last known status" : (src + " · " + nyBeachN + " NY beaches"));
+  t3("src-beaches-hi", !bsrc.hi && !hiBeachN ? "Not reporting yet" : hiBeachStale ? "Stale — showing last known status" : (src + " · " + hiBeachN + " HI beaches"));
   t3("src-nysp", payload.nyParkStale ? "Stale — showing last known status" : (src + " · " + NYPARKS.length + " NY parks"));
   t3("src-casp", payload.caParkStale ? "Stale — showing last known status" : (src + " · " + CAPARKS.length + " CA units"));
   t3("src-txsp", payload.txParkStale ? "Stale — showing last known status" : (src + " · " + TXPARKS.length + " TX parks"));
@@ -611,7 +617,8 @@ async function boot(){
   t3("src-usfs", payload.usfsStale ? "Stale — showing last known status" : (src + " · " + USFORESTS.length + " national forests"));
   const stale = (Date.now() - new Date(payload.updated).getTime()) > 3*3600*1000;
   if(stale){ document.getElementById("hdot-a").classList.add("stale"); document.getElementById("hdot-p").classList.add("stale"); }
-  if(stale || payload.beachStale){ document.getElementById("hdot-b").classList.add("stale"); }
+  if(stale || nyBeachStale){ document.getElementById("hdot-b").classList.add("stale"); }
+  if(stale || hiBeachStale){ const d=document.getElementById("hdot-bh"); if(d) d.classList.add("stale"); }
   if(stale || payload.nyParkStale){ document.getElementById("hdot-n").classList.add("stale"); }
   if(stale || payload.caParkStale){ document.getElementById("hdot-c").classList.add("stale"); }
   if(stale || payload.txParkStale){ document.getElementById("hdot-t").classList.add("stale"); }
@@ -1022,21 +1029,26 @@ function openDetail(p){
   openPanel();
 }
 
+const HI_ISLAND_LABEL = {Oahu:"Oʻahu", Maui:"Maui", Molokai:"Molokaʻi", Lanai:"Lānaʻi", Kauai:"Kauaʻi", Hawaii:"Hawaiʻi Island"};
 function openBeachDetail(bh){
   const cls=STATUS_CLASS[beachMap(bh.status)];
   const pill=document.getElementById("d-pill");
   pill.className="pill "+cls; pill.textContent=BEACH_STATUS_LABEL[bh.status]||bh.status;
   document.getElementById("d-page").style.display="none";
   document.getElementById("d-name").textContent=bh.name;
-  document.getElementById("d-meta").textContent="Waterway"+(bh.waterbody?" · "+bh.waterbody:"")+(bh.county?" · "+bh.county+" County, NY":"");
-  document.getElementById("d-reason").textContent=bh.reason;
+  document.getElementById("d-meta").textContent = bh.state==="HI"
+    ? "Beach · "+(HI_ISLAND_LABEL[bh.island]||"Hawaii")+", Hawaii"
+    : "Waterway"+(bh.waterbody?" · "+bh.waterbody:"")+(bh.county?" · "+bh.county+" County, NY":"");
+  document.getElementById("d-reason").textContent=bh.reason||"No active advisories reported.";
   const tags=[];
   if(bh.startDate) tags.push("Since "+bh.startDate+(bh.endDate?" – "+bh.endDate:""));
   if(bh.jurisdiction) tags.push(bh.jurisdiction);
   const tg=document.getElementById("d-tags");
   tg.innerHTML=tags.length?tags.map(x=>'<span class="tag">'+x+'</span>').join(""):'<span class="tag">no active advisory</span>';
-  { const l=document.getElementById("d-link"); l.href=bh.jurisdictionUrl||"https://beachadvisory.health.ny.gov/#/tab/map"; l.textContent="View beach advisory ↗"; }
+  { const l=document.getElementById("d-link"); l.href=bh.sourceUrl||bh.jurisdictionUrl||"https://beachadvisory.health.ny.gov/#/tab/map"; l.textContent=bh.sourceUrl?"View DOH notice ↗":"View beach advisory ↗"; }
   beginDetail(bh.id, bh.name, bh.lat, bh.lon);
+  // Hawaii beaches have no park page: point "Full status & details" at their island hub instead (beginDetail would build a /park/ link that 404s)
+  if(bh.hub){ const dp=document.getElementById("d-page"); dp.style.display=""; dp.href="/beach/"+bh.hub+"/#b-"+bh.id; dp.textContent="All "+(HI_ISLAND_LABEL[bh.island]||"Hawaii")+" beaches →"; }
   openPanel();
 }
 
