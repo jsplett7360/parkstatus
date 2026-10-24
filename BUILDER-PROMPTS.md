@@ -26,8 +26,9 @@ plan and stop. The next "complete next step" = implement the approved plan.
 | 9 | 4b — Blue Ridge Parkway live status: Worker-side scrape of `nps.gov/blri/planyourvisit/roadclosures.htm` (server-rendered per-milepost table + timestamp), `detectShutdown()` mold; promotes BRP from Tier C. Worker + `roadStatus()` change. | DONE — `brpStatus()` scrapes both VA/NC tables, classifies each row (Status cell + notes-escalation w/ facility exclusion), worst-wins over mainline (ranged-MP) rows only — spur/single-point rows excluded from the verdict. `roadStatus()` short-circuits `blue-ridge-parkway` to `tier:"B"` when `brp` is supplied; flows through the existing Tier-B notify/cooldown path unchanged. Additive `blob.brp`. Never throws; falls back to prior cycle w/ `stale:true`. 20/20 harness incl. a REAL fetch (correctly found the live MP 317.5–355.3 Helene closure) + 3 fabricated-failure cases + row-classifier unit tests + `roadStatus()` routing regression. `roads.json`/`build-parks.js` unchanged (confirmed `blob.roads` consumption is generic, no BRP special-case needed). `worker.js` only. | 2026-09-08 | 2026-09-11 `769aefc4` |
 | 13 | Indexation — `www` → apex 301 redirect (GSC: "Alternate page with proper canonical tag" flagged across homepage/guides/roads/parks/privacy) | DONE + deployed — `deploy.yml` excludes `.htaccess` from its FTP sync (protects a "server-managed" file), so the committed `public_html/.htaccess` (`433e7d8e`) couldn't ship through the normal pipeline; user uploaded it directly via Hostinger's File Manager (server had no `.htaccess` at all before this). Live-verified: `https://www.parkstatus.today/*` → single-hop 301 to the same path on apex; apex `http`/`https` behavior unchanged. One known deviation: `http://www…` is 2 hops (Hostinger's edge upgrades http→https on `www` before `.htaccess` runs, then `.htaccess` sends it to apex) — outside `.htaccess`'s control, not fixable at this layer, still lands correctly. `.htaccess` now lives outside the deploy pipeline — future edits need another manual File Manager upload. | 2026-09-17 | 2026-09-17, manual upload (uncommitted change on the server; repo copy at `433e7d8e`) |
 
-| 14 | Indexation — extend `park-facts.json` to ~13 high-traffic non-"National Park" NPS units | DONE — 13 entries added (blri, goga, natr, linc, gate, guis, gwmp, appa, lake, vive, choh, wwii, dewa; 75 total in the file). Zero build-parks.js changes (`PARK_FACTS[e.id]` lookup is kind-agnostic — confirmed by tracing + harness). `appa` omits size (linear trail); `choh`/`dewa` omit visits2025/rank2025 (no sourceable 2025 figure — IRMA down, best available is 2022/2024 data) rather than guess. `vive`/`wwii` visits2025 sourced from Wikipedia infobox fields dated "in 2025" (top-10 of the 13 from the official NPS release directly). One near-miss caught and dropped before shipping: an unsourceable "$10M Tom Hanks gift" claim for the WWII Memorial. 13/13 spot-checked via harness (all render, JSON-LD valid, no leaked undefined/NaN/null in the facts/distinct blocks, Size and 2025-visits rows correctly present/absent per entity). `parks.json`/`parks-enriched.json` byte-identical (untouched). | 2026-09-17 | 2026-09-25 (pending commit) |
-| 15 | Add Microsoft Clarity tracking script (site-wide, mirroring existing GA placement) + privacy.html disclosure | DONE — Clarity snippet (project `ynwxj9dyuh`, verbatim) inserted immediately after the GA `async src` line in all 10 build-parks.js `<head>` blocks + `index.html` (11/11, confirmed byte-identical + correctly positioned via harness, 51/51 checks). `privacy.html` disclosure updated in both spots — verified against Microsoft's own masking docs first: input-field content (the email-alerts box) is masked in every Clarity mode, unconditionally. `guides/*.html`/`support.html`'s pre-existing no-analytics gap left alone. `parks*.json` untouched. | 2026-09-25 | 2026-09-25 (pending commit) |
+| 14 | Indexation — extend `park-facts.json` to ~13 high-traffic non-"National Park" NPS units | DONE — 13 entries added (blri, goga, natr, linc, gate, guis, gwmp, appa, lake, vive, choh, wwii, dewa; 75 total in the file). Zero build-parks.js changes (`PARK_FACTS[e.id]` lookup is kind-agnostic — confirmed by tracing + harness). `appa` omits size (linear trail); `choh`/`dewa` omit visits2025/rank2025 (no sourceable 2025 figure — IRMA down, best available is 2022/2024 data) rather than guess. `vive`/`wwii` visits2025 sourced from Wikipedia infobox fields dated "in 2025" (top-10 of the 13 from the official NPS release directly). One near-miss caught and dropped before shipping: an unsourceable "$10M Tom Hanks gift" claim for the WWII Memorial. 13/13 spot-checked via harness (all render, JSON-LD valid, no leaked undefined/NaN/null in the facts/distinct blocks, Size and 2025-visits rows correctly present/absent per entity). `parks.json`/`parks-enriched.json` byte-identical (untouched). | 2026-09-17 | 2026-09-25 `d1b4c9c97` (local, not on origin) |
+| 15 | Add Microsoft Clarity tracking script (site-wide, mirroring existing GA placement) + privacy.html disclosure | DONE — Clarity snippet (project `ynwxj9dyuh`, verbatim) inserted immediately after the GA `async src` line in all 10 build-parks.js `<head>` blocks + `index.html` (11/11, confirmed byte-identical + correctly positioned via harness, 51/51 checks). `privacy.html` disclosure updated in both spots — verified against Microsoft's own masking docs first: input-field content (the email-alerts box) is masked in every Clarity mode, unconditionally. `guides/*.html`/`support.html`'s pre-existing no-analytics gap left alone. `parks*.json` untouched. | 2026-09-25 | 2026-09-25 `6fdfbd1c5` (local, not on origin) |
+| 16 | Hawaii beaches — live water-quality advisories from the Hawaii DOH Clean Water Branch API, added alongside NY (Worker feed + island hubs + map + alerts) | DONE — committed, NOT pushed. Worker: `fetchHIBeaches()` builds 419 `hi-` rows from DOH advisory events (beach list cached daily in KV; 1 DOH request/run steady state; `Accept: application/json` trap handled). Matching: DOH link list → `station.beachId` → drawn-area overlap (≥10% of shoreline, or touching + named in DOH headline) / unique nearest point ≤50 m → island/statewide flag → island notice; local-event accuracy 91%/91% vs DOH's own lists. Sewage Spill → closed, other open types → advisory, worst wins, reason quotes DOH. No false all-clear: any bad response / unconfirmed closure → source falls back to its previous rows (stale), per source (NY ≠ HI). Alerts (Knob 1 = c): Hawaii changes grouped one message per DOH advisory (≈5,900 → ≈400 msgs/yr for an all-alerts subscriber); Hawaii never "disaster". Site: six island hubs `/beach/hawaii-*`, area-wide-advisory notices, per-state index + copy, homepage second source row/detail panel. CI: `refresh-park-data.yml` now commits `beach/index.html` + `beach/hawaii-*` (guarded glob; NY hubs deliberately excluded). Blob +27% decoded / +14% gzip. 131 Worker + 97 generator checks; all 15 NY hub pages byte-identical. NOT a full build (no `NPS_API_KEY`); Cloudflare→DOH reachability untested until deploy. NY beach feed found DEAD (404) — separate item. | 2026-10-23 | 2026-10-24 `ad7bb24a8` (Worker) + `2cd5faeaf` (site) + `259d55efb` (CI line); local, not on origin |
 
 Backlog items are one-liners until the prompt-engineer promotes one to READY with a full
 block below.
@@ -1696,3 +1697,217 @@ build-parks.js / index.html / privacy.html + verification that all locations mat
 5. `parks.json`/`parks-enriched.json` untouched.
 6. Coordination files agree with each other and git.
 </self_check>
+
+---
+
+## Item 16 — Hawaii beaches: live water-quality advisories (alongside NY)
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Worker + generator engineer. Get current
+first; rebase on origin/main. This generalizes the "NY pilot" beach pipeline to a
+second state — mostly Worker data work, plus the copy/grouping changes that stop the
+site calling every beach a "New York beach".
+</role>
+
+<task>
+Add Hawaii beaches to the existing beach layer, fed by the Hawaii Department of Health
+(DOH) Clean Water Branch's public JSON API: ~419 monitored beaches, with live status
+derived from currently-open DOH advisories. Hawaii beaches flow through the same
+paths NY beaches already use — blob `beaches`/`beachTally`, the unified status diff,
+email/push alerts, the homepage map, `/beach/` hub pages, sitemap, llms.txt.
+</task>
+
+<why>
+User asked whether Hawaii has a feed like New York's. It does (researched 2026-10-23):
+the DOH advisory app (`eha-cloud.doh.hawaii.gov/cwb`) is backed by an unauthenticated
+JSON API, and it is current — 13 advisories were open that day, one posted hours
+earlier. Hawaii beach closures/advisories are high-intent travel queries ("is X beach
+safe to swim"), and brown-water advisories after rain are frequent (279 of the last 500
+events). EPA's BEACON database was checked and ruled out: states only report to it once
+a year, so it cannot drive "open right now".
+</why>
+
+<context>
+**The API (verified by curl 2026-10-23; no auth, no key).** Base
+`https://eha-cloud.doh.hawaii.gov/cwb/api/`. **Send `Accept: application/json`** — without
+it the server returns a 200 `text/html` "Snapshot" page instead of JSON (a silent
+trap; treat a non-JSON content-type as a failed fetch). Use `CRAWL_UA`.
+- `GET beaches` → `{page, totalResultsCount:419, list:[…]}`, ~1.47 MB, all beaches in
+  one response (no paging needed). Per beach: `id` (DOH numeric), `identifier` (EPA ID,
+  e.g. `HI616452`), `name`, `island{cleanName, countyName}`, `startLatitude/
+  startLongitude/endLatitude/endLongitude` (a shoreline segment, not a point),
+  `locations[].geometry` (WKT LINESTRING), `tierRank`, `updatedOn`. Last edit 2023-ish —
+  the list is effectively static. Islands: Oahu 140, Maui 88, Hawaii 85, Kauai 63,
+  Molokai 32, Lanai 11 (county: Oahu=Honolulu; Maui/Molokai/Lanai=Maui; Kauai=Kauai).
+- `GET events?status=Open` → the live advisories (13 on 2026-10-23, ~39 KB, one request).
+  **Do not use unfiltered `events`** — it returns only the newest 500 of 1,884 and
+  `?page=1` did not paginate. Event fields: `id`, `type` (Brown Water Advisory · Beach
+  Advisory · Beach Notification · Sewage Spill · Permit Exceedance), `status`
+  (Open/Closed), `title`, `description` (DOH's own wording), `cause`, `postedDate`,
+  `postedDateHst`, `updatedOn`, `isIslandWide` (31 of 500 historical events),
+  `isStatewide` (2 of 500), `island`, `station{beachId}` (set on bacteria events).
+- `GET events/{id}` → the same plus **`eventBeaches[]`** (`beachId` + embedded beach) and
+  **`locations[]`** (WKT `POLYGON` "area affected" or `POINT`). The list endpoint
+  returns both of these EMPTY — detail lookups are required.
+- **Linking an advisory to beaches is the hard part.** On 2026-10-23 only 5 of 13 open
+  events carried `eventBeaches` (the Oahu brown-water ones: #2173 → 4 beaches, #2171 →
+  Kapaeloa, #2170 → 4, #2169 → 6). The other 8 had only geometry: all Kauai brown-water
+  events (#2167 Koloa Landing, #2166 Anini, #2164 Waimea Bay, #2163 Po'ipu, #2162
+  Niumalu, #2161 Hanama'ulu), #2138 Ninole (Hawaii Island), #2174 sewage spill at Kalama
+  Park (Kihei, Maui; polygon), and #2175 bacteria exceedance at Puako Boat Ramp (POINT,
+  but `station.beachId=239`). Those ids will have closed by build time — re-fetch live,
+  and pull closed examples via `events/{id}` for fixtures (e.g. #2168, `hasBwa:true`).
+- DOH wording to preserve: a sewage spill reads "remain out of the waters near … until
+  this advisory has been cancelled"; brown-water advisories say stay out of brown/murky
+  water; bacteria events cite enterococci counts per 100 mL; `Beach Notification` =
+  first high reading, DOH is retesting.
+- **NY reference implementation (worker.js):** `NY_BEACH_API` (~26), `NY_STATUS_MAP`/
+  `BEACH_STATUS_TEXT`/`deriveBeachReason`/`fetchNYBeaches` (~118–174) → rows
+  `{id:"ny-<epa id>", name, state, lat, lon, status, statusLabel, reason, jurisdiction,
+  jurisdictionUrl, waterbody, county, startDate, endDate, updatedAt, source}`; fetched in
+  `rebuild()`'s `Promise.all` (~949) with last-good fallback (`beachesOut`/`beachStale`
+  ~974–986); `beachTally`; `blob.beaches` (~1118); `indexEntities` diff feeds
+  `changes[]` (~1026) → `notifyChanges()`; `beachCountySlug()` (~1150, comment: must
+  match build-parks.js grouping); `mapBeachStatus` (~1202). Beach status vocab: open ·
+  advisory · closed · not_in_operation · pending.
+- **Generator (build-parks.js):** beach hubs are grouped by `state|county` (~2238–2263),
+  slug `slugify(state + "-" + county [+ "-county"])`; `beachHubHtml` (~1984),
+  `beachIndexHtml`, `sitemap()` `beachUrls` (~1900), `llmsTxt()` (~1918–1940). **NY-specific
+  copy to generalize:** hub + index disclaimers ("New York State Department of Health
+  and county health departments", ~2072, ~2192), llms.txt ("monitored New York beaches",
+  ~1918/1922/1940), the shutdown-guide sentence about "New York's public beaches" (~1634).
+- **index.html:** `payload.beaches` is already generic (map pins, `beachMap`), but labels
+  say NY: map `aria-label` "…New York beaches" (~362), source row "NY DOH · Beach
+  Advisory" (~410), "N NY beaches" (~604).
+- **Alerts:** `indexEntities` includes beaches, so every beach status change becomes a
+  `change`. `changeMatchesSub`: scope `all` matches EVERYTHING; `parks[]` is an exact-id
+  match (so a followed beach = its `ny-…`/`hi-…` id); `geo` matches by lat/lon radius.
+- **Size:** the live blob is ~685 KB with 358 NY beaches; 419 Hawaii rows adds roughly
+  +150 KB, and `index.html` loads the whole blob on page open.
+</context>
+
+<constraints>
+User decisions (2026-10-23) — treat as settled:
+1. **Status mapping:** Sewage Spill → `closed` ("Closed to swimming"). Brown Water
+   Advisory, Beach Advisory (bacteria exceedance), Beach Notification (retest) and
+   Permit Exceedance → `advisory`. No Open event touching a beach → `open`. A beach
+   under several open events takes the worst (closed > advisory > open). `reason` quotes
+   DOH's own wording (title/first sentence) — never paraphrase into something stronger
+   than DOH said; an event-level `Closed` status clears the beach.
+2. **Hubs by island, not county:** `/beach/hawaii-oahu/`, `hawaii-maui/`,
+   `hawaii-molokai/`, `hawaii-lanai/`, `hawaii-kauai/`, `hawaii-hawaii/` (name the
+   Hawaii-Island hub sensibly, e.g. "Hawaiʻi Island"; skip islands with 0 beaches).
+   **Existing NY hub slugs/URLs must not change** (already indexed) — adjust the
+   grouping/slug logic AND `beachCountySlug()` in worker.js together so they still
+   agree.
+3. **Workers Paid plan** — the 50-subrequest cap does not bind. Still be polite to the
+   DOH server: cache per-event detail in KV (keyed by event id + `updatedOn`) so steady
+   state is ~1 DOH request per run, and the 1.4 MB beach list is fetched at most daily.
+4. **Alerts on, same pipeline as NY** — but see Knob 1 (fan-out), which MUST be resolved
+   at plan review.
+Also:
+- Hawaii rows use `state:"HI"`, `source:"hi-doh"`, id `hi-<EPA identifier>`,
+  `jurisdiction` "Hawaii Department of Health, Clean Water Branch",
+  `jurisdictionUrl` "https://health.hawaii.gov/cwb/". lat/lon = midpoint of the beach
+  segment. Include `island` on the row.
+- Never-throw, last-good fallback, per source: if the Hawaii fetch fails, carry forward
+  the previous cycle's `state:"HI"` rows; if NY fails, carry forward NY's — one source
+  failing must not wipe or freeze the other. `beachStale` stays true if either is stale.
+- A non-JSON / empty / structurally-wrong DOH response = failed fetch (see the
+  Accept-header trap above); never publish "all 419 beaches open" off a bad response
+  — that is a false all-clear, the worst failure mode here.
+- Advisory→beach matching order: (1) `eventBeaches[]`; (2) `station.beachId`;
+  (3) spatial — WKT `POLYGON`/`POINT` against beach segment points (start/mid/end),
+  with a justified distance threshold for `POINT`s; (4) `isIslandWide`/`isStatewide` →
+  every beach on that island / state-wide, with reason text saying so; (5) still
+  unmatched → do NOT silently drop: surface it as an island-level notice on that
+  island's hub page (and leave beaches' own status untouched). Unit-test the geometry
+  code (point-in-polygon, nearest-segment) — zero new deps.
+- `parks.json` / `parks-enriched.json` stay untouched/byte-identical.
+- Don't touch NY behavior beyond generalizing copy and the shared merge/fallback code;
+  prove NY output (rows, hub pages, slugs) is unchanged with a before/after diff.
+- Unofficial-endpoint risk is accepted but must be contained: strict response
+  validation, last-good fallback, a startup-visible log line when the shape changes.
+- Plan-first.
+</constraints>
+
+<reference_material>
+- worker.js and build-parks.js locations listed in `<context>` (re-grep — line numbers
+  drift). `index.html` beach rendering (~554–720). `refresh-park-data.yml` already
+  `git add`s `public_html/beach` — verify before assuming (the recurring "new output dir
+  never deploys" trap), and note Hawaii adds new subdirectories under it.
+- Item 11's `/state/` hub code: beach hubs feed `byState` via `beachHubs`
+  (~2379), so `/state/hawaii/` should pick up the island hubs automatically — verify.
+- Live API probes: the four endpoints above. DOH app: `eha-cloud.doh.hawaii.gov/cwb`
+  (AngularJS SPA; its `beaches`, `events`, `event-beaches`, `islands`, `stations`
+  resources are the public ones). Contact page: `health.hawaii.gov/cwb/`.
+</reference_material>
+
+<process>
+1. <thinking>: re-probe the API (shapes can drift); decide beach-list source — Worker
+   fetch cached in KV ~24h with trimmed fields (lean) vs. a committed snapshot file
+   published like `roads.json` (acceptable); design the event→beach matcher and its
+   thresholds; design the per-source merge/fallback; design the alert fan-out guard
+   (Knob 1); estimate blob/page-weight impact and whether Hawaii rows need trimming.
+2. Worker: `fetchHIBeaches()` (beach list + open events + cached details + matching +
+   status), merged with NY in `rebuild()`; `beachTally` covers both.
+3. Generator: island grouping/slugs, per-state source copy on hubs + index, `/beach/`
+   index sections by state, sitemap/llms/shutdown-guide/index.html copy generalized,
+   island-level unmatched-advisory notice block.
+4. STOP and present the plan: matcher design + thresholds, beach-list approach,
+   fan-out decision (Knob 1) with subscriber-impact numbers, blob-size impact, the
+   NY-unchanged proof method, copy changes list.
+5. On approval: implement. No local Worker harness — use the module-harness pattern
+   (strip `export default`, stub env/KV, call functions directly) with fixtures from
+   the live API: a linked Oahu event, a polygon-only Kauai event, the Kihei sewage-spill
+   polygon, the Puako POINT+station case, an island-wide event, a closed event, plus
+   failure cases (HTML-snapshot response, 500, empty list, malformed WKT). Run the
+   generator over a synthetic blob (no `NPS_API_KEY` locally — say so; don't claim a
+   full build) and inspect the Hawaii hub HTML + JSON-LD.
+6. Verify: NY rows/hubs byte-identical before vs after; `parks*.json` identical;
+   Hawaii hub pages render; sitemap/llms count the new hubs.
+7. Update PROGRESS.md + BUILDER-PROMPTS.md. Commit; do not push without the user.
+</process>
+
+<output_format>
+Plan first (steps 1–4). Then: the diffs, the harness results (including the failure
+cases), the NY-unchanged proof, and a short list of anything the user must do outside
+the repo (e.g. the first Worker deploy happens on push; a live check of the real feed
+after deploy).
+</output_format>
+
+<self_check>
+1. Status mapping exactly as decided; reasons quote DOH, never overstate.
+2. A bad/HTML/empty DOH response can never produce a false all-open Hawaii.
+3. One source failing leaves the other source's rows intact.
+4. NY slugs, rows and hub pages unchanged (diff shown); `beachCountySlug()` and the
+   generator grouping agree for both states.
+5. Unmatched advisories surfaced, not dropped; island-wide handled.
+6. Alert fan-out resolved per Knob 1 — a single advisory cannot send a subscriber N
+   messages in one run.
+7. Blob size impact measured and reported.
+8. Coordination files agree with each other and git.
+</self_check>
+
+<assumptions_and_knobs>
+- **Knob 1 — alert fan-out (needs the user's call at plan review).** One advisory can
+  flip many beaches at once (today: #2173/#2170/#2169 = 14 Oahu beaches from three
+  events). Because scope `all` matches every change, an `all` subscriber would get one
+  email/push PER beach — this already applies to NY beaches, Hawaii makes it far worse.
+  Options for the plan to price (with real subscriber counts from the admin stats
+  route): (a) collapse beach changes that share one advisory event into one message
+  per subscriber per run ("Brown water advisory: 4 Oahu beaches — Pipeline, Banzai…");
+  (b) stop `all`-scope subscribers receiving beach changes at all (they'd still get
+  beaches they follow or via geo) — changes NY behavior, so needs explicit sign-off;
+  (c) (a) for Hawaii only. Builder recommends one; the user decides.
+- **Knob 2 — Beach Notification noise.** "Notification" = a first high reading DOH is
+  retesting; default is `advisory` per decision 1, reason says "being retested". If it
+  proves noisy in alerts, suppressing alerts (not the map status) for this type is the
+  fallback.
+- **Knob 3 — unmatched/ambiguous POINT matches.** Distance threshold and
+  false-positive tolerance are the builder's proposal; prefer under-matching (island
+  notice) to marking a wrong beach.
+- **Not in scope (follow-ups if wanted):** Hawaii State Parks (DLNR) closures — no
+  source researched; Honolulu Ocean Safety jellyfish / NWS high-surf (water-quality
+  only, same as NY); an official data-use heads-up to DOH CWB (user action, optional).
+</assumptions_and_knobs>

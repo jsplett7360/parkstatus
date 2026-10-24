@@ -14,7 +14,7 @@ reading the file before relying on one.
 
 A live "is this park open?" status board at https://parkstatus.today, plus an iOS app
 (Capacitor wrapper). Coverage: 474 NPS units + NY/CA/TX/MN/FL/WA state parks + 112
-National Forests (wildfire proximity) + 358 NY beaches. Every status is the site's
+National Forests (wildfire proximity) + 358 NY beaches + 419 Hawaii beaches. Every status is the site's
 *reading* of official public data, refreshed hourly — not an official determination.
 Sister site: half-mast.com (shared visual language).
 
@@ -35,7 +35,8 @@ build for iOS), verified on the real surface, with the coordination files update
     `PARK_CSS` template string in build-parks.js (~693).
   - `road/<slug>/index.html` + `road/index.html` — generated road-status pages (added
     2026-09-07). From `roads.json`.
-  - `beach/ny-<county>-county/index.html` — NY beach county hubs (generated).
+  - `beach/ny-<county>-county/index.html` — NY beach county hubs (generated);
+    `beach/hawaii-<island>/index.html` — six Hawaii island hubs (generated, Item 16).
   - `guides/*.html` — flat guide articles + `guides/index.html` + `guides.css`.
   - `privacy.html`, `support.html` — the App Store privacy/support URLs.
   - `sw.js` — web-push service worker. `app-native.js` — Capacitor-only shim (adds
@@ -81,6 +82,17 @@ build for iOS), verified on the real surface, with the coordination files update
   keeps it (defaults true). Push subs keyed `sub:push:<sha1(endpoint)>`; native
   `push:native:<installId>`. Deploys via Cloudflare Workers Builds (Git integration) on
   push — no manual deploy.
+  **Hawaii beaches (Item 16):** Hawaii DOH publishes advisory *events*, not per-beach
+  status, so `fetchHIBeaches()` marks a beach advisory/closed only while an open event
+  touches it (matching: DOH's beach list → `station.beachId` → drawn-area overlap /
+  nearest point → island/statewide flag → island notice). The DOH API needs
+  `Accept: application/json` (else 200 `text/html`); every failure path carries the previous
+  `state:"HI"` rows forward — never an all-open Hawaii. Rows are `hi-<EPA id>` and carry
+  `island` + `hub` (the Worker names the hub slug; build-parks.js groups by it). KV keys
+  `hi:beaches:v1` (daily beach list), `hi:ev:<id>` (event detail), `hi:open` (last open set,
+  for closure confirmation). Additive blob keys `beachSources` ({ny,hi}: count/stale) and
+  `beachNotices`. Alerts: changes carrying a `group` (Hawaii: one per DOH advisory) are sent
+  as ONE message per subscriber (`groupChanges()`); Hawaii changes are never tagged disaster.
 - `wrangler.toml`, `capacitor.config.json`, `fastlane/`, `ios/`.
 - `LAUNCH-STATUS.md` — hand-maintained infra/deploy/iOS-signing reference. `MOBILE.md`,
   `README.md`.
@@ -101,10 +113,14 @@ FTP sync — so planning docs here are safe):
   Hostinger. The sync **deletes** files removed from `public_html/` (`.htaccess` and
   `.well-known/` excluded). Removing/unpublishing a page 404s a URL that may be indexed.
 - `.github/workflows/refresh-park-data.yml` — cron 08:00 UTC daily: runs `build-parks.js`,
-  commits `public_html/park`, `parks-enriched.json`, `parks.json`, `sitemap.xml`, then
-  `gh workflow run deploy.yml` explicitly (fixed in `57ca1169` — a `GITHUB_TOKEN` push
-  does not trigger `on: push`). **Known gap:** it does NOT `git add public_html/road` or
-  `public_html/llms.txt`, so those regenerate every run but never commit/deploy.
+  commits `public_html/{park,road,state,shutdown,reservations}`, `roads.json`,
+  `parks-enriched.json`, `parks.json`, `sitemap.xml`, `llms.txt`, `beach/index.html` and
+  `beach/hawaii-*`, then `gh workflow run deploy.yml` explicitly (fixed in `57ca1169` — a
+  `GITHUB_TOKEN` push does not trigger `on: push`). **NY beach county hubs
+  (`public_html/beach/ny-*`) are deliberately NOT committed** — the NY feed is down (below),
+  so a daily re-stamp would put today's "As of" over frozen data; the live NY hubs are the
+  Sep 5 snapshot. Widen the add to `public_html/beach` once NY is fixed. A new output dir
+  must be added to this `git add` line or it is built in CI, never committed, never deployed.
 - Worker: deploys on push via Cloudflare Git integration.
 - iOS: `git tag ios-vX.Y.Z && git push origin ios-vX.Y.Z` → `ios-testflight.yml`
   (macos-15 / Xcode 26, fastlane match, TestFlight). Details in LAUNCH-STATUS.md.
@@ -141,11 +157,25 @@ FTP sync — so planning docs here are safe):
 - The Worker status blob has **no raw alert text and no road data** — only one generic
   `reason` sentence per park. Anything needing specific alert/road info must call the NPS
   API directly (see `npsAlerts()` / `npsRich()`).
-- `refresh-park-data.yml` `git add` gap (road pages + llms.txt) — see pipeline above.
+- A new generated output dir that isn't in `refresh-park-data.yml`'s `git add` line never
+  deploys (it happened to `/beach/`) — check the line whenever the generator gains a dir.
+- **The NY beach feed is dead** (as of 2026-10-24): `beachadvisory.health.ny.gov/doh7/…/beaches`
+  returns 404 (site root 403s our UA), so `fetchNYBeaches()` fails every hour, the Worker serves
+  frozen last-good NY rows, and `beachSources.ny.stale` is true. Not fixed yet — its own item.
+- Beach freshness is **per source** (`beachSources.ny` / `.hi`); legacy `beachStale` is
+  "either is stale" and will read true for as long as NY is down.
 - `roads.json` / `reservations.json` dates drift year to year — a wrong "typically opens"
   date on a high-traffic page is worse than no page. Verify before flipping
   `datesReviewed: true`; the user reviews date rows before approval.
-- Repo lives under iCloud-synced `~/Desktop/Joshua/Project/` — bulk git is slow.
+- Repo lives under iCloud-synced `~/Desktop/Joshua/Project/` — bulk git is slow, and with the
+  disk nearly full macOS **evicts file contents** (`stat -f %Sf <file>` shows `dataless`, also
+  inside `.git`); reads then block until iCloud re-downloads them, hanging git, grep and Read
+  (2026-10-24: ~1.5 h). Check flags before bulk git/grep; `gh api …/contents/<path>` or the live
+  site are safe read-only fallbacks. Finder → right-click the folder → Download Now fixes it.
+  Also watch for iCloud **conflict copies inside `.git`** (named "<name> 2"): a stale
+  `.git/refs/heads/main 2` made `git fetch` die with `bad object refs/heads/main 2` and would break
+  `git push`. Symptom: `git for-each-ref` says "ignoring ref with broken name". Move the file out
+  (don't delete), then `git fetch` + `git push --dry-run`. `.git/index 2…9` copies are harmless.
 - `npm ci` on this Mac needs `--cache /tmp/<dir>` (default `~/.npm` has a perms issue).
 - CocoaPods: plain `pod install` in `ios/App/` (Homebrew Ruby breaks `bundle`).
 

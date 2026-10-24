@@ -21,6 +21,103 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-10-24 — Item 16 DONE (committed, not pushed): Hawaii beaches from the DOH Clean Water Branch feed
+
+Commits (local; `main` is 6 ahead of origin incl. Items 14/15): `ad7bb24a8` Worker ·
+`2cd5faeaf` site (generator + homepage) · `259d55efb` CI `git add` line · this docs commit.
+
+**Startup findings (before any code)**
+- The repo's iCloud-synced `~/Desktop` copy had files evicted (`dataless`, also inside `.git`):
+  git/grep/Read hung ~1.5 h until iCloud re-downloaded them. Recorded in PROJECT-CONTEXT.md.
+- Late in the session `git fetch` started failing (`bad object refs/heads/main 2`): an iCloud
+  conflict copy of the branch ref, stale since Sep 25 (it held the pre-rebase Item 15 SHA), plus
+  eight harmless `.git/index N` copies. Moved the stray ref out of `.git` (kept, not deleted);
+  then `git fetch` clean, `git fsck` clean, all 31 objects of the unpushed commits present, and
+  `git push --dry-run origin main` reports a plain fast-forward (nothing was sent).
+- Items 14/15 were still local-only; origin had 28 daily-cron commits since. Rebased (no
+  overlap — upstream only touched generated files): Item 14 `a0d6b83f6` → `d1b4c9c97`,
+  Item 15 `2a9e222a0` → `6fdfbd1c5`. Item 16's queue entry (+215 lines) existed only in the
+  working tree; this commit carries it.
+- **`refresh-park-data.yml` never committed `public_html/beach`** (the prompt said to verify):
+  nothing under `/beach/` had been committed since Sep 5; live NY hubs say "As of 04 Sep 2026".
+- **NY beach feed is dead**: `…/doh7/beachesadvisory/beaches` → 404 (root 403s our UA).
+  `beachStale` has been true; NY rows are frozen. Out of scope — queue its own item.
+
+**Worker (`worker.js`)** — `fetchHIBeaches()` + helpers, merged in `rebuild()` per source
+- 419 rows `hi-<EPA id>` (NY row shape + `island`, `hub`; flagged rows add `eventId`,
+  `eventTitle`, `sourceUrl`). Status: Sewage Spill → closed, other open types → advisory, worst
+  wins; `reason` quotes DOH (brown water leads with the title — DOH's first sentence is often
+  a different, cancelled advisory).
+- Beach list refreshed daily into KV (`hi:beaches:v1`, ~270 KB vs 1.47 MB, shorelines
+  simplified to 5 m, sanity-gated ≥300 and ≥75% of last good). One `events?status=Open`
+  request per run; event detail cached by id+updatedOn (`hi:ev:<id>`); `hi:open` = last open
+  set. Every DOH call sends `Accept: application/json` (else 200 `text/html`).
+- Matching, calibrated on 70 real events (22 with DOH's own lists, 169 beaches): DOH link
+  list → `station.beachId` → polygon (≥10% of shoreline inside, or touching + named in DOH's
+  headline) / point (unique nearest ≤50 m, runner-up ≥25 m farther) → island/statewide flag →
+  island notice. Local events 91% recall / 91% precision vs DOH's own lists; regional polygons
+  (>8 km) under-match (~70%) so they also get a notice. Rejected: any-vertex (79% precision),
+  +150 m buffer (adds neighbours).
+- No false all-clear: HTML / 500 / empty / count-mismatch / short-list responses fail the
+  source (previous rows carried forward, `stale`); an advisory leaves the open set only when
+  its detail record says Closed (404 = deleted = closed; list/detail disagreement stays flagged).
+- Blob (additive): Hawaii rows in `beaches`, `beachSources` ({ny,hi}: count/stale/…),
+  `beachNotices`. `beachStale` kept as "either stale". Measured on the live blob:
+  686 → 874 KB decoded (+27.5%), 89 → 102 KB gzip (+14%).
+- Alerts (Knob 1 = c): changes carry `group` (`hi-event:<id>`); `notifyChanges()` sends ONE
+  message per subscriber per group (match if any member matches). Modelled from DOH's last 12
+  months for an all-alerts subscriber: ~5,900 msgs/yr per-beach vs ~400 grouped; Aug 16 /
+  Feb 9 statewide advisories would have been 419 flips in one run. Hawaii changes are never
+  tagged `disaster` (open #2138's cause says "Hurricane Lala" → regex hit → would bypass scope
+  and reach every disaster subscriber). `pingIndexNow()` pings island hubs; `indexEntities()`
+  adds hub/island/eventId only for Hawaii rows. No subscriber counts: `/stats` needs
+  `REBUILD_TOKEN` and returns totals only — not read.
+
+**Site** — `build-parks.js`, `public_html/index.html`
+- `groupBeachHubs()` extracted from `main()`; NY branch verbatim, Hawaii grouped by the
+  Worker-supplied `hub`: `/beach/hawaii-{oahu,maui,molokai,lanai,kauai,hawaii}/`. Island hubs
+  get an "Area-wide advisories" block (server-rendered + DOM-refreshed from `beachNotices`),
+  a verdict that never says "no advisories" while an unmatched notice exists, and a
+  per-state source paragraph. `/beach/` index: one section per state. llms.txt / shutdown
+  sentence / log lines generalized. Additive `PARK_CSS` rules.
+- Homepage: second source row + dot per source (`beachSources`), map label, Hawaii detail
+  panel (meta line, DOH-notice link, "All <island> beaches" → hub).
+- **Correction to my plan:** I said the homepage search tagged every beach "NY" so a Hawaii
+  search wouldn't find them. Wrong — `stateShow()` filters on `states` (each beach's own
+  `state`); the hardcoded `"NY"` in `st` is a dead field nothing reads. Verified in-browser:
+  searching "Hawaii" returns 419. Left untouched. The detail-panel `/park/<name>/` 404 for
+  `hi-` ids was real and is fixed.
+
+**CI** — `refresh-park-data.yml` (explicitly authorized): adds `public_html/beach/index.html`
+and `public_html/beach/hawaii-*`. **Deviation from the proposed text:** the glob is behind
+`if compgen -G …` because under `bash -e` an unmatched glob makes `git add` exit 128 (tested
+in a scratch repo) and would have failed the WHOLE daily refresh on a day no Hawaii hubs are
+built. NY hubs deliberately not added (feed down → daily re-stamp over frozen data).
+
+**Other deviations:** 4 commits not 3 (CI line separate, easier to review/revert). POINT rule
+is the single "runner-up ≥25 m farther" test — the plan's "or ≥2× as far" clause is dropped
+(it passes when the nearest distance is 0, i.e. an ambiguous point). `hiBeachList()` rethrows
+when nothing is cached so `beachSources.hi.error` carries the real cause.
+
+**Verified**
+- Worker harness (real `worker.js`, stubbed fetch/KV): 131/131 — cold start → steady state
+  (14 DOH requests → 1), 14 false-all-clear guards, per-source fallback in all NY/HI
+  fresh/failed combinations (NY slice deep-equals the live NY rows), grouped-vs-ungrouped
+  counts, byte-identical NY/park emails + `indexEntities` vs git HEAD, NY beach section and
+  `beachCountySlug` byte-identical to HEAD.
+- Generator over a synthetic NY+Hawaii blob (no `NPS_API_KEY` → **not a full build**): 97/97;
+  all 15 NY hub pages byte-identical to a baseline rendered from the live blob before any edit
+  (grouping + sitemap too; `/beach/` index + llms.txt differ only in the intended copy).
+- Browser pane: Kauaʻi hub, `/beach/`, homepage (both source rows, search, detail panel).
+- `parks.json`, `parks-enriched.json`, `wrangler.toml`, `deploy.yml`, `ios-testflight.yml`
+  untouched; no secrets in the diff.
+
+**After you push (user actions):** push as ONE unit (Workers Builds deploys the Worker on
+push; the old homepage would label Hawaii pins as NY if the site lagged) → dispatch
+"Refresh park data" so the hubs publish → `curl https://parkstatus-api.parkstatus.workers.dev/ | jq .beachSources`
+should show `hi.count` 419, `hi.stale` false (Cloudflare→DOH reachability is untested until
+then). Optional: a courtesy heads-up to DOH CWB about programmatic use.
+
 ### 2026-09-25 — Item 15 DONE: Microsoft Clarity tracking + privacy.html disclosure
 
 - Re-confirmed the GA `<head>` block count fresh (still exactly 10 in build-parks.js,
