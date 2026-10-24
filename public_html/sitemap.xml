@@ -84,6 +84,7 @@
   <url><loc>https://parkstatus.today/park/bald-point-state-park/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
   <url><loc>https://parkstatus.today/park/baldwin-hills-scenic-overlook/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
   <url><loc>https://parkstatus.today/park/bale-grist-mill-shp/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://parkstatus.today/park/balmorhea-state-park/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
   <url><loc>https://parkstatus.today/park/baltimore-washington-parkway/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
   <url><loc>https://parkstatus.today/park/bandelier-national-monument/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
   <url><loc>https://parkstatus.today/park/bastrop-state-park/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
@@ -934,6 +935,7 @@
   <url><loc>https://parkstatus.today/park/pearl-harbor-national-memorial/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
   <url><loc>https://parkstatus.today/park/pearrygin-lake/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
   <url><loc>https://parkstatus.today/park/pecos-national-historical-park/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://parkstatus.today/park/pedernales-falls-state-park/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
   <url><loc>https://parkstatus.today/park/pelican-sb/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
   <url><loc>https://parkstatus.today/park/pennsylvania-avenue/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
   <url><loc>https://parkstatus.today/park/penrose-point/</loc><lastmod>2026-10-24</lastmod><changefreq>hourly</changefreq><priority>0.7</priority></url>
@@ -1381,6 +1383,12 @@
   <url><loc>https://parkstatus.today/road/teton-park-road/</loc><lastmod>2026-10-24</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://parkstatus.today/road/tioga-road/</loc><lastmod>2026-10-24</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://parkstatus.today/road/trail-ridge-road/</loc><lastmod>2026-10-24</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://parkstatus.today/beach/hawaii-hawaii/</loc><lastmod>2026-10-24</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://parkstatus.today/beach/hawaii-kauai/</loc><lastmod>2026-10-24</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://parkstatus.today/beach/hawaii-lanai/</loc><lastmod>2026-10-24</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://parkstatus.today/beach/hawaii-maui/</loc><lastmod>2026-10-24</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://parkstatus.today/beach/hawaii-molokai/</loc><lastmod>2026-10-24</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://parkstatus.today/beach/hawaii-oahu/</loc><lastmod>2026-10-24</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
   <url><loc>https://parkstatus.today/beach/ny-bronx-county/</loc><lastmod>2026-10-24</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
   <url><loc>https://parkstatus.today/beach/ny-cayuga-county/</loc><lastmod>2026-10-24</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
   <url><loc>https://parkstatus.today/beach/ny-chautauqua-county/</loc><lastmod>2026-10-24</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>

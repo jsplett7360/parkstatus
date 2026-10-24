@@ -141,6 +141,12 @@ footer.site .corp{display:block;font-family:var(--font-mono);font-size:10.5px;le
 .hubgrid a:hover{border-color:var(--navy)}
 .hubgrid .t{font-weight:bold;margin-bottom:4px}
 .hubgrid .m{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.hubstate{font-family:var(--font-display);font-weight:900;letter-spacing:var(--tracking-subsection);font-size:var(--type-subsection);margin:24px 0 2px}
+.hubnote{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin:0 0 12px;text-transform:uppercase;letter-spacing:.08em}
+.bnotices{border:1px solid var(--line);border-left:5px solid var(--partial-bright);background:var(--partial-tint);border-radius:14px;padding:14px 16px 6px;margin:0 0 20px}
+.bnotices h2{font-family:var(--font-display);font-weight:900;font-size:18px;margin:0 0 4px}
+.bnotices .bnote{font-size:13px;color:var(--muted);margin:0 0 10px}
+.bnotices ul{margin:0 0 8px;padding-left:18px}.bnotices li{font-size:14px;margin:0 0 8px}.bnotices a{color:var(--muted)}
 
 /* road-status pages (additive) */
 .road-window{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:18px 0;background:var(--card)}

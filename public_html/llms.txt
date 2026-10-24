@@ -1,10 +1,10 @@
 # Park Status Today
 
-> Live open / partially-closed / closed status for U.S. national parks, four state park systems (New York, California, Texas, Minnesota), and New York public beaches. Every status is derived hourly from official sources: National Park Service alerts and operating hours, state park-system alerts, and state / county health-department beach monitoring.
+> Live open / partially-closed / closed status for U.S. national parks, four state park systems (New York, California, Texas, Minnesota), and public beaches in Hawaii and New York. Every status is derived hourly from official sources: National Park Service alerts and operating hours, state park-system alerts, and state / county health-department beach monitoring.
 
 Park Status Today is an independent informational service, not affiliated with the National Park Service or any state or county agency. Each status is our reading of public data, not an official determination, and is refreshed hourly. Every park page and beach-county page states the current status as plain text with the UTC time it was last checked, and carries schema.org structured data (TouristAttraction / Park, FAQPage with a dated answer, and — where known — openingHoursSpecification).
 
-Coverage as of October 24, 2026: 475 National Park Service units, 811 state parks, and 358 monitored New York beaches across 15 counties. Site-wide that is 1255 open, 259 partially closed, 39 closed, 91 without data.
+Coverage as of October 24, 2026: 475 National Park Service units, 813 state parks, and 777 monitored beaches (419 in Hawaii across 6 islands; 358 in New York across 15 counties). Site-wide that is 1653 open, 282 partially closed, 39 closed, 91 without data.
 
 ## Parks
 - [All park & waterway statuses, A–Z](https://parkstatus.today/park/): browsable directory of every national and state park tracked, each linking to a status + visitor-info page at https://parkstatus.today/park/<slug>/
@@ -25,7 +25,7 @@ Coverage as of October 24, 2026: 475 National Park Service units, 811 state park
 - [Florida parks](https://parkstatus.today/state/florida/): 186 tracked
 - [Georgia parks](https://parkstatus.today/state/georgia/): 12 tracked
 - [Guam parks](https://parkstatus.today/state/guam/): 1 tracked
-- [Hawaii parks](https://parkstatus.today/state/hawaii/): 9 tracked
+- [Hawaii parks](https://parkstatus.today/state/hawaii/): 15 tracked
 - [Idaho parks](https://parkstatus.today/state/idaho/): 10 tracked
 - [Illinois parks](https://parkstatus.today/state/illinois/): 8 tracked
 - [Indiana parks](https://parkstatus.today/state/indiana/): 4 tracked
@@ -59,7 +59,7 @@ Coverage as of October 24, 2026: 475 National Park Service units, 811 state park
 - [South Carolina parks](https://parkstatus.today/state/south-carolina/): 8 tracked
 - [South Dakota parks](https://parkstatus.today/state/south-dakota/): 7 tracked
 - [Tennessee parks](https://parkstatus.today/state/tennessee/): 17 tracked
-- [Texas parks](https://parkstatus.today/state/texas/): 52 tracked
+- [Texas parks](https://parkstatus.today/state/texas/): 54 tracked
 - [U.S. Virgin Islands parks](https://parkstatus.today/state/u-s-virgin-islands/): 5 tracked
 - [Utah parks](https://parkstatus.today/state/utah/): 17 tracked
 - [Vermont parks](https://parkstatus.today/state/vermont/): 3 tracked
@@ -97,7 +97,7 @@ Coverage as of October 24, 2026: 475 National Park Service units, 811 state park
 - [Which national parks require a reservation in 2026?](https://parkstatus.today/reservations/): the national parks with a timed-entry or vehicle reservation requirement, their 2026 seasons and booking links; also names the parks (Arches, Glacier, Mount Rainier, Yosemite) that dropped timed entry for 2026
 
 ## Beaches
-- [Beach water quality & closures by county](https://parkstatus.today/beach/): New York public beaches grouped by county, with current swimming advisories and closures at https://parkstatus.today/beach/<county>/
+- [Beach water quality & closures](https://parkstatus.today/beach/): public beaches in Hawaii (by island) and New York (by county), with current swimming advisories and closures at https://parkstatus.today/beach/<county-or-island>/
 
 ## Government shutdown
 - [Are the national parks open during a government shutdown? (live status)](https://parkstatus.today/shutdown/): checked hourly against the NPS operating-status page; evergreen when there is no shutdown
