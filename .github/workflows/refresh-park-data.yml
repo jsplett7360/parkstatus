@@ -41,7 +41,10 @@ jobs:
         run: |
           git config user.name  "parkstatus-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public_html/park public_html/road public_html/state public_html/shutdown public_html/reservations public_html/roads.json public_html/parks-enriched.json public_html/parks.json public_html/sitemap.xml public_html/llms.txt
+          git add public_html/park public_html/road public_html/state public_html/shutdown public_html/reservations public_html/roads.json public_html/parks-enriched.json public_html/parks.json public_html/sitemap.xml public_html/llms.txt public_html/beach/index.html
+          # Hawaii island hubs (Item 16). NY county hubs are deliberately NOT added: their feed is down, so a daily re-stamp
+          # would put today's "As of" over frozen data. The guard keeps an empty glob (no Hawaii hubs built) from failing the job.
+          if compgen -G "public_html/beach/hawaii-*" > /dev/null; then git add public_html/beach/hawaii-*; fi
           if git diff --cached --quiet; then
             echo "No changes to commit."
             echo "changed=false" >> "$GITHUB_OUTPUT"
