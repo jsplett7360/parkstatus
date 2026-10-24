@@ -1,7 +1,8 @@
 /**
  * parkstatus.today — NPS + NY status Worker + notification sender
  *
- * Sources: NPS Data API (national); NY DOH Beach Advisory feed; scrapes of
+ * Sources: NPS Data API (national); NY DOH Beach Advisory feed; Hawaii DOH Clean
+ * Water Branch advisory events (hi- beaches); scrapes of
  * curated parks.ny.gov and tpwd.texas.gov (TX) alert pages; the California
  * State Parks "Park Unit Current Status" ArcGIS layer (all units); and the
  * MN DNR compass feature_detail JSONP endpoint per Minnesota park.
@@ -171,6 +172,387 @@ async function fetchNYBeaches() {
       source: "ny-doh",
     };
   });
+}
+
+// ===================== beaches (Hawaii DOH Clean Water Branch) =============
+// Item 16. Hawaii has no per-beach status feed: the Clean Water Branch publishes
+// ADVISORY EVENTS (brown water, bacteria, sewage spills…), so a beach is "open"
+// unless an open event touches it. That makes a bad response dangerous — "no open
+// events" and "the feed is broken" must never look alike. The API behind the DOH
+// advisory app is unauthenticated JSON, but WITHOUT `Accept: application/json` it
+// answers 200 text/html, so every response is content-type checked and shape
+// checked, and an advisory only leaves the open set once DOH positively reports it
+// Closed. Any failure -> ok:false and rebuild() carries the previous Hawaii rows
+// forward (stale), exactly like NY. fetchHIBeaches() never throws.
+const HI_API = "https://eha-cloud.doh.hawaii.gov/cwb/api/";
+const HI_JURISDICTION = "Hawaii Department of Health, Clean Water Branch";
+const HI_JURISDICTION_URL = "https://health.hawaii.gov/cwb/";
+const hiEventUrl = id => `https://eha-cloud.doh.hawaii.gov/cwb#!/event/${id}/details/view`;
+// island.cleanName (ASCII, from DOH) -> hub slug. Rows carry `hub`, and build-parks.js groups
+// Hawaii by it, so the Worker and the generator cannot disagree about Hawaii slugs.
+const HI_ISLAND_HUB = { Oahu: "hawaii-oahu", Maui: "hawaii-maui", Molokai: "hawaii-molokai", Lanai: "hawaii-lanai", Kauai: "hawaii-kauai", Hawaii: "hawaii-hawaii" };
+const hiHub = island => HI_ISLAND_HUB[island] || slugify("hawaii-" + island);
+
+// Thresholds are calibrated against DOH's own beach lists for ~70 real events.
+const HI_BBOX = { latMin: 18.5, latMax: 22.5, lonMin: -161, lonMax: -154.5 };
+const HI_LIST_TTL_MS = 24 * 3600e3;  // the beach list is effectively static (last edited ~2023)
+const HI_MIN_BEACHES = 300;          // DOH lists 419; a list this small is a bad response, not news
+const HI_SHRINK_FLOOR = 0.75;        // ...and so is one that loses a quarter of the last good list
+const HI_EVENT_TTL_S = 30 * 86400;
+const HI_MAX_DETAIL = 40;            // detail lookups per run (steady state ~0, cold start ~12)
+const HI_FRAC_MIN = 0.10;            // polygon: share of a beach's shoreline inside DOH's drawn area
+const HI_POINT_MAX_M = 50;           // point: nearest beach must be this close...
+const HI_POINT_GAP_M = 25;           // ...and the runner-up at least this much farther (neighbours are often tens of metres apart)
+const HI_REGIONAL_KM = 8;            // wider polygons are regional (recall ~70%), so they also get an island notice
+const HI_STEP_M = 20, HI_SIMPLIFY_M = 5;
+const HI_SEV = { open: 0, advisory: 1, closed: 2 };
+const HI_RANK = { "doh-list": 3, station: 3, polygon: 2, point: 2, "island-wide": 1, statewide: 0 };
+const HI_KNOWN_TYPES = new Set(["Brown Water Advisory", "Beach Advisory", "Beach Notification", "Sewage Spill", "Permit Exceedance"]);
+// Sewage spills tell the public to stay out of the water -> closed to swimming. Every other open
+// DOH event is an advisory; an unknown future type lands here too (cautious) and is reported.
+const hiTypeStatus = type => type === "Sewage Spill" ? "closed" : "advisory";
+
+// ---- geometry (zero-dep; planar maths is plenty at Hawaii's latitudes) ----
+const HI_M_PER_DEG = 111320;
+const hiRound = n => Math.round(n * 1e5) / 1e5;
+const hiInBox = (lat, lon) => lat >= HI_BBOX.latMin && lat <= HI_BBOX.latMax && lon >= HI_BBOX.lonMin && lon <= HI_BBOX.lonMax;
+const hiXY = (p, lat0) => [p[0] * HI_M_PER_DEG * Math.cos(lat0 * Math.PI / 180), p[1] * HI_M_PER_DEG];
+function hiParseWkt(wkt) {
+  const m = typeof wkt === "string" && wkt.trim().match(/^(POINT|LINESTRING|POLYGON)\s*\(([\s\S]*)\)$/i);
+  if (!m) return null;
+  const nums = s => (s.match(/-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?\s+-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?/g) || []).map(p => p.trim().split(/\s+/).map(Number));
+  const type = m[1].toUpperCase();
+  if (type === "POLYGON") {
+    const rings = m[2].split(/\)\s*,\s*\(/).map(r => nums(r.replace(/[()]/g, "")));
+    return rings.length && rings.every(r => r.length >= 4) ? { type, rings } : null;
+  }
+  const pts = nums(m[2]);
+  return (type === "POINT" ? pts.length === 1 : pts.length >= 2) ? { type, pts } : null;
+}
+function hiInRing(p, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if ((yi > p[1]) !== (yj > p[1]) && p[0] < (xj - xi) * (p[1] - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+const hiInPolygon = (p, rings) => hiInRing(p, rings[0]) && !rings.slice(1).some(h => hiInRing(p, h));
+function hiDistSegM(p, a, b) {
+  const lat0 = p[1], P = hiXY(p, lat0), A = hiXY(a, lat0), B = hiXY(b, lat0);
+  const dx = B[0] - A[0], dy = B[1] - A[1], l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((P[0] - A[0]) * dx + (P[1] - A[1]) * dy) / l2)) : 0;
+  return Math.hypot(P[0] - (A[0] + t * dx), P[1] - (A[1] + t * dy));
+}
+function hiDistPolylineM(p, pts) {
+  let d = Infinity;
+  for (let i = 0; i + 1 < pts.length; i++) d = Math.min(d, hiDistSegM(p, pts[i], pts[i + 1]));
+  return d;
+}
+function hiDensify(pts, stepM) {
+  const out = [pts[0]];
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const dx = (b[0] - a[0]) * HI_M_PER_DEG * Math.cos(a[1] * Math.PI / 180), dy = (b[1] - a[1]) * HI_M_PER_DEG;
+    const n = Math.max(1, Math.ceil(Math.hypot(dx, dy) / stepM));
+    for (let k = 1; k <= n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+  }
+  return out;
+}
+function hiSimplify(pts, tolM) {   // Douglas-Peucker
+  if (pts.length <= 2) return pts.slice();
+  const lat0 = pts[0][1], xy = pts.map(p => hiXY(p, lat0)), keep = new Uint8Array(pts.length);
+  keep[0] = keep[pts.length - 1] = 1;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    const A = xy[a], B = xy[b], dx = B[0] - A[0], dy = B[1] - A[1], l2 = dx * dx + dy * dy;
+    let dmax = 0, idx = -1;
+    for (let i = a + 1; i < b; i++) {
+      const P = xy[i], t = l2 ? Math.max(0, Math.min(1, ((P[0] - A[0]) * dx + (P[1] - A[1]) * dy) / l2)) : 0;
+      const d = Math.hypot(P[0] - (A[0] + t * dx), P[1] - (A[1] + t * dy));
+      if (d > dmax) { dmax = d; idx = i; }
+    }
+    if (idx > 0 && dmax > tolM) { keep[idx] = 1; stack.push([a, idx], [idx, b]); }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+function hiBounds(pts) {
+  let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  for (const p of pts) { if (p[0] < minLon) minLon = p[0]; if (p[0] > maxLon) maxLon = p[0]; if (p[1] < minLat) minLat = p[1]; if (p[1] > maxLat) maxLat = p[1]; }
+  return { minLon, maxLon, minLat, maxLat };
+}
+function hiDiagKm(pts) {
+  const b = hiBounds(pts), lat0 = (b.minLat + b.maxLat) / 2;
+  return Math.hypot((b.maxLon - b.minLon) * 111.32 * Math.cos(lat0 * Math.PI / 180), (b.maxLat - b.minLat) * 111.32);
+}
+
+// ---- DOH access + the cached beach list ----
+async function hiFetchJson(path) {
+  const r = await fetch(HI_API + path, { headers: { "User-Agent": CRAWL_UA, Accept: "application/json" }, signal: AbortSignal.timeout(25000) });
+  if (!r.ok) throw Object.assign(new Error(`hi-doh ${path} ${r.status}`), { status: r.status });
+  const ct = r.headers.get("content-type") || "";
+  if (!/json/i.test(ct)) throw new Error(`hi-doh ${path} answered ${ct || "no content-type"}, not JSON`);
+  return r.json();
+}
+
+// DOH's list is ~1.5 MB; keep only what matching and rows need, with shorelines simplified to 5 m.
+// { i: DOH id, e: EPA id, n: name, s: island.cleanName, a: [lat0,lon0,lat1,lon1], L: [[[lon,lat]…]…], P: [[lon,lat]…] }
+function hiTrimBeaches(j) {
+  if (!j || !Array.isArray(j.list)) throw new Error("hi-doh beaches: no list array");
+  if (typeof j.totalResultsCount === "number" && j.totalResultsCount !== j.list.length)
+    throw new Error(`hi-doh beaches: count mismatch ${j.totalResultsCount} vs ${j.list.length}`);
+  const out = [], seen = new Set();
+  let bad = 0;
+  for (const b of j.list) {
+    const isl = b && b.island && b.island.cleanName;
+    const ok = b && Number.isInteger(b.id) && typeof b.identifier === "string" && b.identifier && typeof b.name === "string" && isl
+      && Number.isFinite(b.startLatitude) && Number.isFinite(b.startLongitude) && Number.isFinite(b.endLatitude) && Number.isFinite(b.endLongitude)
+      && hiInBox(b.startLatitude, b.startLongitude) && hiInBox(b.endLatitude, b.endLongitude);
+    if (!ok) { bad++; continue; }
+    if ((b.status && b.status !== "Active") || seen.has(b.identifier)) continue;
+    seen.add(b.identifier);
+    const r = p => [hiRound(p[0]), hiRound(p[1])];
+    const lines = [], pts = [];
+    for (const l of b.locations || []) {
+      const g = hiParseWkt(l && l.geometry);
+      if (!g) continue;
+      if (g.type === "LINESTRING") lines.push(hiSimplify(g.pts, HI_SIMPLIFY_M).map(r));
+      else if (g.type === "POLYGON") lines.push(hiSimplify(g.rings[0], HI_SIMPLIFY_M).map(r));
+      else pts.push(r(g.pts[0]));
+    }
+    out.push({ i: b.id, e: b.identifier, n: b.name, s: isl,
+      a: [hiRound(b.startLatitude), hiRound(b.startLongitude), hiRound(b.endLatitude), hiRound(b.endLongitude)],
+      ...(lines.length ? { L: lines } : {}), ...(pts.length ? { P: pts } : {}) });
+  }
+  if (bad > Math.max(5, j.list.length * 0.05)) throw new Error(`hi-doh beaches: ${bad} malformed rows`);
+  return out.sort((x, y) => x.s.localeCompare(y.s) || x.n.localeCompare(y.n));
+}
+
+// Daily refresh into KV. A fetch that fails, or comes back implausibly small, keeps the previous list.
+async function hiBeachList(env) {
+  let cached = null;
+  try { cached = JSON.parse(await env.PARKS_KV.get("hi:beaches:v1")); } catch (_) {}
+  const have = !!(cached && Array.isArray(cached.beaches) && cached.beaches.length);
+  if (have && Date.now() - Date.parse(cached.fetchedAt) < HI_LIST_TTL_MS) return { beaches: cached.beaches, fetchedAt: cached.fetchedAt, error: null };
+  try {
+    const beaches = hiTrimBeaches(await hiFetchJson("beaches"));
+    const floor = Math.max(HI_MIN_BEACHES, Math.floor(HI_SHRINK_FLOOR * (have ? cached.beaches.length : 0)));
+    if (beaches.length < floor) throw new Error(`hi-doh beaches: only ${beaches.length} (floor ${floor})`);
+    const fresh = { fetchedAt: new Date().toISOString(), beaches };
+    await env.PARKS_KV.put("hi:beaches:v1", JSON.stringify(fresh));
+    return { beaches, fetchedAt: fresh.fetchedAt, error: null };
+  } catch (e) {
+    console.error("hi-beaches list refresh failed:", e);
+    if (!have) throw e;   // nothing to fall back to: let fetchHIBeaches record the real reason
+    return { beaches: cached.beaches, fetchedAt: cached.fetchedAt, error: String(e.message || e).slice(0, 160) };
+  }
+}
+
+// Lazily derived per-beach geometry: anchors (start/mid/end), shoreline polylines, 20 m samples for the
+// share-inside test, and the loose points used for nearest-beach distances.
+function hiBeachGeo(b) {
+  if (b._g) return b._g;
+  const [la0, lo0, la1, lo1] = b.a;
+  const mid = [(lo0 + lo1) / 2, (la0 + la1) / 2];
+  const anchors = [[lo0, la0], mid, [lo1, la1]];
+  const lines = b.L && b.L.length ? b.L : [[anchors[0], anchors[2]]];
+  const samples = lines.flatMap(l => hiDensify(l, HI_STEP_M));
+  return (b._g = { lines, samples, points: [...anchors, ...(b.P || [])], ...hiBounds(samples) });
+}
+
+// ---- matching ----
+// A beach counts as "named" when every distinctive word in its name is in DOH's headline.
+const HI_STOP = new Set(("beach park pk co county state st rec recreation area the of and at to bay landing harbor point pt brown water advisory " +
+  "hawaii oahu maui kauai molokai lanai island wastewater discharge high bacteria count notification threshold exceedance from near").split(" "));
+const hiNorm = s => String(s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[‘’ʻ'`]/g, "")
+  .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function hiNamedIn(name, title) {
+  const bt = hiNorm(name).split(" ").filter(t => t && !HI_STOP.has(t));
+  if (!bt.length) return false;
+  const tt = new Set(hiNorm(title).split(" "));
+  return bt.every(t => tt.has(t));
+}
+// Polygon: >=10% of the shoreline inside DOH's drawn area, or touching it and named in the headline.
+function hiPolygonHits(b, rings, bb, title) {
+  const g = hiBeachGeo(b);
+  if (g.maxLon < bb.minLon || g.minLon > bb.maxLon || g.maxLat < bb.minLat || g.minLat > bb.maxLat) return false;
+  let inside = 0;
+  for (const p of g.samples) if (hiInPolygon(p, rings)) inside++;
+  const f = inside / g.samples.length;
+  return f >= HI_FRAC_MIN || (f > 0 && hiNamedIn(b.n, title));
+}
+// Point: the nearest beach, only if it is close AND clearly nearer than the runner-up.
+function hiNearestBeach(pt, here) {
+  let d0 = Infinity, d1 = Infinity, id0 = null;
+  for (const b of here) {
+    const g = hiBeachGeo(b);
+    let d = Infinity;
+    for (const ln of g.lines) d = Math.min(d, hiDistPolylineM(pt, ln));
+    for (const q of g.points) d = Math.min(d, hiDistSegM(pt, q, q));
+    if (d < d0) { d1 = d0; d0 = d; id0 = b.i; } else if (d < d1) d1 = d;
+  }
+  return id0 != null && d0 <= HI_POINT_MAX_M && d1 - d0 >= HI_POINT_GAP_M ? id0 : null;
+}
+// Which beaches does one open event touch?  DOH's own list wins, then the sampling station, then the
+// drawn area; the island/statewide flags are the last resort (those events carry nothing else).
+function hiMatchEvent(ev, beaches) {
+  const byId = new Map(beaches.map(b => [b.i, b]));
+  const ids = new Set();
+  let how = null, polyKm = 0;
+  const add = (id, h) => { if (byId.has(id)) { ids.add(id); how = how || h; } };
+  for (const id of ev.eb || []) add(id, "doh-list");
+  if (!ids.size && ev.stn) add(ev.stn, "station");
+  if (!ids.size) {
+    const here = ev.island ? beaches.filter(b => b.s === ev.island) : beaches;
+    for (const wkt of ev.loc || []) {
+      const g = hiParseWkt(wkt);
+      if (!g) continue;
+      if (g.type === "POLYGON") {
+        polyKm = Math.max(polyKm, hiDiagKm(g.rings[0]));
+        const bb = hiBounds(g.rings[0]);
+        for (const b of here) if (hiPolygonHits(b, g.rings, bb, ev.title)) add(b.i, "polygon");
+      } else if (g.type === "POINT") {
+        const id = hiNearestBeach(g.pts[0], here);
+        if (id != null) add(id, "point");
+      }
+    }
+  }
+  if (!ids.size && (ev.sw || ev.iw)) {
+    for (const b of ev.sw ? beaches : beaches.filter(x => x.s === ev.island)) ids.add(b.i);
+    if (ids.size) how = ev.sw ? "statewide" : "island-wide";
+  }
+  return { ids, how, polyKm };
+}
+
+// ---- wording: quote DOH, never overstate ----
+const HI_STD_LINE = /stay out of waters (?:that appear|when the water appears) brown or murky/i;
+const hiClean = t => String(t || "").replace(/\*\*[^*]*\*\*/g, " ").replace(/\s+/g, " ").trim();
+const hiSentences = t => hiClean(t).split(/(?<=[.!?])\s+/).filter(Boolean);
+function hiReason(d) {
+  const title = hiClean(d.title), s = hiSentences(d.description);
+  let r;
+  if (d.type === "Brown Water Advisory") {
+    // DOH's first brown-water sentence is often about a different, CANCELLED advisory — lead with the title instead.
+    const std = s.find(x => HI_STD_LINE.test(x));
+    r = title.replace(/[.!?]+$/, "") + (std ? ". " + std : ".");
+  } else if (d.type === "Beach Advisory" || d.type === "Beach Notification") r = s.slice(0, 2).join(" ");
+  else r = s[0];
+  return _roadClip(r || title, 300);
+}
+// The few fields of a DOH event the rest of the pipeline needs (this is what gets cached in KV).
+function hiEventCore(d) {
+  const p = /^(\d\d)-(\d\d)-(\d{4})$/.exec(d.postedDateHst || "");
+  return {
+    id: d.id, u: d.updatedOn || null, type: d.type, title: hiClean(d.title), reason: hiReason(d),
+    posted: p ? `${p[3]}-${p[1]}-${p[2]}` : (String(d.postedDate || "").slice(0, 10) || null),
+    island: (d.island && d.island.cleanName) || null, iw: !!d.isIslandWide, sw: !!d.isStatewide,
+    eb: [...new Set((d.eventBeaches || []).map(x => x && x.beachId).filter(Number.isInteger))],
+    stn: d.station && Number.isInteger(d.station.beachId) ? d.station.beachId : null,
+    loc: (d.locations || []).map(l => l && l.geometry).filter(g => typeof g === "string"),
+  };
+}
+async function hiCachedEvent(env, id, updatedOn) {
+  try {
+    const c = JSON.parse(await env.PARKS_KV.get("hi:ev:" + id));
+    return c && c.id === id && (updatedOn == null || c.u === updatedOn) ? c : null;
+  } catch (_) { return null; }
+}
+// Worst status wins; ties go to the most specific link, then the newest notice.
+const hiCandCmp = (x, y) => HI_SEV[hiTypeStatus(y.ev.type)] - HI_SEV[hiTypeStatus(x.ev.type)] || y.rank - x.rank
+  || (x.ev.posted < y.ev.posted ? 1 : x.ev.posted > y.ev.posted ? -1 : 0) || y.ev.id - x.ev.id;
+function hiRow(b, cands) {
+  const w = cands && cands.length ? cands.slice().sort(hiCandCmp)[0] : null;
+  const status = w ? hiTypeStatus(w.ev.type) : "open";
+  const row = {
+    id: "hi-" + b.e, name: b.n, state: "HI",
+    lat: hiRound((b.a[0] + b.a[2]) / 2), lon: hiRound((b.a[1] + b.a[3]) / 2),
+    status, statusLabel: BEACH_STATUS_TEXT[status],
+    reason: w ? w.ev.reason : "No active advisories reported.",
+    jurisdiction: HI_JURISDICTION, jurisdictionUrl: HI_JURISDICTION_URL,
+    waterbody: null, county: null,
+    startDate: w ? w.ev.posted : null, endDate: null, updatedAt: w ? w.ev.u : null,
+    source: "hi-doh", island: b.s, hub: hiHub(b.s),
+  };
+  if (w) { row.eventId = w.ev.id; row.eventTitle = w.ev.title; row.sourceUrl = hiEventUrl(w.ev.id); }
+  return row;
+}
+
+// Advisories we could NOT pin to a beach (or only partly, for a regional polygon) are surfaced on the
+// island's hub as notices instead of being dropped. Notices never change a beach's own status.
+function hiNotices(ev, m, beaches) {
+  const scope = !m.ids.size ? "unmatched" : m.how === "island-wide" ? "island-wide" : m.how === "statewide" ? "statewide"
+    : (m.how === "polygon" && m.polyKm > HI_REGIONAL_KM) ? "regional" : null;
+  if (!scope) return [];
+  const islands = ev.island && !ev.sw ? [ev.island] : [...new Set(beaches.map(b => b.s))];
+  return islands.map(isl => ({ id: "hi-event:" + ev.id, eventId: ev.id, scope, island: isl, hub: hiHub(isl), type: ev.type,
+    title: ev.title, reason: ev.reason, postedDate: ev.posted, url: hiEventUrl(ev.id) }));
+}
+
+async function fetchHIBeaches(env) {
+  const source = { count: 0, stale: true, openEvents: 0, unmatched: 0, listFetchedAt: null, listError: null, error: null, unknownTypes: [] };
+  try {
+    const list = await hiBeachList(env);
+    if (!list) throw new Error("no usable Hawaii beach list (fetch failed and nothing cached)");
+    source.listFetchedAt = list.fetchedAt; source.listError = list.error;
+    const beaches = list.beaches;
+
+    // 1. The open advisories — one request. Validate hard: a bad answer here is how a false all-clear would happen.
+    const open = await hiFetchJson("events?status=Open");
+    if (!open || !Array.isArray(open.list)) throw new Error("hi-doh events: no list array");
+    if (typeof open.totalResultsCount === "number" && open.totalResultsCount !== open.list.length)
+      throw new Error(`hi-doh events: count mismatch ${open.totalResultsCount} vs ${open.list.length}`);
+    for (const e of open.list) if (!e || !Number.isInteger(e.id) || e.status !== "Open" || typeof e.type !== "string") throw new Error("hi-doh events: unexpected item shape");
+
+    // 2. Per-event detail (DOH's beach links + drawn area), cached by id + updatedOn. The list view returns both EMPTY.
+    const events = [];
+    let looked = 0;
+    for (const le of open.list) {
+      let core = await hiCachedEvent(env, le.id, le.updatedOn);
+      if (!core) {
+        try {
+          if (looked++ >= HI_MAX_DETAIL) throw new Error("detail lookup budget spent");
+          core = hiEventCore(await hiFetchJson("events/" + le.id));
+          await env.PARKS_KV.put("hi:ev:" + le.id, JSON.stringify(core), { expirationTtl: HI_EVENT_TTL_S });
+        } catch (e) {
+          // Never drop an open advisory: fall back to an older cached detail, else to what the list view carries.
+          console.error(`hi-doh event ${le.id} detail failed:`, e);
+          core = (await hiCachedEvent(env, le.id, null)) || hiEventCore(le);
+        }
+      }
+      events.push(core);
+    }
+
+    // 3. An advisory may only leave the open set if DOH says it is Closed. Anything else means we cannot trust this answer.
+    let prevOpen = [];
+    try { prevOpen = (JSON.parse(await env.PARKS_KV.get("hi:open")) || {}).ids || []; } catch (_) {}
+    const nowIds = new Set(events.map(e => e.id));
+    for (const id of prevOpen) {
+      if (nowIds.has(id)) continue;
+      let d = null;
+      try { d = await hiFetchJson("events/" + id); }
+      catch (e) { if (e.status !== 404) throw new Error(`hi-doh event ${id} left the open list and could not be confirmed closed (${e.message})`); }
+      if (d && d.status !== "Closed") { events.push(hiEventCore(d)); nowIds.add(id); }   // list and detail disagree -> stay flagged
+    }
+
+    // 4. Match, then build one row per beach.
+    const cands = new Map(), notices = [], seenNotice = new Set();
+    for (const ev of events) {
+      if (!HI_KNOWN_TYPES.has(ev.type) && !source.unknownTypes.includes(ev.type)) { source.unknownTypes.push(ev.type); console.warn("hi-doh: unknown event type", ev.type); }
+      const m = hiMatchEvent(ev, beaches);
+      if (!m.ids.size) source.unmatched++;
+      for (const id of m.ids) { if (!cands.has(id)) cands.set(id, []); cands.get(id).push({ ev, rank: HI_RANK[m.how] }); }
+      for (const n of hiNotices(ev, m, beaches)) { const k = n.eventId + "|" + n.hub; if (!seenNotice.has(k)) { seenNotice.add(k); notices.push(n); } }
+    }
+    const rows = beaches.map(b => hiRow(b, cands.get(b.i)));
+    await env.PARKS_KV.put("hi:open", JSON.stringify({ at: new Date().toISOString(), ids: [...nowIds] }));
+    source.openEvents = events.length; source.count = rows.length; source.stale = false;
+    return { ok: true, rows, notices, source };
+  } catch (e) {
+    console.error("hi-doh fetch failed:", e);
+    source.error = String(e && e.message || e).slice(0, 200);
+    return { ok: false, rows: [], notices: [], source };
+  }
 }
 
 // ===================== NY state parks (OPRHP) ==============================
@@ -946,10 +1328,11 @@ function roadStatus(road, alertsByPark, parkStatusById, brp = null) {
 
 async function rebuild(env, { notify = false } = {}) {
   const key = env.NPS_API_KEY;
-  const [alerts, parks, beaches, nyParks, caParks, txParks, mnParks, flParks, waParks, usfs] = await Promise.all([
+  const [alerts, parks, beaches, hi, nyParks, caParks, txParks, mnParks, flParks, waParks, usfs] = await Promise.all([
     get("alerts", key),
     get("parks", key, { fields: "operatingHours,latLong,designation,states,url" }),
     fetchNYBeaches().catch(e => { console.error("ny-beaches fetch failed:", e); return null; }),
+    fetchHIBeaches(env).catch(e => { console.error("hi-beaches fetch failed:", e); return null; }),
     fetchNYStateParks().catch(e => { console.error("ny-parks fetch failed:", e); return null; }),
     fetchCAStateParks(env).catch(e => { console.error("ca-parks fetch failed:", e); return null; }),
     fetchTXStateParks().catch(e => { console.error("tx-parks fetch failed:", e); return null; }),
@@ -971,17 +1354,25 @@ async function rebuild(env, { notify = false } = {}) {
   const tally = { open: 0, partially_closed: 0, closed: 0 };
   for (const p of parksOut) tally[p.status]++;
 
-  // Beaches: if this run's fetch failed, fall back to the last good cached
-  // beach list rather than wiping beach data off the site on a transient error.
-  let beachesOut = beaches;
-  let beachStale = false;
-  if (!beachesOut) {
-    beachStale = true;
-    try {
-      const prev = prevRaw ? JSON.parse(prevRaw) : null;
-      beachesOut = (prev && prev.beaches) || [];
-    } catch (_) { beachesOut = []; }
-  }
+  // Beaches: NY + Hawaii, each with its OWN last-good fallback — if one source's fetch
+  // fails we carry that source's previous rows forward rather than wiping them off the
+  // site on a transient error, and the other source is never frozen or wiped with it.
+  // NY rows stay first so their order (and every NY page) is unchanged.
+  let prevBlob = null;
+  try { prevBlob = prevRaw ? JSON.parse(prevRaw) : null; } catch (_) {}
+  const prevBeaches = (prevBlob && prevBlob.beaches) || [];
+  const isHI = b => b && b.state === "HI";
+  const nyStale = !beaches;
+  const nyRows = beaches || prevBeaches.filter(b => !isHI(b));
+  const hiStale = !(hi && hi.ok);
+  const hiRows = hiStale ? prevBeaches.filter(isHI) : hi.rows;
+  const hiNotes = hiStale ? ((prevBlob && prevBlob.beachNotices) || []) : hi.notices;
+  const beachesOut = [...nyRows, ...hiRows];
+  const beachStale = nyStale || hiStale;   // legacy either-source flag; beachSources below is per source
+  const beachSources = {
+    ny: { count: nyRows.length, stale: nyStale },
+    hi: { ...((hi && hi.source) || { error: "Hawaii fetch did not run" }), count: hiRows.length, stale: hiStale },
+  };
   const beachTally = { open: 0, closed: 0, advisory: 0, not_in_operation: 0, pending: 0 };
   for (const b of beachesOut) beachTally[b.status] = (beachTally[b.status] || 0) + 1;
 
@@ -1034,10 +1425,13 @@ async function rebuild(env, { notify = false } = {}) {
     const prevIndex = indexEntities(prevRaw ? JSON.parse(prevRaw) : {});
     for (const id in nowIndex) {
       const n = nowIndex[id], o = prevIndex[id];
-      if (o && o.status !== n.status)
-        changes.push({ id, name: n.name, from: o.status, to: n.status, reason: n.reason,
+      if (o && o.status !== n.status) {
+        const ch = { id, name: n.name, from: o.status, to: n.status, reason: n.reason,
           url: n.url, lat: n.lat, lon: n.lon, scheduledOnly: n.scheduledOnly, county: n.county,
-          disaster: DISASTER_RE.test((n.reason || "") + " " + (n.name || "")) });
+          disaster: DISASTER_RE.test((n.reason || "") + " " + (n.name || "")) };
+        if (n.hub) hiChangeFields(ch, n, o);
+        changes.push(ch);
+      }
     }
   } catch (_) {}
 
@@ -1115,7 +1509,7 @@ async function rebuild(env, { notify = false } = {}) {
   await env.PARKS_KV.put("status:latest", JSON.stringify({
     updated: new Date().toISOString(),
     tally, parks: parksOut, shutdown, roads: roadsOut, brp,
-    beachTally, beaches: beachesOut, beachStale,
+    beachTally, beaches: beachesOut, beachStale, beachSources, beachNotices: hiNotes,
     nyParkTally, nyParks: nyParksOut, nyParkStale,
     caParkTally, caParks: caParksOut, caParkStale,
     txParkTally, txParks: txParksOut, txParkStale,
@@ -1128,7 +1522,7 @@ async function rebuild(env, { notify = false } = {}) {
   if (notify && changes.length) await notifyChanges(env, changes);
   if (changes.length) await pingIndexNow(changes);
   return { tally, count: parksOut.length, roadCount: roadsOut.length, changes: changes.length,
-    beachTally, beachCount: beachesOut.length, beachStale,
+    beachTally, beachCount: beachesOut.length, beachStale, beachSources,
     nyParkTally, nyParkCount: nyParksOut.length, nyParkStale,
     caParkTally, caParkCount: caParksOut.length, caParkStale,
     txParkTally, txParkCount: txParksOut.length, txParkStale,
@@ -1145,6 +1539,19 @@ async function rebuild(env, { notify = false } = {}) {
 // https://parkstatus.today/<key>.txt and only proves we control the domain.
 const INDEXNOW_KEY = "2a821d1da0b1eca28a37f6bbf86e301c";
 const INDEXNOW_HOST = "parkstatus.today";
+
+// Hawaii beach changes (Item 16): link to the island hub, never tag as "disaster" (a brown-water
+// notice whose DOH cause says "Hurricane Lala" would otherwise reach every disaster subscriber
+// nationwide), and carry the DOH advisory they belong to so notifyChanges() can send ONE message
+// per advisory instead of one per beach. A lifted advisory groups under the advisory it lifts.
+function hiChangeFields(ch, n, o) {
+  const lifted = n.status === "open";
+  const evId = lifted ? o.eventId : n.eventId;
+  ch.hub = n.hub;
+  ch.disaster = false;
+  ch.url = `${SITE}/beach/${n.hub}/#b-${ch.id}`;
+  if (evId) { ch.group = "hi-event:" + evId; ch.groupTitle = (lifted ? o.eventTitle : n.eventTitle) || ""; ch.island = n.island || ""; }
+}
 
 // Beach-hub slug — must match build-parks.js grouping ("<state>-<county>-county").
 function beachCountySlug(county) {
@@ -1177,6 +1584,9 @@ async function pingIndexNow(changes) {
         beachTouched = true;
         const s = beachCountySlug(ch.county);
         if (s) urls.add(SITE + "/beach/" + s + "/");
+      } else if (ch.hub) {
+        beachTouched = true;
+        urls.add(SITE + "/beach/" + ch.hub + "/");
       } else {
         const s = slugById[ch.id];
         if (s) urls.add(SITE + "/park/" + s + "/");
@@ -1211,7 +1621,9 @@ function indexEntities(b) {
       const id = pfx + raw;
       m[id] = { id, name: namef(e), status: statusf ? statusf(e.status) : e.status,
         reason: e.reason || "", lat: Number(e.lat), lon: Number(e.lon),
-        url: e.url || SITE, scheduledOnly: !!e.scheduledOnly, county: e.county || "" };
+        url: e.url || SITE, scheduledOnly: !!e.scheduledOnly, county: e.county || "",
+        // Hawaii beach rows only (NY and every other entity keep exactly their old shape)
+        ...(e.hub ? { hub: e.hub, island: e.island || "", eventId: e.eventId || null, eventTitle: e.eventTitle || "" } : {}) };
     }
   };
   add(b.parks, "nps:", e => e.fullName);
@@ -1272,6 +1684,34 @@ async function listSubs(env, prefix) {
   return out;
 }
 
+// Beach changes that carry a `group` (Hawaii: one per DOH advisory, same direction) collapse into ONE
+// message per subscriber — a single storm advisory can flip 140 beaches at once, and per-beach sends
+// would be ~113 messages a week for an "all alerts" subscriber. Anything without a `group` (NY beaches,
+// parks, roads) passes through untouched, and a one-beach group keeps the ordinary single-change format.
+function groupChanges(changes) {
+  const units = [], byKey = new Map();
+  for (const ch of changes) {
+    if (!ch.group) { units.push(ch); continue; }
+    const key = ch.group + "|" + ch.to;
+    if (!byKey.has(key)) { const g = { members: [] }; byKey.set(key, g); units.push(g); }
+    byKey.get(key).members.push(ch);
+  }
+  return units.map(u => !u.members ? u : u.members.length === 1 ? u.members[0] : groupUnit(u.members));
+}
+function groupUnit(ms) {
+  const f = ms[0], t = f.groupTitle || "Water-quality advisory";
+  return {
+    id: f.group, name: t, from: f.from, to: f.to, reason: f.reason, url: String(f.url || SITE).replace(/#.*$/, ""),
+    hub: f.hub, county: "", disaster: false, scheduledOnly: false, isGroup: true, members: ms,
+    headline: f.to === "open" ? `Advisory lifted: ${t} (${ms.length} beaches)` : `${t} (${ms.length} beaches)`,
+    memberNames: ms.map(m => m.name),
+  };
+}
+// A group matches a subscriber if ANY of its beaches does (all alerts, a followed beach, or the geo radius).
+const unitMembers = ch => ch.members || [ch];
+const unitMatches = (ch, sub) => unitMembers(ch).some(m => changeMatchesSub(m, sub));
+const nativeHit = (ch, sc) => unitMembers(ch).some(m => (Array.isArray(sc.parks) && sc.parks.includes(m.id)) || (sc.disasters && m.disaster));
+
 async function notifyChanges(env, changes) {
   // Never notify for a purely scheduled-operating-hours closure.
   const real = changes.filter(ch => !(ch.to === "closed" && ch.scheduledOnly));
@@ -1288,20 +1728,22 @@ async function notifyChanges(env, changes) {
     } catch (_) {}
   }
   const appUrl = ch => ch.isRoad ? `${SITE}/road/${String(ch.id).slice(5)}/`
+    : ch.hub ? ch.url
     : (slugById[ch.id] ? `${SITE}/park/${slugById[ch.id]}/` : SITE);
 
-  for (const ch of real) {
+  for (const ch of groupChanges(real)) {
     const c = { ...ch, fullName: ch.name, parkCode: ch.id };
-    const title = ch.isRoad
+    const title = ch.headline ? ch.headline
+      : ch.isRoad
       ? (ch.roadStatus === "open" ? `${ch.name} is open for the season.`
         : ch.roadStatus === "closed" ? `${ch.name} is now closed.`
         : `${ch.name}: partial closure in effect.`)
       : `${ch.name} is now ${STATUS_TEXT_X[ch.to]}`;
-    for (const s of emailSubs.filter(sub => changeMatchesSub(ch, sub))) {
+    for (const s of emailSubs.filter(sub => unitMatches(ch, sub))) {
       const unsubUrl = await unsubscribeUrl(env, s.email);
       await sendEmail(env, s.email, title, emailHtml(c, unsubUrl)).catch(() => {});
     }
-    for (const s of pushSubs.filter(sub => changeMatchesSub(ch, sub))) {
+    for (const s of pushSubs.filter(sub => unitMatches(ch, sub))) {
       try {
         const st = await sendPush(env, s.subscription, { title, body: ch.reason || "", url: ch.url || SITE, tag: ch.id });
         if (st === 404 || st === 410) await env.PARKS_KV.delete(s._key);
@@ -1309,7 +1751,7 @@ async function notifyChanges(env, changes) {
     }
     for (const s of nativeSubs) {
       const sc = s.scope || {};
-      const hit = (Array.isArray(sc.parks) && sc.parks.includes(ch.id)) || (sc.disasters && ch.disaster);
+      const hit = nativeHit(ch, sc);
       if (!hit || s.platform !== "ios") continue; // Android/FCM: not yet
       try {
         const st = await sendAPNs(env, s.token, { title, body: ch.reason || "", url: appUrl(ch), tag: ch.id });
@@ -1321,13 +1763,14 @@ async function notifyChanges(env, changes) {
 
 function emailHtml(ch, unsubUrl) {
   const color = { open: "#14785d", partially_closed: "#9a6a0f", closed: "#ee263b" }[ch.to] || "#0b1b35";
+  const names = ch.memberNames || [];
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0e1726">
     <p style="font:700 12px ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:#667185;margin:0 0 6px">Park Status Today</p>
-    <h1 style="font-family:'Arial Black',Arial,sans-serif;font-size:22px;margin:0 0 4px;color:${color}">${esc(ch.fullName)} is now ${STATUS_TEXT_X[ch.to] || ch.to}.</h1>
-    <p style="font-size:15px;color:#33405a;margin:8px 0 16px">${esc(ch.reason || "")}</p>
+    <h1 style="font-family:'Arial Black',Arial,sans-serif;font-size:22px;margin:0 0 4px;color:${color}">${ch.headline ? esc(ch.headline) : `${esc(ch.fullName)} is now ${STATUS_TEXT_X[ch.to] || ch.to}.`}</h1>
+    <p style="font-size:15px;color:#33405a;margin:8px 0 16px">${esc(ch.reason || "")}</p>${names.length ? `<p style="font-size:14px;color:#33405a;margin:0 0 16px"><strong>Beaches:</strong> ${esc(names.slice(0, 8).join(", "))}${names.length > 8 ? ` and ${names.length - 8} more` : ""}</p>` : ""}
     <p style="font-size:14px;margin:0 0 20px">Previously: ${STATUS_TEXT_X[ch.from] || ch.from}.</p>
-    <a href="${esc(ch.url || SITE)}" style="background:#0b1b35;color:#fff;text-decoration:none;font-weight:bold;font-size:14px;padding:11px 16px;border-radius:9px;display:inline-block">View the official park page →</a>
-    <p style="font-size:11px;color:#8a93a3;margin:24px 0 0">You're receiving this because you follow this park on parkstatus.today. Status is our reading of NPS data — always confirm with the park.</p>
+    <a href="${esc(ch.url || SITE)}" style="background:#0b1b35;color:#fff;text-decoration:none;font-weight:bold;font-size:14px;padding:11px 16px;border-radius:9px;display:inline-block">${ch.hub ? "See beach status →" : "View the official park page →"}</a>
+    <p style="font-size:11px;color:#8a93a3;margin:24px 0 0">${ch.hub ? "You're receiving this because you follow beaches on parkstatus.today. Status is our reading of Hawaii Department of Health advisories — always confirm before you swim." : "You're receiving this because you follow this park on parkstatus.today. Status is our reading of NPS data — always confirm with the park."}</p>
     ${emailUnsubLine(unsubUrl)}
   </div>`;
 }
@@ -1840,4 +2283,5 @@ button,.btn{background:#0b1b35;color:#fff;border:0;font:inherit;font-weight:bold
 
 export { classify, derive, deriveNYPark, deriveTXPark, deriveMNPark, normalizeCAParks, fetchArcGIS,
   nextScheduledOpen, indexEntities, changeMatchesSub, sanitizeScope, haversineMi,
-  rebuild, encryptPayload, b64uToBytes, bytesToB64u };
+  rebuild, encryptPayload, b64uToBytes, bytesToB64u,
+  fetchHIBeaches, hiMatchEvent, hiParseWkt, hiTrimBeaches, hiReason, hiEventCore, groupChanges, notifyChanges, emailHtml };
