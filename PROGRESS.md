@@ -21,6 +21,14 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-11-18 — Item 14 content audit fixes: 13 `park-facts.json` lines re-sourced (data only)
+
+- **Scope**: `park-facts.json` only; zero build-parks.js changes. Rule: every clause in `different` traces to NPS (else Wikipedia); a cut claim is not replaced by a new unsourced one.
+- **Cut (unsourced/wrong)**: wwii Hanks PSA + "tens of thousands of calls" (now: Hanks national spokesman for the Dole-chaired campaign, per ABMC registry); appa "fourteen years before Congress" (1937 vs National Trails System Act 1968) and "by volunteers"; dewa reversed causality, "last major water gap" and the 40-mile conflation (the 40 mi is the Middle Delaware scenic river); linc invented "no single state" motive (stone states now listed per NPS; statue Georgia marble per Wikipedia); gate "subway" narrowed to Jamaica Bay per NPS; gwmp "landmark" -> NRHP 1981, daily-drivers and cemetery cut; guis "mostly open water" cut, states FL/MS per NPS, Fort Pickens Union-held per Wikipedia; lake "largest reservoir"/drought cut, 1964 first-NRA per NPS; blri "no fixed season"/"more than any park" cut; goga adds San Mateo, "NRA" wording; natr "centuries" per NPS; vive "Yale architecture student"/numbers-only entries; choh flood wording softened, walkability claim cut.
+- **Numbers**: visits2025/rank2025 for all 13 match the NPS 2025 Annual Park Ranking report; `choh` (4,579,704, #14) and `dewa` (3,986,709, #20) added. Acreage and established dates re-checked.
+- **Verified**: node harness (build-parks.js `pageHtml` loaded with main() disabled, run from scratch dir) — 13/13 render, `.distinct` matches the new text, no undefined/NaN/null, old wwii text absent. Not a full build (no `NPS_API_KEY`).
+- **Queued, not done**: the 62 older Item 10 entries (e.g. hosp vs jeff "smallest", gaar/kova both "least-visited", arch "dropped timed entry for 2025") need the same audit.
+
 ### 2026-10-24 — Item 16 DONE (committed, not pushed): Hawaii beaches from the DOH Clean Water Branch feed
 
 Commits (local; `main` is 6 ahead of origin incl. Items 14/15): `ad7bb24a8` Worker ·

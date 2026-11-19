@@ -162,6 +162,11 @@ FTP sync — so planning docs here are safe):
 - **The NY beach feed is dead** (as of 2026-10-24): `beachadvisory.health.ny.gov/doh7/…/beaches`
   returns 404 (site root 403s our UA), so `fetchNYBeaches()` fails every hour, the Worker serves
   frozen last-good NY rows, and `beachSources.ny.stale` is true. Not fixed yet — its own item.
+- **`park-facts.json` prose is published as fact — every clause must trace to a source.** An audit of
+  Item 14's 13 lines (2026-10-25) found 10 with an unsupported or wrong claim (invented motives, a
+  conflated event with the wrong crowd size, a wrong year gap, a misdescribed park origin) while the
+  numbers were all right. Dropping one bad claim doesn't validate the sentence written in its place;
+  check Wikipedia/NPS text for each clause. The Item 14 lines were corrected 2026-11-18 (per-clause sourced; choh/dewa gained visits). The 62 older Item 10 entries still haven't had this audit.
 - Beach freshness is **per source** (`beachSources.ny` / `.hi`); legacy `beachStale` is
   "either is stale" and will read true for as long as NY is down.
 - `roads.json` / `reservations.json` dates drift year to year — a wrong "typically opens"

@@ -26,9 +26,10 @@ plan and stop. The next "complete next step" = implement the approved plan.
 | 9 | 4b — Blue Ridge Parkway live status: Worker-side scrape of `nps.gov/blri/planyourvisit/roadclosures.htm` (server-rendered per-milepost table + timestamp), `detectShutdown()` mold; promotes BRP from Tier C. Worker + `roadStatus()` change. | DONE — `brpStatus()` scrapes both VA/NC tables, classifies each row (Status cell + notes-escalation w/ facility exclusion), worst-wins over mainline (ranged-MP) rows only — spur/single-point rows excluded from the verdict. `roadStatus()` short-circuits `blue-ridge-parkway` to `tier:"B"` when `brp` is supplied; flows through the existing Tier-B notify/cooldown path unchanged. Additive `blob.brp`. Never throws; falls back to prior cycle w/ `stale:true`. 20/20 harness incl. a REAL fetch (correctly found the live MP 317.5–355.3 Helene closure) + 3 fabricated-failure cases + row-classifier unit tests + `roadStatus()` routing regression. `roads.json`/`build-parks.js` unchanged (confirmed `blob.roads` consumption is generic, no BRP special-case needed). `worker.js` only. | 2026-09-08 | 2026-09-11 `769aefc4` |
 | 13 | Indexation — `www` → apex 301 redirect (GSC: "Alternate page with proper canonical tag" flagged across homepage/guides/roads/parks/privacy) | DONE + deployed — `deploy.yml` excludes `.htaccess` from its FTP sync (protects a "server-managed" file), so the committed `public_html/.htaccess` (`433e7d8e`) couldn't ship through the normal pipeline; user uploaded it directly via Hostinger's File Manager (server had no `.htaccess` at all before this). Live-verified: `https://www.parkstatus.today/*` → single-hop 301 to the same path on apex; apex `http`/`https` behavior unchanged. One known deviation: `http://www…` is 2 hops (Hostinger's edge upgrades http→https on `www` before `.htaccess` runs, then `.htaccess` sends it to apex) — outside `.htaccess`'s control, not fixable at this layer, still lands correctly. `.htaccess` now lives outside the deploy pipeline — future edits need another manual File Manager upload. | 2026-09-17 | 2026-09-17, manual upload (uncommitted change on the server; repo copy at `433e7d8e`) |
 
-| 14 | Indexation — extend `park-facts.json` to ~13 high-traffic non-"National Park" NPS units | DONE — 13 entries added (blri, goga, natr, linc, gate, guis, gwmp, appa, lake, vive, choh, wwii, dewa; 75 total in the file). Zero build-parks.js changes (`PARK_FACTS[e.id]` lookup is kind-agnostic — confirmed by tracing + harness). `appa` omits size (linear trail); `choh`/`dewa` omit visits2025/rank2025 (no sourceable 2025 figure — IRMA down, best available is 2022/2024 data) rather than guess. `vive`/`wwii` visits2025 sourced from Wikipedia infobox fields dated "in 2025" (top-10 of the 13 from the official NPS release directly). One near-miss caught and dropped before shipping: an unsourceable "$10M Tom Hanks gift" claim for the WWII Memorial. 13/13 spot-checked via harness (all render, JSON-LD valid, no leaked undefined/NaN/null in the facts/distinct blocks, Size and 2025-visits rows correctly present/absent per entity). `parks.json`/`parks-enriched.json` byte-identical (untouched). | 2026-09-17 | 2026-09-25 `d1b4c9c97` (local, not on origin) |
+| 14 | Indexation — extend `park-facts.json` to ~13 high-traffic non-"National Park" NPS units | DONE — 13 entries added (blri, goga, natr, linc, gate, guis, gwmp, appa, lake, vive, choh, wwii, dewa; 75 total in the file). Zero build-parks.js changes (`PARK_FACTS[e.id]` lookup is kind-agnostic — confirmed by tracing + harness). `appa` omits size (linear trail); `choh`/`dewa` omit visits2025/rank2025 (no sourceable 2025 figure — IRMA down, best available is 2022/2024 data) rather than guess. `vive`/`wwii` visits2025 sourced from Wikipedia infobox fields dated "in 2025" (top-10 of the 13 from the official NPS release directly). **2026-11-18 content audit fix:** all 13 `different` lines rewritten clause-by-clause against NPS/Wikipedia (unsourced or wrong claims cut, not replaced); `choh`/`dewa` now carry visits2025/rank2025 (NPS 2025 ranking report: #14, #20); other numbers re-verified unchanged. One near-miss caught and dropped before shipping: an unsourceable "$10M Tom Hanks gift" claim for the WWII Memorial. 13/13 spot-checked via harness (all render, JSON-LD valid, no leaked undefined/NaN/null in the facts/distinct blocks, Size and 2025-visits rows correctly present/absent per entity). `parks.json`/`parks-enriched.json` byte-identical (untouched). | 2026-09-17 | 2026-09-25 `d1b4c9c97` (local, not on origin) |
 | 15 | Add Microsoft Clarity tracking script (site-wide, mirroring existing GA placement) + privacy.html disclosure | DONE — Clarity snippet (project `ynwxj9dyuh`, verbatim) inserted immediately after the GA `async src` line in all 10 build-parks.js `<head>` blocks + `index.html` (11/11, confirmed byte-identical + correctly positioned via harness, 51/51 checks). `privacy.html` disclosure updated in both spots — verified against Microsoft's own masking docs first: input-field content (the email-alerts box) is masked in every Clarity mode, unconditionally. `guides/*.html`/`support.html`'s pre-existing no-analytics gap left alone. `parks*.json` untouched. | 2026-09-25 | 2026-09-25 `6fdfbd1c5` (local, not on origin) |
 | 16 | Hawaii beaches — live water-quality advisories from the Hawaii DOH Clean Water Branch API, added alongside NY (Worker feed + island hubs + map + alerts) | DONE — committed, NOT pushed. Worker: `fetchHIBeaches()` builds 419 `hi-` rows from DOH advisory events (beach list cached daily in KV; 1 DOH request/run steady state; `Accept: application/json` trap handled). Matching: DOH link list → `station.beachId` → drawn-area overlap (≥10% of shoreline, or touching + named in DOH headline) / unique nearest point ≤50 m → island/statewide flag → island notice; local-event accuracy 91%/91% vs DOH's own lists. Sewage Spill → closed, other open types → advisory, worst wins, reason quotes DOH. No false all-clear: any bad response / unconfirmed closure → source falls back to its previous rows (stale), per source (NY ≠ HI). Alerts (Knob 1 = c): Hawaii changes grouped one message per DOH advisory (≈5,900 → ≈400 msgs/yr for an all-alerts subscriber); Hawaii never "disaster". Site: six island hubs `/beach/hawaii-*`, area-wide-advisory notices, per-state index + copy, homepage second source row/detail panel. CI: `refresh-park-data.yml` now commits `beach/index.html` + `beach/hawaii-*` (guarded glob; NY hubs deliberately excluded). Blob +27% decoded / +14% gzip. 131 Worker + 97 generator checks; all 15 NY hub pages byte-identical. NOT a full build (no `NPS_API_KEY`); Cloudflare→DOH reachability untested until deploy. NY beach feed found DEAD (404) — separate item. | 2026-10-23 | 2026-10-24 `ad7bb24a8` (Worker) + `2cd5faeaf` (site) + `259d55efb` (CI line); local, not on origin |
+| 17 | Docs: post-re-clone cleanup — commit the `park-facts.json` sourcing rule, fix the stale repo-location notes, correct the pushed-state of rows 14–16 | READY (small, docs only) | 2026-11-16 | — |
 
 Backlog items are one-liners until the prompt-engineer promotes one to READY with a full
 block below.
@@ -1911,3 +1912,54 @@ after deploy).
   source researched; Honolulu Ocean Safety jellyfish / NWS high-surf (water-quality
   only, same as NY); an official data-use heads-up to DOH CWB (user action, optional).
 </assumptions_and_knobs>
+
+---
+
+## Item 17 — Docs: post-re-clone cleanup
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Docs-only housekeeping in the coordination
+files. No code, no generated output, nothing under `public_html/`. **The repo is public:
+no personal names, home-directory paths, emails or local-file locations in any line this
+item writes.**
+</role>
+
+<task>
+One commit that brings the coordination docs back in line with git after the
+2026-11-16 re-clone:
+
+1. **`PROJECT-CONTEXT.md` — commit the pending sourcing rule.** The working tree already
+   holds the 2026-11-15 bullet "`park-facts.json` prose is published as fact — every
+   clause must trace to a source" (under "Commonly gotten wrong"). Keep it as written.
+2. **`PROJECT-CONTEXT.md` — rewrite the repo-location bullet.** It still says the repo
+   lives in an iCloud-synced Desktop folder (and the pending diff only changed which
+   one). Replace the location with a generic statement: the repo was re-cloned fresh on
+   2026-11-16 after iCloud sync corrupted the previous copy's `.git`. Keep the
+   eviction/`dataless` and "<name> 2" conflict-copy guidance, framed as "applies whenever
+   the clone sits under an iCloud-synced folder (Desktop/Documents)". No path.
+   Bump "Last verified against the repo" to 2026-11-16.
+3. **`LAUNCH-STATUS.md` lines ~40 and ~43.** Same stale path. Line ~40 also names the
+   local location of a plaintext secrets-notes file. Reword to "kept outside the repo"
+   with no path. Line ~43: drop the path and keep the advice (keep the clone out of
+   iCloud-synced folders; keep the disk under ~85%).
+4. **`BUILDER-PROMPTS.md` status rows 14, 15, 16.** Each says "local, not on origin" /
+   "committed, NOT pushed". All of `d1b4c9c97`, `6fdfbd1c5`, `ad7bb24a8`, `2cd5faeaf`,
+   `259d55efb`, `727165a4b` are on `origin/main` (verify with
+   `git branch -r --contains <hash>`). Change them to "pushed". Leave the rest of each
+   row alone.
+5. **`PROGRESS.md`:** add a dated 2026-11-16 entry at the top of the log, covering the
+   re-clone, the row corrections, and the finding that the 2026-10-25 Item 14 audit fixes
+   are **not in git** (the `nps:wwii` line the audit flagged is still live). Older
+   entries are history, so don't edit them.
+
+No `STATE.md`: the workflow (`.claude/commands/*.md`) uses only the three coordination
+files. Don't create one.
+</task>
+
+<self_check>
+1. `git diff --cached` touches only PROJECT-CONTEXT.md, LAUNCH-STATUS.md,
+   BUILDER-PROMPTS.md and PROGRESS.md.
+2. `git diff --cached | grep -iE '/Users/|~/|@gmail|joshua'` returns nothing
+   on added lines.
+3. Rows 14–16 match `git branch -r --contains`.
+</self_check>

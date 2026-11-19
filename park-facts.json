@@ -497,7 +497,7 @@
     "rank2025": 63
   },
   "nps:blri": {
-    "different": "The most-visited unit in the entire National Park System — more people drive some part of it each year than visit any single national park. No entrance fee, no fixed season, and it took 52 years to finish: the last link, the Linn Cove Viaduct, opened in 1987.",
+    "different": "The most-visited unit in the National Park System in 2025. No entrance fee, and it took 52 years to build: work began in 1935 and the last link, the Linn Cove Viaduct, opened in 1987.",
     "established": "1936",
     "sizeAcres": 93390,
     "sizeSqMi": 146,
@@ -505,7 +505,7 @@
     "rank2025": 1
   },
   "nps:goga": {
-    "different": "A national park folded into a working city: Golden Gate NRA spans Alcatraz, the Presidio, Muir Woods and 59 miles of coastline across San Francisco and Marin, one of the largest urban national parks on Earth.",
+    "different": "A national recreation area folded into a working city: it spans Alcatraz, the Presidio, Muir Woods and 59 miles of shoreline across San Francisco, Marin and San Mateo counties, one of the largest urban parks in the world.",
     "established": "1972",
     "sizeAcres": 82116,
     "sizeSqMi": 128,
@@ -513,7 +513,7 @@
     "rank2025": 2
   },
   "nps:natr": {
-    "different": "Retraces a travel corridor used for centuries before it was a road. Authorized in 1938, the 444-mile parkway took 67 years to finish end to end — the last sections opened May 21, 2005.",
+    "different": "Follows a travel corridor that American Indians used for centuries before it was a road. Authorized in 1938, the 444-mile parkway took 67 years to finish end to end — the last sections opened May 21, 2005.",
     "established": "1938 (completed 2005)",
     "sizeAcres": 51746,
     "sizeSqMi": 81,
@@ -521,7 +521,7 @@
     "rank2025": 4
   },
   "nps:linc": {
-    "different": "Built from marble, limestone and granite quarried in five different states — Colorado, Indiana, Tennessee, Alabama and Massachusetts — so no single state could claim to have built it alone. Its steps hosted Marian Anderson's 1939 concert and Martin Luther King Jr.'s \"I Have a Dream\" speech.",
+    "different": "Built from Colorado Yule marble, Indiana limestone, Tennessee marble, Massachusetts granite and Alabama marble, with a statue carved from Georgia white marble. Its steps hosted Marian Anderson's 1939 concert, and Martin Luther King Jr. delivered his \"I Have a Dream\" speech from the landing below it in 1963.",
     "established": "1922",
     "sizeAcres": 7.3,
     "sizeSqMi": 0.01,
@@ -529,7 +529,7 @@
     "rank2025": 5
   },
   "nps:gate": {
-    "different": "New York City's national park: three boroughs plus New Jersey — Jamaica Bay's wildlife refuge, Rockaway's ocean beaches, Sandy Hook's dunes, and a decommissioned Nike missile base — reachable by subway.",
+    "different": "New York City's national recreation area: Jamaica Bay, the Rockaway peninsula and Staten Island, plus Sandy Hook across the bay in New Jersey, and Fort Tilden, which once housed Nike missiles. Jamaica Bay sites can be reached by subway.",
     "established": "1972",
     "sizeAcres": 26607,
     "sizeSqMi": 42,
@@ -537,7 +537,7 @@
     "rank2025": 6
   },
   "nps:guis": {
-    "different": "A barrier-island seashore split across Florida and Mississippi, mostly open water, protecting Civil War-era Fort Pickens and Fort Massachusetts along some of the whitest sand on the Gulf Coast.",
+    "different": "A barrier-island seashore along the Gulf Coast in Florida and Mississippi, with Fort Pickens, which stayed in Union hands through the Civil War, and Fort Massachusetts on Ship Island, plus sparkling white quartz-sand beaches in Florida.",
     "established": "1971",
     "sizeAcres": 135458,
     "sizeSqMi": 212,
@@ -545,7 +545,7 @@
     "rank2025": 7
   },
   "nps:gwmp": {
-    "different": "A 1930s commuter parkway that's also a National Register landmark: it carries tens of thousands of daily drivers along the Potomac past Mount Vernon, Arlington National Cemetery and the Marine Corps War Memorial.",
+    "different": "Authorized by Congress in 1930 and opened in stages from 1932, this parkway runs along the Potomac from Mount Vernon and includes the Marine Corps War Memorial. It was listed on the National Register of Historic Places in 1981.",
     "established": "1930",
     "sizeAcres": 7142,
     "sizeSqMi": 11,
@@ -553,13 +553,13 @@
     "rank2025": 8
   },
   "nps:appa": {
-    "different": "A single continuous footpath from Georgia to Maine — 2,197 miles, conceived in 1921 and completed by volunteers in 1937, fourteen years before Congress passed any law to protect it.",
+    "different": "A single continuous footpath from Georgia to Maine — 2,197 miles, conceived in 1921 and completed in 1937, three decades before Congress protected it with the National Trails System Act of 1968.",
     "established": "1968 (trail completed 1937)",
     "visits2025": 6215118,
     "rank2025": 9
   },
   "nps:lake": {
-    "different": "The first national recreation area in the NPS system — created in 1936 as the Boulder Dam Recreation Area, renamed in 1947 — built around the largest U.S. reservoir by volume, though two decades of drought have pulled it far below its historic high-water line.",
+    "different": "Created in 1936 as the Boulder Dam Recreation Area and renamed in 1947, it became the first national recreation area in 1964. It surrounds Lake Mead and Lake Mohave on the Colorado River.",
     "established": "1936",
     "sizeAcres": 1495806,
     "sizeSqMi": 2337,
@@ -567,7 +567,7 @@
     "rank2025": 10
   },
   "nps:vive": {
-    "different": "Maya Lin designed the black granite wall as a 21-year-old Yale undergraduate, winning a blind competition against more than 1,400 other entries. It lists over 58,000 names in the order they were lost, not alphabetically.",
+    "different": "Maya Lin designed the black granite wall as a 21-year-old Yale architecture student, winning a competition in which entries were identified by number only, against more than 1,400 other submissions. It lists over 58,000 names in chronological order of casualty, not alphabetically.",
     "established": "1982",
     "sizeAcres": 2,
     "sizeSqMi": 0.003,
@@ -575,13 +575,15 @@
     "rank2025": 12
   },
   "nps:choh": {
-    "different": "A single 184.5-mile towpath beside a canal that hauled coal from western Maryland to Georgetown by mule-drawn barge for nearly a century (1831–1924), until flood damage ended operations for good. Now walkable or bikeable the entire way, lock by lock.",
+    "different": "A 184.5-mile towpath beside a canal that carried coal from Cumberland, Maryland, to Georgetown from 1831 to 1924, when it closed, in part due to severe floods.",
     "established": "1971 (canal operated 1831–1924)",
     "sizeAcres": 19586,
-    "sizeSqMi": 31
+    "sizeSqMi": 31,
+    "visits2025": 4579704,
+    "rank2025": 14
   },
   "nps:wwii": {
-    "different": "Dedicated in 2004, nearly 60 years after the war ended, after Tom Hanks fronted a national PSA campaign that drove tens of thousands of donation calls in a single night. Its 56 pillars represent every U.S. state and territory as of 1945.",
+    "different": "Dedicated May 29, 2004, nearly 60 years after the war ended, with Tom Hanks as national spokesman for the fundraising campaign chaired by Bob Dole. Its 56 pillars honor the 48 states of 1945, the District of Columbia and seven territories.",
     "established": "2004",
     "sizeAcres": 7.4,
     "sizeSqMi": 0.01,
@@ -589,9 +591,11 @@
     "rank2025": 19
   },
   "nps:dewa": {
-    "different": "A 40-mile stretch of the Delaware River cutting the last major water gap through the Appalachians before the coast — created not by a park designation but by the cancellation of a dam project that would have flooded the whole valley.",
+    "different": "Authorized in 1965 as the recreation area around the planned Tocks Island Dam reservoir. The dam was never built, and the land became parkland. The area includes a 40-mile stretch of the Delaware River and the Water Gap, where the river cuts between Blue Mountain and Kittatinny Mountain.",
     "established": "1965",
     "sizeAcres": 66741,
-    "sizeSqMi": 104
+    "sizeSqMi": 104,
+    "visits2025": 3986709,
+    "rank2025": 20
   }
 }
