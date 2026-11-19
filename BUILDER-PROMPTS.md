@@ -26,10 +26,12 @@ plan and stop. The next "complete next step" = implement the approved plan.
 | 9 | 4b — Blue Ridge Parkway live status: Worker-side scrape of `nps.gov/blri/planyourvisit/roadclosures.htm` (server-rendered per-milepost table + timestamp), `detectShutdown()` mold; promotes BRP from Tier C. Worker + `roadStatus()` change. | DONE — `brpStatus()` scrapes both VA/NC tables, classifies each row (Status cell + notes-escalation w/ facility exclusion), worst-wins over mainline (ranged-MP) rows only — spur/single-point rows excluded from the verdict. `roadStatus()` short-circuits `blue-ridge-parkway` to `tier:"B"` when `brp` is supplied; flows through the existing Tier-B notify/cooldown path unchanged. Additive `blob.brp`. Never throws; falls back to prior cycle w/ `stale:true`. 20/20 harness incl. a REAL fetch (correctly found the live MP 317.5–355.3 Helene closure) + 3 fabricated-failure cases + row-classifier unit tests + `roadStatus()` routing regression. `roads.json`/`build-parks.js` unchanged (confirmed `blob.roads` consumption is generic, no BRP special-case needed). `worker.js` only. | 2026-09-08 | 2026-09-11 `769aefc4` |
 | 13 | Indexation — `www` → apex 301 redirect (GSC: "Alternate page with proper canonical tag" flagged across homepage/guides/roads/parks/privacy) | DONE + deployed — `deploy.yml` excludes `.htaccess` from its FTP sync (protects a "server-managed" file), so the committed `public_html/.htaccess` (`433e7d8e`) couldn't ship through the normal pipeline; user uploaded it directly via Hostinger's File Manager (server had no `.htaccess` at all before this). Live-verified: `https://www.parkstatus.today/*` → single-hop 301 to the same path on apex; apex `http`/`https` behavior unchanged. One known deviation: `http://www…` is 2 hops (Hostinger's edge upgrades http→https on `www` before `.htaccess` runs, then `.htaccess` sends it to apex) — outside `.htaccess`'s control, not fixable at this layer, still lands correctly. `.htaccess` now lives outside the deploy pipeline — future edits need another manual File Manager upload. | 2026-09-17 | 2026-09-17, manual upload (uncommitted change on the server; repo copy at `433e7d8e`) |
 
-| 14 | Indexation — extend `park-facts.json` to ~13 high-traffic non-"National Park" NPS units | DONE — 13 entries added (blri, goga, natr, linc, gate, guis, gwmp, appa, lake, vive, choh, wwii, dewa; 75 total in the file). Zero build-parks.js changes (`PARK_FACTS[e.id]` lookup is kind-agnostic — confirmed by tracing + harness). `appa` omits size (linear trail); `choh`/`dewa` omit visits2025/rank2025 (no sourceable 2025 figure — IRMA down, best available is 2022/2024 data) rather than guess. `vive`/`wwii` visits2025 sourced from Wikipedia infobox fields dated "in 2025" (top-10 of the 13 from the official NPS release directly). **2026-11-18 content audit fix:** all 13 `different` lines rewritten clause-by-clause against NPS/Wikipedia (unsourced or wrong claims cut, not replaced); `choh`/`dewa` now carry visits2025/rank2025 (NPS 2025 ranking report: #14, #20); other numbers re-verified unchanged. One near-miss caught and dropped before shipping: an unsourceable "$10M Tom Hanks gift" claim for the WWII Memorial. 13/13 spot-checked via harness (all render, JSON-LD valid, no leaked undefined/NaN/null in the facts/distinct blocks, Size and 2025-visits rows correctly present/absent per entity). `parks.json`/`parks-enriched.json` byte-identical (untouched). | 2026-09-17 | 2026-09-25 `d1b4c9c97` (local, not on origin) |
-| 15 | Add Microsoft Clarity tracking script (site-wide, mirroring existing GA placement) + privacy.html disclosure | DONE — Clarity snippet (project `ynwxj9dyuh`, verbatim) inserted immediately after the GA `async src` line in all 10 build-parks.js `<head>` blocks + `index.html` (11/11, confirmed byte-identical + correctly positioned via harness, 51/51 checks). `privacy.html` disclosure updated in both spots — verified against Microsoft's own masking docs first: input-field content (the email-alerts box) is masked in every Clarity mode, unconditionally. `guides/*.html`/`support.html`'s pre-existing no-analytics gap left alone. `parks*.json` untouched. | 2026-09-25 | 2026-09-25 `6fdfbd1c5` (local, not on origin) |
-| 16 | Hawaii beaches — live water-quality advisories from the Hawaii DOH Clean Water Branch API, added alongside NY (Worker feed + island hubs + map + alerts) | DONE — committed, NOT pushed. Worker: `fetchHIBeaches()` builds 419 `hi-` rows from DOH advisory events (beach list cached daily in KV; 1 DOH request/run steady state; `Accept: application/json` trap handled). Matching: DOH link list → `station.beachId` → drawn-area overlap (≥10% of shoreline, or touching + named in DOH headline) / unique nearest point ≤50 m → island/statewide flag → island notice; local-event accuracy 91%/91% vs DOH's own lists. Sewage Spill → closed, other open types → advisory, worst wins, reason quotes DOH. No false all-clear: any bad response / unconfirmed closure → source falls back to its previous rows (stale), per source (NY ≠ HI). Alerts (Knob 1 = c): Hawaii changes grouped one message per DOH advisory (≈5,900 → ≈400 msgs/yr for an all-alerts subscriber); Hawaii never "disaster". Site: six island hubs `/beach/hawaii-*`, area-wide-advisory notices, per-state index + copy, homepage second source row/detail panel. CI: `refresh-park-data.yml` now commits `beach/index.html` + `beach/hawaii-*` (guarded glob; NY hubs deliberately excluded). Blob +27% decoded / +14% gzip. 131 Worker + 97 generator checks; all 15 NY hub pages byte-identical. NOT a full build (no `NPS_API_KEY`); Cloudflare→DOH reachability untested until deploy. NY beach feed found DEAD (404) — separate item. | 2026-10-23 | 2026-10-24 `ad7bb24a8` (Worker) + `2cd5faeaf` (site) + `259d55efb` (CI line); local, not on origin |
-| 17 | Docs: post-re-clone cleanup — commit the `park-facts.json` sourcing rule, fix the stale repo-location notes, correct the pushed-state of rows 14–16 | READY (small, docs only) | 2026-11-16 | — |
+| 14 | Indexation — extend `park-facts.json` to ~13 high-traffic non-"National Park" NPS units | DONE — 13 entries added (blri, goga, natr, linc, gate, guis, gwmp, appa, lake, vive, choh, wwii, dewa; 75 total in the file). Zero build-parks.js changes (`PARK_FACTS[e.id]` lookup is kind-agnostic — confirmed by tracing + harness). `appa` omits size (linear trail); `choh`/`dewa` omit visits2025/rank2025 (no sourceable 2025 figure — IRMA down, best available is 2022/2024 data) rather than guess. `vive`/`wwii` visits2025 sourced from Wikipedia infobox fields dated "in 2025" (top-10 of the 13 from the official NPS release directly). **2026-11-18 content audit fix:** all 13 `different` lines rewritten clause-by-clause against NPS/Wikipedia (unsourced or wrong claims cut, not replaced); `choh`/`dewa` now carry visits2025/rank2025 (NPS 2025 ranking report: #14, #20); other numbers re-verified unchanged. One near-miss caught and dropped before shipping: an unsourceable "$10M Tom Hanks gift" claim for the WWII Memorial. 13/13 spot-checked via harness (all render, JSON-LD valid, no leaked undefined/NaN/null in the facts/distinct blocks, Size and 2025-visits rows correctly present/absent per entity). `parks.json`/`parks-enriched.json` byte-identical (untouched). | 2026-09-17 | 2026-09-25 `d1b4c9c97` (pushed) |
+| 15 | Add Microsoft Clarity tracking script (site-wide, mirroring existing GA placement) + privacy.html disclosure | DONE — Clarity snippet (project `ynwxj9dyuh`, verbatim) inserted immediately after the GA `async src` line in all 10 build-parks.js `<head>` blocks + `index.html` (11/11, confirmed byte-identical + correctly positioned via harness, 51/51 checks). `privacy.html` disclosure updated in both spots — verified against Microsoft's own masking docs first: input-field content (the email-alerts box) is masked in every Clarity mode, unconditionally. `guides/*.html`/`support.html`'s pre-existing no-analytics gap left alone. `parks*.json` untouched. | 2026-09-25 | 2026-09-25 `6fdfbd1c5` (pushed) |
+| 16 | Hawaii beaches — live water-quality advisories from the Hawaii DOH Clean Water Branch API, added alongside NY (Worker feed + island hubs + map + alerts) | DONE — pushed. Worker: `fetchHIBeaches()` builds 419 `hi-` rows from DOH advisory events (beach list cached daily in KV; 1 DOH request/run steady state; `Accept: application/json` trap handled). Matching: DOH link list → `station.beachId` → drawn-area overlap (≥10% of shoreline, or touching + named in DOH headline) / unique nearest point ≤50 m → island/statewide flag → island notice; local-event accuracy 91%/91% vs DOH's own lists. Sewage Spill → closed, other open types → advisory, worst wins, reason quotes DOH. No false all-clear: any bad response / unconfirmed closure → source falls back to its previous rows (stale), per source (NY ≠ HI). Alerts (Knob 1 = c): Hawaii changes grouped one message per DOH advisory (≈5,900 → ≈400 msgs/yr for an all-alerts subscriber); Hawaii never "disaster". Site: six island hubs `/beach/hawaii-*`, area-wide-advisory notices, per-state index + copy, homepage second source row/detail panel. CI: `refresh-park-data.yml` now commits `beach/index.html` + `beach/hawaii-*` (guarded glob; NY hubs deliberately excluded). Blob +27% decoded / +14% gzip. 131 Worker + 97 generator checks; all 15 NY hub pages byte-identical. NOT a full build (no `NPS_API_KEY`); Cloudflare→DOH reachability untested until deploy. NY beach feed found DEAD (404) — separate item. | 2026-10-23 | 2026-10-24 `ad7bb24a8` (Worker) + `2cd5faeaf` (site) + `259d55efb` (CI line); pushed |
+| 17 | Docs: post-re-clone cleanup — commit the `park-facts.json` sourcing rule, fix the stale repo-location notes, correct the pushed-state of rows 14–16 | DONE — PROJECT-CONTEXT/LAUNCH-STATUS repo-location notes rewritten (no paths), rows 14–16 marked pushed, PROGRESS entry added; the sourcing rule and Item 14 fixes had already landed in `7d6a47706`. STATE.md created (builder.md now requires it). Docs only. | 2026-11-16 | 2026-11-18, see `git log` |
+| 18 | Follow-up to the Item 14 audit: `gwmp` National Register clause (the 1981 listing is the Mount Vernon Memorial Highway section, not the whole parkway) | DONE — one clause in `park-facts.json`, sourced to Wikipedia's GWMP article | 2026-11-18 | 2026-11-18, see `git log` |
+| 19 | Audit the 62 older Item 10 `park-facts.json` entries clause by clause (same rule as the Item 14 audit) | READY (content/data only) | 2026-11-18 | — |
 
 Backlog items are one-liners until the prompt-engineer promotes one to READY with a full
 block below.
@@ -1962,4 +1964,48 @@ files. Don't create one.
 2. `git diff --cached | grep -iE '/Users/|~/|@gmail|joshua'` returns nothing
    on added lines.
 3. Rows 14–16 match `git branch -r --contains`.
+</self_check>
+
+
+---
+
+## Item 19 — Audit the 62 older Item 10 `park-facts.json` entries
+
+<role>
+parkstatus.today (read PROJECT-CONTEXT.md). Content/data task, same rule as the Item 14
+audit (`7d6a47706`): every clause in `different` must trace to a source, and a cut claim
+is not replaced with a new unsourced one. Edit `park-facts.json` and the coordination
+docs only. Public repo: no personal details anywhere.
+</role>
+
+<task>
+Phase 1 (plan, wait for approval): a plain table of entry, clause, source (nps.gov first,
+Wikipedia as fallback, URL + short quote), verdict (OK / unsupported / wrong / stale-prone)
+and proposed rewrite for all 62 `nps:` entries that are not in Item 14's 13
+(blri goga natr linc gate guis gwmp appa lake vive choh wwii dewa). Phase 2 after approval:
+apply the rewrites, re-check `sizeAcres`, `established`, `visits2025`, `rank2025`, and run
+the `pageHtml` harness (13/13-style: all render, no undefined/NaN/null, `.distinct` matches).
+Not a full build (no `NPS_API_KEY`).
+</task>
+
+<context>
+Known or likely problems, found by a read-through only, so verify each before changing:
+- Wrong: `hosp` "the smallest national park" (jeff is smaller); `jeff` "the system's smallest
+  unit by far" (it is only the smallest national park); `gaar` and `kova` both claim to be
+  the least-visited park; `arch` "dropped its timed-entry reservation for 2025" (our own
+  `reservations.json` says 2026).
+- Likely embellished: `grsm` "every car is counted"; `ever` "tropical" (NPS says
+  subtropical); `indu` "20-mile" shoreline; `neri` "1,000-foot-high bridge"; `mora` "26 named
+  glaciers"; `sagu` first arm "around age 75"; `badl` "late-Eocene"; `pefo` "350-plus
+  archaeological sites".
+- Stale-prone: `neri` "newest national park"; `dena` "a new bridge opened in 2026"; `acad` and
+  `arch` reservation notes; `lavo`/`glac`/`romo` road-season timing.
+- Roughly 45 others look plausible but have never been checked clause by clause.
+</context>
+
+<self_check>
+1. Every kept clause has a source in the plan table.
+2. No clause rewritten into something equally unsourced.
+3. Only park-facts.json and coordination docs changed.
+4. Harness result and the not-a-full-build caveat stated.
 </self_check>

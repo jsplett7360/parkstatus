@@ -5,7 +5,7 @@ workflows (`.claude/commands/prompt-engineer.md`, `.claude/commands/builder.md`)
 file first. Treat everything here as known — do not re-ask the user for it; flag it if the
 user says something that contradicts it.
 
-**Last verified against the repo: 2026-09-07.** Line numbers are approximate — confirm by
+**Last verified against the repo: 2026-11-18.** Line numbers are approximate — confirm by
 reading the file before relying on one.
 
 ---
@@ -172,16 +172,18 @@ FTP sync — so planning docs here are safe):
 - `roads.json` / `reservations.json` dates drift year to year — a wrong "typically opens"
   date on a high-traffic page is worse than no page. Verify before flipping
   `datesReviewed: true`; the user reviews date rows before approval.
-- Repo lives under iCloud-synced `~/Desktop/Joshua/Project/` — bulk git is slow, and with the
-  disk nearly full macOS **evicts file contents** (`stat -f %Sf <file>` shows `dataless`, also
-  inside `.git`); reads then block until iCloud re-downloads them, hanging git, grep and Read
-  (2026-10-24: ~1.5 h). Check flags before bulk git/grep; `gh api …/contents/<path>` or the live
-  site are safe read-only fallbacks. Finder → right-click the folder → Download Now fixes it.
+- The repo was re-cloned fresh on 2026-11-16 after iCloud sync wiped the previous copy's git data;
+  the clone now lives in a cloud-synced folder, so keep caches, downloads and build output out of
+  it (`npm ci --cache "$TMPDIR/<dir>"`). Anywhere under an iCloud-synced folder (Desktop/Documents)
+  bulk git is slow, and with the disk nearly full macOS **evicts file contents** (`stat -f %Sf <file>`
+  shows `dataless`, also inside `.git`); reads then block until iCloud re-downloads them, hanging
+  git, grep and Read (2026-10-24: ~1.5 h). Check flags before bulk git/grep; `gh api …/contents/<path>`
+  or the live site are safe read-only fallbacks. Finder → right-click the folder → Download Now fixes it.
   Also watch for iCloud **conflict copies inside `.git`** (named "<name> 2"): a stale
   `.git/refs/heads/main 2` made `git fetch` die with `bad object refs/heads/main 2` and would break
   `git push`. Symptom: `git for-each-ref` says "ignoring ref with broken name". Move the file out
   (don't delete), then `git fetch` + `git push --dry-run`. `.git/index 2…9` copies are harmless.
-- `npm ci` on this Mac needs `--cache /tmp/<dir>` (default `~/.npm` has a perms issue).
+- `npm ci` on this Mac needs a cache dir outside the repo (default `~/.npm` has a perms issue).
 - CocoaPods: plain `pod install` in `ios/App/` (Homebrew Ruby breaks `bundle`).
 
 ## Tracks

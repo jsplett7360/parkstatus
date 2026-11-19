@@ -21,6 +21,14 @@ with git, git wins and the discrepancy gets flagged.
 
 ## Log
 
+### 2026-11-18 — Items 17 + 18: post-re-clone docs cleanup, `gwmp` clause fix; Item 19 queued
+
+- **Item 17 (docs only)**: PROJECT-CONTEXT.md repo-location bullet rewritten (re-cloned fresh 2026-11-16 after iCloud wiped the old copy's git data; iCloud eviction/conflict-copy guidance kept, no paths); "Last verified" bumped to 2026-11-18. LAUNCH-STATUS.md: secrets-notes path and stale repo path removed. BUILDER-PROMPTS.md rows 14-16 marked pushed (all six commits are on `origin/main`).
+- **Item 18**: `nps:gwmp` said the parkway was "listed on the National Register in 1981"; per Wikipedia the 1981 listing is its first section, the Mount Vernon Memorial Highway. Clause corrected. Found while re-checking the `7d6a47706` fixes; the other 12 entries held up (gate's subway claim is sourced to NPS directions: Rockaway-bound A train to Broad Channel).
+- **Item 19 queued (not started)**: audit of the 62 older Item 10 entries, with the known/likely errors listed in its block.
+- **Not verified**: visits2025/rank2025/acreage were not re-derived this turn; `7d6a47706` records them as matched to the NPS 2025 ranking report.
+- **STATE.md** created (builder.md now requires it each turn).
+
 ### 2026-11-18 — Item 14 content audit fixes: 13 `park-facts.json` lines re-sourced (data only)
 
 - **Scope**: `park-facts.json` only; zero build-parks.js changes. Rule: every clause in `different` traces to NPS (else Wikipedia); a cut claim is not replaced by a new unsourced one.

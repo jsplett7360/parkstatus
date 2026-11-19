@@ -37,9 +37,9 @@ Pending Play Console identity verification (needs a second device). Checklist in
 ## Secrets (values NOT in the repo)
 - Cloudflare Worker (`npx wrangler secret put` from repo root): `NPS_API_KEY`, `REBUILD_TOKEN`, VAPID keys, `RESEND_API_KEY`, `ARCGIS_API_KEY`, and for native push `APNS_AUTH_KEY` (base64 of the .p8), `APNS_KEY_ID` (HS27L95NZA), `APNS_TEAM_ID` (MGK33AG8ZK), `APNS_BUNDLE_ID` (parkstatus.today.app) — **still need to be set if not already.**
 - GitHub Actions secrets: FTP_*, NPS_API_KEY, APPLE_TEAM_ID, ASC_*.
-- `.p8` keys live in `~/keys/parkstatus/`. Plaintext secret notes: `~/Desktop/Joshua/Project/parkstatus.today.txt` (outside the repo).
+- `.p8` keys live in `~/keys/parkstatus/`. Plaintext secret notes are kept outside the repo.
 
 ## Environment gotchas
-- The repo is under `~/Desktop/Joshua/Project/`, which is **iCloud-synced** (Desktop & Documents). This made bulk git operations take 40+ min. Fix: `mv ~/Desktop/Joshua/Project ~/Projects` (or disable Desktop/Documents iCloud sync). Also keep the data volume under ~85% full.
+- Keep the clone out of iCloud-synced folders (Desktop & Documents): that made bulk git operations take 40+ min and later wiped a copy's `.git` (re-cloned 2026-11-16). Also keep the data volume under ~85% full.
 - `npm ci` on this Mac needs `--cache /tmp/<somedir>` (the default `~/.npm` cache has a perms issue).
 - CocoaPods: use plain `pod install` in `ios/App/` (Homebrew Ruby 4.0 breaks `bundle`).
